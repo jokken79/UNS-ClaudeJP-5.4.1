@@ -92,7 +92,19 @@
       "Bash(mcp__task-master__get_tasks:*)",
       "Bash(REPORTE_ANALISIS_BD_REINSTALAR.md)",
       "Bash(docker --version)",
-      "Bash(PYTHONIOENCODING=utf-8 python:*)"
+      "Bash(PYTHONIOENCODING=utf-8 python:*)",
+      "Bash(head -30 /d/UNS-ClaudeJP-5.4.1/frontend/app/(dashboard)/apartments/page.tsx)",
+      "Bash(head:*)",
+      "Bash(wc:*)",
+      "Bash(cmd /c:*)",
+      "Bash(tee:*)",
+      "Bash(cmd //c \"cd /d d:/UNS-ClaudeJP-5.4.1/scripts && HEALTH_CHECK_FUN.bat\")",
+      "Bash(export DOCKER_BUILDKIT=1:*)",
+      "Bash(xargs:*)",
+      "Bash(docker run --rm -d --name temp-backend-init --network uns-claudejp-541_uns-network -v /d/UNS-ClaudeJP-5.4.1/backend:/app -v /d/UNS-ClaudeJP-5.4.1/.env:/app/.env --env-file /d/UNS-ClaudeJP-5.4.1/.env uns-claudejp-541-backend sleep 300)",
+      "Bash(SECURITY_AUDIT_REPORT.md)",
+      "Bash(docker stop:*)",
+      "Bash(docker run:*)"
     ],
     "deny": [],
     "ask": []
