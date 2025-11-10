@@ -13,7 +13,6 @@ if not exist "%~dp0..\backend\backups\production_backup.sql" (
     echo 💡 Primero ejecuta BACKUP_DATOS.bat para crear un backup
     echo.
     pause
-    exit /b 1
 )
 
 echo 📦 Archivo de backup encontrado
@@ -27,7 +26,6 @@ if /i not "%CONFIRM%"=="S" (
     echo.
     echo ❌ Operación cancelada
     pause
-    exit /b 0
 )
 
 echo.

@@ -24,7 +24,6 @@ if %ERRORLEVEL% EQU 0 (
 ) else (
     echo ❌ Error al crear backup SQL
     pause
-    exit /b 1
 )
 
 echo.

@@ -28,7 +28,6 @@ if not exist "%~dp0..\claude-007-agents" (
     echo   git clone https://github.com/avivl/claude-007-agents.git
     echo.
     pause
-    exit /b 1
 )
 
 :MENU

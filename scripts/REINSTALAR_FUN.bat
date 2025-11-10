@@ -239,7 +239,6 @@ if not exist .env (
     if !errorlevel! neq 0 (
         echo   ❌ FALLO LA GENERACIÓN DE .env
         pause
-        exit /b 1
     )
     echo   ✅ .env generado correctamente
 ) else (
@@ -274,7 +273,6 @@ echo.
 if !errorlevel! NEQ 0 (
     echo   ❌ ERROR al construir las imágenes
     pause
-    exit /b 1
 )
 echo   ✅ Imágenes reconstruidas correctamente
 echo.
@@ -287,7 +285,6 @@ echo   🗄️  Iniciando base de datos...
 if !errorlevel! NEQ 0 (
     echo   ❌ ERROR al iniciar PostgreSQL
     pause
-    exit /b 1
 )
 echo   ✅ PostgreSQL iniciado
 echo.
@@ -321,7 +318,6 @@ if !WAIT_COUNT! GEQ 12 (
     echo.
     echo   ❌ TIMEOUT: PostgreSQL no respondió en 120 segundos
     pause
-    exit /b 1
 )
 
 timeout /t 10 /nobreak >nul
@@ -335,7 +331,6 @@ echo   🚀 Iniciando resto de servicios...
 if !errorlevel! NEQ 0 (
     echo   ❌ ERROR al iniciar servicios
     pause
-    exit /b 1
 )
 echo   ✅ Todos los servicios iniciados correctamente
 echo.

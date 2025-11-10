@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 REM Configuración optimizada para Windows 11
 chcp 65001 >nul 2>&1
 setlocal EnableDelayedExpansion
@@ -94,7 +94,6 @@ if !DB_FOUND! EQU 0 (
     echo       http://localhost:3000 (una vez instalado el sistema)
     echo.
     pause
-    exit /b 0
 )
 
 :found
@@ -132,7 +131,6 @@ if %errorlevel% NEQ 0 (
         echo    3. Ejecuta REINSTALAR.bat nuevamente
         echo.
         pause
-        exit /b 0
     )
     set "PYTHON_CMD=py"
     for /f "tokens=2" %%i in ('py --version 2^>^&1') do echo    [OK] Python encontrado: %%i (comando: py)

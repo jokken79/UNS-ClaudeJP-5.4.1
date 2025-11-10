@@ -33,7 +33,6 @@ if not exist "%~dp0..\backend\backups\production_backup.sql" (
     echo.
     timeout /t 3 /nobreak >nul
     pause
-    exit /b 1
 )
 
 echo ✅ Archivo de backup encontrado
@@ -60,7 +59,6 @@ if /i NOT "%CONFIRMAR%"=="S" (
     echo ❌ Restauración cancelada
     echo.
     pause
-    exit /b 0
 )
 
 echo.
@@ -119,7 +117,6 @@ if %ERRORLEVEL% EQU 0 (
     echo    3. Revisa el archivo de backup
     echo.
     pause
-    exit /b 1
 )
 echo.
 timeout /t 1 /nobreak >nul

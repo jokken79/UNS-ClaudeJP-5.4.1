@@ -17,13 +17,11 @@ echo VERIFICANDO RUTAS...
 if not exist "%SOURCE%" (
     echo ERROR: No se encuentra la carpeta origen: %SOURCE%
     pause
-    exit /b 1
 )
 
 if not exist "%DEST%" (
     echo ERROR: No se encuentra la carpeta destino: %DEST%
     pause
-    exit /b 1
 )
 
 echo OK - Rutas verificadas

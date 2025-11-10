@@ -157,7 +157,6 @@ if not exist .env (
     if !errorlevel! neq 0 (
         echo   ❌ ERROR en generación de .env
         pause
-        exit /b 1
     )
     echo   ✅ .env generado
 ) else (
@@ -188,7 +187,6 @@ if !errorlevel! EQU 0 (
 if !errorlevel! neq 0 (
     echo   ❌ ERROR al iniciar contenedores
     pause
-    exit /b 1
 )
 echo   ✅ Contenedores iniciados
 echo.

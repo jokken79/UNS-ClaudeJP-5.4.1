@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
@@ -26,7 +26,6 @@ git --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo   ❌ Git no está instalado
     pause
-    exit /b 1
 )
 echo   ✅ Git detectado
 echo.
@@ -97,7 +96,6 @@ echo !RAMA_COMPLETA! | findstr /R "^[a-z0-9-]*$" >nul
 if %errorlevel% neq 0 (
     echo   ❌ Nombre inválido. Usa solo minúsculas, números y guiones
     pause
-    exit /b 1
 )
 
 echo   🔄 Descargando cambios de main...

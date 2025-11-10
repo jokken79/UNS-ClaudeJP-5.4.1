@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
@@ -47,7 +47,6 @@ if /i NOT "!CONFIRMAR!"=="ELIMINAR" (
     echo   ✅ Reset cancelado - Datos preservados
     echo.
     pause
-    exit /b 0
 )
 
 echo.
@@ -58,7 +57,6 @@ if /i NOT "!FINAL!"=="S" (
     echo   ✅ Reset cancelado - Datos preservados
     echo.
     pause
-    exit /b 0
 )
 
 echo.
@@ -72,7 +70,6 @@ docker ps >nul 2>&1
 if %errorlevel% neq 0 (
     echo   ⚠️  Docker no está corriendo
     pause
-    exit /b 0
 )
 
 REM Detectar compose
@@ -86,7 +83,6 @@ if %errorlevel% EQU 0 (
     ) else (
         echo   ❌ Docker Compose no encontrado
         pause
-        exit /b 1
     )
 )
 

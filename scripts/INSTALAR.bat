@@ -130,7 +130,6 @@ if not exist .env (
     if !errorlevel! neq 0 (
         echo ❌ ERROR: Fallo la generacion de .env.
         pause
-        exit /b 1
     )
     echo      ✅ .env generado.
 ) else (
@@ -143,7 +142,6 @@ echo [Paso 2/3] Construyendo imagenes Docker (puede tardar 5-10 mins)...
 if !errorlevel! neq 0 (
     echo ❌ ERROR: Fallo al construir las imagenes. Revisa los logs.
     pause
-    exit /b 1
 )
 echo      ✅ Imagenes construidas.
 echo.

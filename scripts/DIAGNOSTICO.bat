@@ -119,7 +119,6 @@ echo.
 echo Si tienes problemas, ejecuta: LOGS.bat
 echo.
 pause
-exit /b 0
 
 :error
 echo.
@@ -131,6 +130,5 @@ echo Por favor, corrige los errores listados arriba y
 echo vuelve a ejecutar el script.
 echo.
 pause
-exit /b 1
 
 pause >nul

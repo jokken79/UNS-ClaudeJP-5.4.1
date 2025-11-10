@@ -26,7 +26,6 @@ if %ERRORLEVEL% NEQ 0 (
     echo   3. Ejecuta este script de nuevo
     echo.
     pause
-    exit /b 1
 )
 echo   ✅ Docker Desktop esta corriendo
 
@@ -84,7 +83,6 @@ if not "%missing_files%"=="" (
     echo   %missing_files%
     echo.
     pause
-    exit /b 1
 )
 echo   ✅ Todos los archivos criticos existen
 

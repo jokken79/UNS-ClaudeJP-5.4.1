@@ -54,7 +54,6 @@ if %errorlevel% neq 0 (
     echo ❌ ERROR: PostgreSQL no está corriendo
     echo    Ejecutar primero: docker-compose up -d
     pause
-    exit /b 1
 )
 
 REM Backup de PostgreSQL

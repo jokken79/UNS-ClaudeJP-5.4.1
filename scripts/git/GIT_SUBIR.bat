@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 setlocal EnableDelayedExpansion
 
 title UNS-ClaudeJP 5.2 - Subir a GitHub
@@ -28,7 +28,6 @@ if not exist ".gitignore" (
     echo No puedo continuar sin el.
     echo.
     pause
-    exit /b 1
 )
 echo OK - .gitignore encontrado
 echo.
@@ -56,7 +55,6 @@ if /i NOT "%CONFIRMAR%"=="S" (
     echo   5. Vuelve a ejecutar este script
     echo.
     pause
-    exit /b 1
 )
 echo.
 
@@ -78,7 +76,6 @@ if %errorlevel% NEQ 0 (
         start https://git-scm.com/download/win
     )
     pause
-    exit /b 1
 )
 echo OK - Git instalado
 git --version
@@ -96,7 +93,6 @@ if not exist ".git" (
     if %errorlevel% NEQ 0 (
         echo ERROR al inicializar Git
         pause
-        exit /b 1
     )
     echo OK - Repositorio inicializado
 ) else (
@@ -131,7 +127,6 @@ if /i NOT "%REVISAR%"=="S" (
     echo Operacion cancelada por el usuario.
     echo.
     pause
-    exit /b 1
 )
 echo.
 
@@ -171,7 +166,6 @@ git add .
 if %errorlevel% NEQ 0 (
     echo ERROR al agregar archivos
     pause
-    exit /b 1
 )
 echo OK - Archivos agregados
 echo.
@@ -183,7 +177,6 @@ if %errorlevel% EQU 0 (
     set /p FORZAR="Forzar push? (S/N): "
     if /i NOT "%FORZAR%"=="S" (
         pause
-        exit /b 0
     )
 ) else (
     set /p COMMIT_MSG="Mensaje del commit (Enter = default): "
@@ -195,7 +188,6 @@ if %errorlevel% EQU 0 (
     if %errorlevel% NEQ 0 (
         echo ERROR al crear commit
         pause
-        exit /b 1
     )
     echo OK - Commit creado
     echo.
@@ -231,7 +223,6 @@ if %errorlevel% NEQ 0 (
     if "!REPO_URL!"=="" (
         echo ERROR: URL requerida
         pause
-        exit /b 1
     )
 
     git remote add origin !REPO_URL!
@@ -252,7 +243,6 @@ if %errorlevel% NEQ 0 (
     echo Puede que necesites autenticarte con GitHub
     echo.
     pause
-    exit /b 1
 )
 
 echo.

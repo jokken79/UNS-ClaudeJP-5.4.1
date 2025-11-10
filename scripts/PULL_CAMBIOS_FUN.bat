@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
@@ -32,7 +32,6 @@ if %errorlevel% neq 0 (
     echo   ❌ Git no está instalado
     echo   💡 Descarga desde: https://git-scm.com/download/win
     pause
-    exit /b 1
 )
 echo   ✅ Git detectado
 echo.
@@ -61,7 +60,6 @@ if %errorlevel% neq 0 (
         echo.
         echo   ❌ Operación cancelada
         pause
-        exit /b 0
     )
     echo.
     echo   🔄 Descartando cambios locales...
