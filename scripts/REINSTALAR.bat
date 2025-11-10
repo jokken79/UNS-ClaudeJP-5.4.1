@@ -132,9 +132,9 @@ echo.
 ::  FASE PRE-INSTALACIÓN: EXTRACCIÓN DE FOTOS
 :: ═══════════════════════════════════════════════════════════════════════════
 
-echo [PRE-INSTALACIÓN] Buscando Base de Datos Access para fotos...
+echo [PRE-INSTALACIÓN] Extrayendo fotos desde Base de Datos Access...
 echo.
-call scripts\BUSCAR_FOTOS_AUTO.bat
+call scripts\EXTRAER_FOTOS_ROBUSTO.bat
 echo.
 
 :: ═══════════════════════════════════════════════════════════════════════════

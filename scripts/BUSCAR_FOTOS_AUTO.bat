@@ -174,12 +174,12 @@ echo ===========================================================================
 echo    [PASO 3/3] VERIFICANDO ARCHIVO DE FOTOS EXISTENTE
 echo ================================================================================
 echo.
-if exist "access_photo_mappings.json" (
+if exist "config\access_photo_mappings.json" (
     echo    [INFO] Archivo de mapeo de fotos ya existe
     echo.
-    for %%A in ("access_photo_mappings.json") do (
+    for %%A in ("config\access_photo_mappings.json") do (
         set /a "JSON_SIZE_MB=%%~zA / 1024 / 1024"
-        echo    Archivo: access_photo_mappings.json
+        echo    Archivo: config\access_photo_mappings.json
         echo    Tamaño: !JSON_SIZE_MB! MB (%%~zA bytes)
         echo    Fecha: %%~tA
     )
@@ -220,7 +220,7 @@ echo    Ejecutando: %PYTHON_CMD% backend\scripts\auto_extract_photos_from_databa
 echo.
 
 REM Si el usuario eligió regenerar, establecer variable de entorno
-if exist "access_photo_mappings.json" (
+if exist "config\access_photo_mappings.json" (
     if /i "!REGENERAR!"=="S" (
         echo    [INFO] Forzando regeneracion de fotos...
         %PYTHON_CMD% backend\scripts\auto_extract_photos_from_databasejp.py --force
@@ -242,9 +242,9 @@ REM Verificar el resultado de la extracción
 if !PYTHON_EXIT_CODE! EQU 0 (
     echo    [OK] El script se ejecutó correctamente
     echo.
-    if exist "access_photo_mappings.json" (
-        echo    [OK] Archivo generado: access_photo_mappings.json
-        for %%A in ("access_photo_mappings.json") do (
+    if exist "config\access_photo_mappings.json" (
+        echo    [OK] Archivo generado: config\access_photo_mappings.json
+        for %%A in ("config\access_photo_mappings.json") do (
             set "JSON_SIZE=%%~zA"
             set /a "JSON_SIZE_MB=!JSON_SIZE! / 1024 / 1024"
             echo    Tamaño: !JSON_SIZE_MB! MB (%%~zA bytes)
@@ -254,7 +254,7 @@ if !PYTHON_EXIT_CODE! EQU 0 (
         echo    [OK] Las fotos se importaran automaticamente durante la reinstalacion
         echo    [INFO] El archivo contiene fotos en formato base64 listas para importar
     ) else (
-        echo    [ADVERTENCIA] El script termino OK pero NO genero access_photo_mappings.json
+        echo    [ADVERTENCIA] El script termino OK pero NO genero config\access_photo_mappings.json
         echo    Posibles causas:
         echo      - El archivo ya existia y se salto la extraccion
         echo      - No se encontraron fotos en la base de datos
@@ -291,4 +291,3 @@ echo ===========================================================================
 echo    PRESIONA CUALQUIER TECLA PARA CERRAR ESTA VENTANA
 echo ================================================================================
 pause >nul
-exit /b !PYTHON_EXIT_CODE!
