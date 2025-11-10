@@ -141,7 +141,6 @@ if not exist .env (
     if !errorlevel! neq 0 (
         echo   ❌ ERROR: Fallo la generación de .env
         pause
-        exit /b 1
     )
     echo   ✅ .env generado correctamente
 ) else (
@@ -165,7 +164,6 @@ if !errorlevel! neq 0 (
     echo   ❌ ERROR: Fallo al construir las imágenes
     echo   💡 Revisa los logs para más detalles
     pause
-    exit /b 1
 )
 echo   ✅ Imágenes construidas correctamente
 echo.

@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 title UNS-ClaudeJP 5.4 - Búsqueda Automática de Fotos
@@ -130,7 +130,6 @@ if %errorlevel% NEQ 0 (
         echo     3. Ejecuta REINSTALAR.bat nuevamente
         echo.
         pause
-        exit /b 0
     )
     set "PYTHON_CMD=py"
     for /f "tokens=2" %%i in ('py --version 2^>^&1') do echo   ✓ Python encontrado: %%i (comando: py)

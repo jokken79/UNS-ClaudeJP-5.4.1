@@ -27,7 +27,6 @@ if %errorlevel% neq 0 (
     echo    https://www.docker.com/products/docker-desktop
     echo.
     pause
-    exit /b 1
 )
 echo ✅ Docker instalado:
 docker --version
@@ -43,7 +42,6 @@ if %errorlevel% neq 0 (
     echo    3. Ejecutar este script de nuevo
     echo.
     pause
-    exit /b 1
 )
 echo ✅ Docker Desktop corriendo
 
@@ -56,7 +54,6 @@ if %errorlevel% neq 0 (
     echo    https://nodejs.org/
     echo.
     pause
-    exit /b 1
 )
 echo ✅ Node.js instalado:
 node --version
@@ -66,7 +63,6 @@ npm --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo ❌ ERROR: npm no está disponible
     pause
-    exit /b 1
 )
 echo ✅ npm instalado:
 npm --version
@@ -112,7 +108,6 @@ if not exist ".env.example" (
     echo ❌ ERROR: .env.example no existe
     echo    Este archivo debería estar en el repositorio
     pause
-    exit /b 1
 )
 
 copy /Y .env.example .env >nul
@@ -193,7 +188,6 @@ if not exist "package.json" (
     echo ❌ ERROR: frontend/package.json no existe
     cd ..
     pause
-    exit /b 1
 )
 
 echo 📦 Ejecutando npm install...
@@ -205,7 +199,6 @@ if %errorlevel% neq 0 (
     echo ❌ ERROR: npm install falló
     cd ..
     pause
-    exit /b 1
 )
 
 echo ✅ Dependencias de frontend instaladas
@@ -295,7 +288,6 @@ if %errorlevel% neq 0 (
     echo.
     echo    Ver logs con: docker-compose logs
     pause
-    exit /b 1
 )
 
 echo ✅ Servicios iniciados

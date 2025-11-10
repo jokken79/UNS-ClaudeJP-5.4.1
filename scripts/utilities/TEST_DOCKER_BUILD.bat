@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
@@ -16,7 +16,6 @@ if %errorlevel% EQU 0 (
 ) else (
     echo [ERROR] Docker Compose no encontrado
     pause
-    exit /b 1
 )
 
 echo.
@@ -45,7 +44,6 @@ if !errorlevel! neq 0 (
     echo   - Archivos Dockerfile corruptos
     echo.
     pause
-    exit /b 1
 ) else (
     echo [DEBUG] DENTRO DEL ELSE - ERRORLEVEL ES CERO
     echo.

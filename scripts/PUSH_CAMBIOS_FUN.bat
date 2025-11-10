@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
@@ -31,7 +31,6 @@ git --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo   ❌ Git no está instalado
     pause
-    exit /b 1
 )
 
 REM Rama actual
@@ -59,7 +58,6 @@ if %errorlevel% EQU 0 (
     echo   ✅ Repositorio limpio (nada por subir)
     echo.
     pause
-    exit /b 0
 )
 
 echo ╔════════════════════════════════════════════════════════════╗
@@ -71,7 +69,6 @@ set /p AGREGAR="¿Agregar TODOS los cambios? (S/N): "
 if /i NOT "!AGREGAR!"=="S" (
     echo   ℹ️  Uso manual: git add [archivos]
     pause
-    exit /b 0
 )
 
 echo   ⏳ Agregando archivos...
@@ -89,7 +86,6 @@ set /p MENSAJE="Mensaje de commit (ej: 'Fix: corregir bug X'): "
 if "!MENSAJE!"=="" (
     echo   ❌ El mensaje no puede estar vacío
     pause
-    exit /b 1
 )
 
 echo.
@@ -110,7 +106,6 @@ git commit -m "!MENSAJE!"
 if %errorlevel% neq 0 (
     echo   ❌ Error al crear commit
     pause
-    exit /b 1
 )
 echo   ✅ Commit creado
 echo.

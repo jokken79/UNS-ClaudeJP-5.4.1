@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
@@ -71,7 +71,6 @@ docker compose down
 if !errorlevel! neq 0 (
     echo ❌ Error al detener containers
     pause
-    exit /b 1
 )
 echo ✅ Containers detenidos
 echo.
@@ -91,7 +90,6 @@ if !errorlevel! neq 0 (
     echo 💡 Intenta ejecutar manualmente:
     echo    docker compose build --no-cache frontend
     pause
-    exit /b 1
 )
 echo ✅ Frontend reconstruido con Next.js 16
 echo.
@@ -101,7 +99,6 @@ docker compose up -d
 if !errorlevel! neq 0 (
     echo ❌ Error al iniciar servicios
     pause
-    exit /b 1
 )
 echo ✅ Servicios iniciados
 echo.

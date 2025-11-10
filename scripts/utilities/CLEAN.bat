@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 setlocal EnableDelayedExpansion
 
 title UNS-ClaudeJP 5.2 - Limpiar Todo
@@ -39,7 +39,6 @@ if %errorlevel% EQU 0 (
     ) else (
         echo ERROR: Docker Compose no encontrado
         pause
-        exit /b 1
     )
 )
 

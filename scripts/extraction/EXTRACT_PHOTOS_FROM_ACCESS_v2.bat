@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 REM ============================================================
 REM EXTRACT PHOTOS FROM ACCESS DATABASE (MEJORADO)
 REM ============================================================
@@ -22,7 +22,6 @@ if errorlevel 1 (
     echo   pip install pywin32
     echo.
     pause
-    exit /b 1
 )
 
 echo pywin32 encontrado - OK

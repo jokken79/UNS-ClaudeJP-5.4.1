@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
@@ -31,7 +31,6 @@ docker ps >nul 2>&1
 if %errorlevel% neq 0 (
     echo   ❌ Docker no está corriendo
     pause
-    exit /b 1
 )
 
 echo   CONTENEDORES ACTIVOS Y SU CONSUMO:

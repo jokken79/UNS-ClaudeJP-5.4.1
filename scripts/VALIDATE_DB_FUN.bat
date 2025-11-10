@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
@@ -32,7 +32,6 @@ if %errorlevel% neq 0 (
     echo   ❌ Docker no está corriendo
     echo   💡 Intenta: START_FUN.bat
     pause
-    exit /b 1
 )
 echo   ✅ Docker está activo
 echo.
@@ -43,7 +42,6 @@ if %errorlevel% neq 0 (
     echo   ❌ PostgreSQL no está corriendo
     echo   💡 Intenta: START_FUN.bat
     pause
-    exit /b 1
 )
 echo   ✅ PostgreSQL está activo
 echo.

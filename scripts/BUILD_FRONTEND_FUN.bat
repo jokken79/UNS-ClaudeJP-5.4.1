@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
@@ -26,7 +26,6 @@ docker --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo   ❌ Docker no está instalado
     pause
-    exit /b 1
 )
 echo   ✅ Docker detectado
 echo.
@@ -38,7 +37,6 @@ if %errorlevel% neq 0 (
     if %errorlevel% neq 0 (
         echo   ❌ Docker Compose no encontrado
         pause
-        exit /b 1
     )
     set "DC=docker-compose"
 ) else (
@@ -51,7 +49,6 @@ REM Verificar frontend existe
 if not exist "frontend" (
     echo   ❌ Carpeta frontend no encontrada
     pause
-    exit /b 1
 )
 echo   ✅ Carpeta frontend existe
 echo.
@@ -74,7 +71,6 @@ if /i NOT "!CONTINUAR!"=="S" (
     echo.
     echo   ❌ Compilación cancelada
     pause
-    exit /b 0
 )
 
 echo.
@@ -95,7 +91,6 @@ if %errorlevel% neq 0 (
     echo      3. Luego reintenta BUILD_FRONTEND_FUN.bat
     echo.
     pause
-    exit /b 1
 )
 
 cls

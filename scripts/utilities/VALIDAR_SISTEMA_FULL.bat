@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
@@ -190,7 +190,6 @@ if not exist .env (
     if !errorlevel! neq 0 (
         echo [ERROR] ERROR: Fallo la generacion de .env.
         pause
-        exit /b 1
     )
     echo      [OK] .env generado.
 ) else (
@@ -208,7 +207,6 @@ echo [Paso 3/5] Reconstruyendo imagenes desde cero (puede tardar 3-5 mins)
 if !errorlevel! neq 0 (
     echo [ERROR] ERROR: Fallo al construir las imagenes. Revisa los logs.
     pause
-    exit /b 1
 )
 echo      [OK] Imagenes reconstruidas.
 echo.
@@ -223,7 +221,6 @@ echo      [4.3] Iniciando el resto de servicios
 if !errorlevel! neq 0 (
     echo [ERROR] ERROR: Fallo al iniciar los servicios.
     pause
-    exit /b 1
 )
 echo      [OK] Servicios iniciados.
 echo.

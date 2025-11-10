@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 setlocal EnableDelayedExpansion
 
 title UNS-ClaudeJP 5.2 - Bajar de GitHub
@@ -30,7 +30,6 @@ if %errorlevel% NEQ 0 (
         start https://git-scm.com/download/win
     )
     pause
-    exit /b 1
 )
 echo OK - Git instalado
 git --version
@@ -52,7 +51,6 @@ if not exist ".git" (
     echo      git clone https://github.com/usuario/repo.git
     echo.
     pause
-    exit /b 1
 )
 
 echo OK - Repositorio Git encontrado
@@ -68,7 +66,6 @@ if %errorlevel% NEQ 0 (
     if "!REPO_URL!"=="" (
         echo ERROR: URL requerida
         pause
-        exit /b 1
     )
 
     git remote add origin !REPO_URL!
@@ -120,7 +117,6 @@ if %errorlevel% NEQ 0 (
         ) else (
             echo Operacion cancelada
             pause
-            exit /b 0
         )
     ) else if "!OPCION!"=="3" (
         echo.
@@ -132,7 +128,6 @@ if %errorlevel% NEQ 0 (
     ) else (
         echo Operacion cancelada
         pause
-        exit /b 0
     )
 ) else (
     echo OK - No hay cambios locales
@@ -174,7 +169,6 @@ if %errorlevel% NEQ 0 (
     echo   4. Necesitas autenticarte
     echo.
     pause
-    exit /b 1
 )
 
 echo OK - Cambios descargados
@@ -198,7 +192,6 @@ if %errorlevel% NEQ 0 (
     echo   3. git commit -m "Resolved conflicts"
     echo.
     pause
-    exit /b 1
 )
 
 echo.

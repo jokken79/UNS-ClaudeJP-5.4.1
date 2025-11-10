@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
@@ -29,7 +29,6 @@ if %errorlevel% neq 0 (
     echo   💡 Inicia primero con: scripts\START_FUN.bat
     echo.
     pause
-    exit /b 1
 )
 
 set "DOCKER_COMPOSE_CMD="
@@ -43,7 +42,6 @@ if %errorlevel% EQU 0 (
     ) else (
         echo   ❌ Docker Compose no encontrado
         pause
-        exit /b 1
     )
 )
 

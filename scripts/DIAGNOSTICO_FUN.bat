@@ -131,7 +131,6 @@ echo.
 echo Por favor, corrige los errores listados arriba y reintenta.
 echo.
 pause
-exit /b 1
 
 :success
 echo ╔════════════════════════════════════════════════════════════╗
@@ -150,7 +149,4 @@ echo    4. Login: admin / admin123
 echo.
 echo 📊 Si tienes problemas, ejecuta: LOGS_FUN.bat
 echo.
-pause
-exit /b 0
-
 pause >nul

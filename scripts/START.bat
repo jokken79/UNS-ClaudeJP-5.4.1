@@ -183,7 +183,6 @@ if %ERROR_FLAG% EQU 1 (
     echo   Por favor, corrige los errores listados arriba y vuelve a ejecutar
     echo.
     pause
-    exit /b 1
 )
 
 echo ╔══════════════════════════════════════════════════════════════════════╗
@@ -207,7 +206,6 @@ if not exist .env (
     if !errorlevel! neq 0 (
         echo   ✗ ERROR: Falló la generación de .env
         pause
-        exit /b 1
     )
     echo   ✓ Archivo .env generado correctamente
     echo   ℹ Ubicación: %CD%\.env
@@ -238,7 +236,6 @@ if !errorlevel! neq 0 (
     echo   ✗ ERROR: Falló el inicio de los contenedores
     echo   ℹ Revisa los mensajes de error anteriores
     pause
-    exit /b 1
 )
 echo   ✓ Contenedores iniciados correctamente
 echo.

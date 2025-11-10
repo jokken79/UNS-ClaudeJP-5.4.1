@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 title UNS-ClaudeJP - Limpiar Cache Mejorado
 
@@ -37,7 +37,6 @@ cd /d "%~dp0\.."
 if %errorLevel% neq 0 (
     echo [ERROR] No se puede cambiar al directorio del proyecto
     pause
-    exit /b 1
 )
 
 echo [INFO] Directorio actual: %CD%

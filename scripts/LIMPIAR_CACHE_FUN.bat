@@ -51,7 +51,6 @@ if /i NOT "%CONFIRMAR%"=="S" (
     echo ❌ Limpieza cancelada
     echo.
     pause
-    exit /b 0
 )
 
 cd /d "%~dp0\.."

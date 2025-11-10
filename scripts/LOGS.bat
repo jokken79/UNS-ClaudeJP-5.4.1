@@ -20,7 +20,6 @@ if %errorlevel% neq 0 (
     echo        SOLUCION: Inicia Docker Desktop con START.bat primero.
     echo.
     pause
-    exit /b 1
 )
 echo     [OK] Docker Desktop esta corriendo.
 echo.
@@ -36,7 +35,6 @@ if %errorlevel% EQU 0 (
     ) else (
         echo     [ERROR] ERROR: Docker Compose no encontrado.
         pause
-        exit /b 1
     )
 )
 echo.
@@ -110,6 +108,4 @@ if errorlevel 1 (
 
 :end
 echo.
-pause
-
 pause >nul

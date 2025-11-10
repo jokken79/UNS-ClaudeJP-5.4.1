@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 REM ============================================================================
 REM EXTRAER CANDIDATOS CON FOTOS DE ACCESS
 REM ============================================================================
@@ -43,7 +43,6 @@ if %errorlevel% neq 0 (
     echo https://www.python.org/downloads/
     echo.
     pause
-    exit /b 1
 )
 
 echo ✓ Python detectado
@@ -64,7 +63,6 @@ if %errorlevel% neq 0 (
         echo   pip install pyodbc
         echo.
         pause
-        exit /b 1
     )
     echo ✓ pyodbc instalado correctamente
 )
@@ -84,7 +82,6 @@ if not exist "D:\ユニバーサル企画㈱データベースv25.3.24.accdb" (
     echo     3. Tienes permisos de lectura
     echo.
     pause
-    exit /b 1
 )
 
 echo ✓ Base de datos Access encontrada
@@ -123,7 +120,6 @@ if %errorlevel% neq 0 (
     echo     - Permisos insuficientes
     echo.
     pause
-    exit /b 1
 )
 
 echo.

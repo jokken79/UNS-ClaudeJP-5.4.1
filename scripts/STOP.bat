@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
@@ -39,7 +39,6 @@ if %errorlevel% EQU 0 (
         echo     [ERROR] ERROR: Docker Compose no encontrado.
         echo        SOLUCION: Asegurate que Docker Desktop este actualizado.
         pause
-        exit /b 1
     )
 )
 echo.

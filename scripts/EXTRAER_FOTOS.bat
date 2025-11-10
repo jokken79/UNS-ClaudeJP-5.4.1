@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
@@ -23,7 +23,6 @@ if %errorlevel% NEQ 0 (
     echo         Instala Python desde: https://www.python.org/downloads/
     echo.
     pause
-    exit /b 1
 )
 echo [OK] Python encontrado
 echo.
@@ -48,7 +47,6 @@ if %errorlevel% NEQ 0 (
             echo         Instala manualmente: pip install pywin32
             echo.
             pause
-            exit /b 1
         )
     ) else (
         echo.
@@ -56,7 +54,6 @@ if %errorlevel% NEQ 0 (
         echo        Instala con: pip install pywin32
         echo.
         pause
-        exit /b 1
     )
 ) else (
     echo [OK] pywin32 ya está instalado
