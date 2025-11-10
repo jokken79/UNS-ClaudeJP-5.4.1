@@ -107,7 +107,10 @@
       "Bash(docker run:*)",
       "Bash(bash -c:*)",
       "Bash(/tmp/next_config.txt)",
-      "Bash(/tmp/create_types.py:*)"
+      "Bash(/tmp/create_types.py:*)",
+      "Bash(for route in \"/dashboard\" \"/dashboard/candidates\" \"/dashboard/apartments\" \"/dashboard/employees\" \"/dashboard/admin\" \"/dashboard/factories\" \"/dashboard/timercards\" \"/dashboard/payroll\" \"/dashboard/requests\" \"/dashboard/reports\")",
+      "Bash(do:*)",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []
