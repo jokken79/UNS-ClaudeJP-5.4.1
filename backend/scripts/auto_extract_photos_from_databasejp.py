@@ -167,11 +167,29 @@ def extract_photos_from_access(access_db_path: Path) -> Dict[str, Any]:
         cursor.execute(f"SELECT TOP 1 * FROM [{photo_table}]")
         columns = [column[0] for column in cursor.description]
         logger.info(f"Table has {len(columns)} columns")
+        logger.info(f"Column names: {columns}")
+
+        # FIXED: Find photo column dynamically instead of hardcoded index
+        photo_column_index = None
+        photo_column_patterns = ['写真', 'photo', '写真データ', 'picture', 'image']
+
+        for idx, col_name in enumerate(columns):
+            for pattern in photo_column_patterns:
+                if pattern in col_name.lower():
+                    photo_column_index = idx
+                    logger.info(f"✓ Found photo column at index {idx}: '{col_name}'")
+                    break
+            if photo_column_index is not None:
+                break
+
+        # Fallback to index 8 if not found (backward compatibility)
+        if photo_column_index is None:
+            logger.warning("Could not find photo column by name, using default index 8")
+            photo_column_index = 8
 
         # Extract data using column indices to avoid Unicode issues
-        logger.info("Extracting data from table...")
-        
-        # Use column indices: 0 for ID, 8 for photo (based on analysis)
+        logger.info(f"Extracting data from table using photo column index {photo_column_index}...")
+
         cursor.execute(f"SELECT * FROM [{photo_table}]")
         
         mappings = {}
@@ -188,9 +206,9 @@ def extract_photos_from_access(access_db_path: Path) -> Dict[str, Any]:
             try:
                 # Get ID from first column (index 0)
                 record_id = str(row[0]) if row[0] else f"record_{total_records}"
-                
-                # Get photo data from 9th column (index 8) - this is the 写真 column
-                photo_data = row[8] if len(row) > 8 else None
+
+                # FIXED: Get photo data from dynamically found column index
+                photo_data = row[photo_column_index] if len(row) > photo_column_index else None
                 
                 if photo_data:
                     photos_extracted += 1
@@ -286,7 +304,10 @@ def main():
             logger.info("Environment variable FORCE_REGENERATE_PHOTOS detected")
     
     # Check if access_photo_mappings.json already exists
-    output_file = Path.cwd() / "access_photo_mappings.json"
+    # FIXED: Save in config/ directory where docker-compose.yml expects it
+    config_dir = Path.cwd() / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)  # Ensure config directory exists
+    output_file = config_dir / "access_photo_mappings.json"
     
     if force_regenerate:
         logger.info("Force regeneration detected - regenerating photos...")

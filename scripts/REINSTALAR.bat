@@ -334,14 +334,14 @@ if !errorlevel! NEQ 0 (
 
 echo.
 echo   ▶ Importando fotos de empleados...
-if exist "access_photo_mappings.json" (
-    for %%A in ("access_photo_mappings.json") do set "JSON_SIZE=%%~zA"
+if exist "config\access_photo_mappings.json" (
+    for %%A in ("config\access_photo_mappings.json") do set "JSON_SIZE=%%~zA"
     set /a "JSON_SIZE_MB=!JSON_SIZE! / 1024 / 1024"
-    echo   ℹ Archivo encontrado: access_photo_mappings.json (!JSON_SIZE_MB! MB)
+    echo   ℹ Archivo encontrado: config\access_photo_mappings.json (!JSON_SIZE_MB! MB)
     echo   ℹ Copiando al contenedor...
-    docker cp access_photo_mappings.json uns-claudejp-backend:/app/
+    docker cp config\access_photo_mappings.json uns-claudejp-backend:/app/config/
     echo   ℹ Importando fotos a base de datos...
-    docker exec uns-claudejp-backend python scripts/import_photos_from_json.py
+    docker exec uns-claudejp-backend python scripts/import_photos_from_json_simple.py
     if !errorlevel! EQU 0 (
         echo   ✓ Fotos importadas correctamente (!JSON_SIZE_MB! MB procesados)
     ) else (
@@ -349,9 +349,9 @@ if exist "access_photo_mappings.json" (
         echo   ℹ El sistema funciona sin fotos, solo no se mostrarán imágenes
     )
 ) else (
-    echo   ⚠ Archivo access_photo_mappings.json no encontrado
+    echo   ⚠ Archivo config\access_photo_mappings.json no encontrado
     echo   ℹ Las fotos NO fueron extraídas, pero el sistema funciona normal
-    echo   ℹ Para extraer fotos, ejecuta: scripts\BUSCAR_FOTOS_AUTO.bat
+    echo   ℹ Para extraer fotos, ejecuta: scripts\EXTRAER_FOTOS_ROBUSTO.bat
 )
 
 echo.
