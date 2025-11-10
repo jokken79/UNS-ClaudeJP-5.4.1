@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./base-datos/01_init_database.sql:/docker-entrypoint-initdb.d/01_init_database.sql:ro
+      # NOTE: Database initialization handled by Alembic migrations (importer service)
     ports:
       - "5432:5432"
     networks:
