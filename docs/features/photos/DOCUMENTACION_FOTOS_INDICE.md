@@ -16,7 +16,20 @@
 - ✅ Checklist para reinstalaciones/cambio de PC
 - ✅ **100% garantizado que funciona**
 
+### 📸 GUÍA DE EXTRACCIÓN DE FOTOS - NUEVO:
+👉 **`../../EXTRACCION_FOTOS_GUIA_COMPLETA.md`** (Raíz del proyecto)
+- ✅ **CUÁNDO se extraen las fotos** (automático vs manual)
+- ✅ **CÓMO funciona el proceso** de extracción
+- ✅ 5 escenarios completos con comandos exactos
+- ✅ Scripts involucrados explicados
+- ✅ Preguntas frecuentes (FAQ)
+- ✅ Troubleshooting completo
+
 **Este documento es CRÍTICO si**:
+- ✅ Quieres entender CUÁNDO se extraen las fotos
+- ✅ Necesitas saber si es automático o manual
+- ✅ Vas a importar nuevos datos de Access
+- ✅ Te preguntas "¿necesito extraer fotos cada vez?"
 - ✅ Vas a hacer reinstalación
 - ✅ Vas a cambiar de PC
 - ✅ Las fotos no se muestran en candidatos/empleados

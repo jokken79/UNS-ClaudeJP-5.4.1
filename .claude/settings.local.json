@@ -142,7 +142,9 @@
       "Bash(/d/tmp_token.json)",
       "Bash(/tmp/login.json)",
       "Bash(page.tsx)",
-      "Bash(powershell.exe -ExecutionPolicy Bypass -File \"D:\\UNS-ClaudeJP-5.4.1\\test_apartments_workflow.ps1\")"
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File \"D:\\UNS-ClaudeJP-5.4.1\\test_apartments_workflow.ps1\")",
+      "Bash(git diff-tree:*)",
+      "Bash(git ls-tree:*)"
     ],
     "deny": [],
     "ask": []
