@@ -37,6 +37,9 @@ export {
   CandidatesTrendCard,
 } from './TrendCard';
 
+// Occupancy Chart
+export { OccupancyChart } from './OccupancyChart';
+
 // Types
 export type {
   AreaChartDataPoint,
@@ -59,3 +62,8 @@ export type {
   TrendDataPoint,
   TrendCardProps,
 } from './TrendCard';
+
+export type {
+  OccupancyData,
+  OccupancyChartProps,
+} from './OccupancyChart';
