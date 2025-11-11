@@ -17,7 +17,7 @@ const yukyuService = {
   async getBalances() {
     const response = await fetch('/api/yukyu/balances', {
       headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('access_token')}`,
       },
     });
     if (!response.ok) throw new Error('Failed to fetch balances');
@@ -26,7 +26,7 @@ const yukyuService = {
   async getRequests() {
     const response = await fetch('/api/yukyu/requests', {
       headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem('access_token')}`,
       },
     });
     if (!response.ok) throw new Error('Failed to fetch requests');

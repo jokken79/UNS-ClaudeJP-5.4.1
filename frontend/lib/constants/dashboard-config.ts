@@ -16,6 +16,7 @@ import {
   BookOpen,
   Calendar,
   BarChart3,
+  Settings,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -99,6 +100,24 @@ export const dashboardConfig: DashboardConfig = {
       href: '/yukyu-reports',
       icon: BarChart3,
       description: 'Estadísticas y reportes de uso de vacaciones pagadas.',
+    },
+    {
+      title: 'Admin Yukyu',
+      href: '/admin/yukyu-management',
+      icon: Settings,
+      description: 'Administración de yukyus - cálculo manual y mantenimiento.',
+    },
+    {
+      title: 'Payroll Yukyu',
+      href: '/payroll/yukyu-summary',
+      icon: DollarSign,
+      description: 'Resumen de yukyus para integración con nómina.',
+    },
+    {
+      title: 'Historial Yukyu',
+      href: '/yukyu-history',
+      icon: Clock,
+      description: 'Historial detallado de uso de yukyus con lógica LIFO.',
     },
   ],
   secondaryNav: [

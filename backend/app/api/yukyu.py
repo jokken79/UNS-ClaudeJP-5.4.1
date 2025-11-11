@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.core.database import get_db
+from app.core.deps import get_current_user
 from app.models.models import User, UserRole
 from app.schemas.yukyu import (
     YukyuBalanceResponse,
@@ -54,6 +55,36 @@ async def calculate_employee_yukyus(
         employee_id=calc_request.employee_id,
         calculation_date=calc_request.calculation_date
     )
+
+
+@router.get("/balances", response_model=YukyuBalanceSummary)
+async def get_current_user_yukyu_summary(
+    current_user: User = Depends(auth_service.get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get yukyu summary for the currently authenticated user.
+
+    **Permissions:** Any authenticated user
+
+    **Returns:**
+    - All active yukyu balances for current user's employee record
+    - Total available, used, and expired days
+    """
+    # Find employee record for current user
+    from app.models.models import Employee
+    employee = db.query(Employee).filter(
+        Employee.user_id == current_user.id
+    ).first()
+
+    if not employee:
+        raise HTTPException(
+            status_code=404,
+            detail="No employee record found for current user"
+        )
+
+    service = YukyuService(db)
+    return await service.get_employee_yukyu_summary(employee.id)
 
 
 @router.get("/balances/{employee_id}", response_model=YukyuBalanceSummary)
