@@ -241,18 +241,26 @@ echo ║ [5/6] CREAR TABLAS Y DATOS DE NEGOCIO                               ║
 echo ╚══════════════════════════════════════════════════════════════════════╝
 echo.
 
-echo   ▶ Creando contenedor temporal para inicialización...
-docker run --rm -d --name temp-init --network uns-claudejp-541_uns-network -v "%CD%\backend:/app" -v "%CD%\.env:/app/.env" --env-file .env uns-claudejp-541-backend sleep 300
+echo   ▶ Iniciando servicio backend temporalmente...
+echo   i Usando imagen construida en paso 3...
+%DOCKER_COMPOSE_CMD% up -d backend
 if !errorlevel! NEQ 0 (
-    echo   X ERROR: No se pudo crear contenedor temporal
+    echo   X ERROR: No se pudo iniciar backend
+    echo   i Verificando si la imagen fue construida...
+    docker images | findstr "backend"
     pause >nul
     goto :eof
 )
-echo   √ Contenedor temporal creado
+echo   √ Servicio backend iniciado
+
+echo.
+echo   ▶ Esperando que backend esté listo (20 segundos)...
+timeout /t 20 /nobreak >nul
+echo   √ Backend listo
 
 echo.
 echo   ▶ Creando todas las tablas de la base de datos...
-docker exec temp-init bash -c "cd /app && python -c \"
+docker exec uns-claudejp-backend bash -c "cd /app && python -c \"
 from app.models.models import *
 from sqlalchemy import create_engine
 
@@ -270,7 +278,7 @@ echo   √ Todas las tablas creadas (24 tablas)
 
 echo.
 echo   ▶ Creando usuario administrador...
-docker exec temp-init bash -c "cd /app && python -c \"
+docker exec uns-claudejp-backend bash -c "cd /app && python -c \"
 from app.models.models import User
 from sqlalchemy import create_engine
 from passlib.context import CryptContext
@@ -340,10 +348,7 @@ if !errorlevel! EQU 0 (
 ) else (
     echo   ! Warning: No se pudieron verificar las tablas
 )
-
-echo   ▶ Deteniendo contenedor temporal...
-docker stop temp-init 2>nul
-echo   √ Contenedor temporal detenido
+echo   √ Inicialización de base de datos completada
 echo.
 
 :: Paso 6: Iniciar servicios finales
@@ -351,8 +356,9 @@ echo ╔════════════════════════
 echo ║ [6/6] INICIAR SERVICIOS FINALES                                     ║
 echo ╚══════════════════════════════════════════════════════════════════════╝
 echo.
-echo   ▶ Iniciando backend, frontend y servicios adicionales...
-%DOCKER_COMPOSE_CMD% up -d backend frontend adminer grafana prometheus tempo otel-collector 2>&1
+echo   ▶ Iniciando frontend y servicios adicionales...
+echo   i Backend ya está corriendo desde paso 5
+%DOCKER_COMPOSE_CMD% up -d frontend adminer grafana prometheus tempo otel-collector 2>&1
 if !errorlevel! NEQ 0 (
     echo   X ERROR: Algunos servicios no iniciaron
     pause >nul

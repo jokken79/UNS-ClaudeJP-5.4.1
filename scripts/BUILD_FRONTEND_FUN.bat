@@ -25,7 +25,9 @@ REM Verificar Docker
 docker --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo   ❌ Docker no está instalado
-    pause
+    echo   💡 Instala Docker Desktop desde: https://www.docker.com/products/docker-desktop
+    pause >nul
+    goto :eof
 )
 echo   ✅ Docker detectado
 echo.
@@ -36,7 +38,9 @@ if %errorlevel% neq 0 (
     docker-compose version >nul 2>&1
     if %errorlevel% neq 0 (
         echo   ❌ Docker Compose no encontrado
-        pause
+        echo   💡 Actualiza Docker Desktop a la última versión
+        pause >nul
+        goto :eof
     )
     set "DC=docker-compose"
 ) else (
@@ -48,7 +52,9 @@ echo.
 REM Verificar frontend existe
 if not exist "frontend" (
     echo   ❌ Carpeta frontend no encontrada
-    pause
+    echo   💡 Asegúrate de estar en el directorio raíz del proyecto
+    pause >nul
+    goto :eof
 )
 echo   ✅ Carpeta frontend existe
 echo.
@@ -70,7 +76,8 @@ set /p CONTINUAR="¿Continuar con la compilación? (S/N): "
 if /i NOT "!CONTINUAR!"=="S" (
     echo.
     echo   ❌ Compilación cancelada
-    pause
+    pause >nul
+    goto :eof
 )
 
 echo.
@@ -90,7 +97,8 @@ if %errorlevel% neq 0 (
     echo      2. Intenta: LIMPIAR_CACHE_FUN.bat
     echo      3. Luego reintenta BUILD_FRONTEND_FUN.bat
     echo.
-    pause
+    pause >nul
+    goto :eof
 )
 
 cls

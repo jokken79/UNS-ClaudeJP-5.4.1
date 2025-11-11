@@ -212,7 +212,8 @@ if %ERROR_FLAG% EQU 1 (
     echo.
     echo   Por favor, corrige los errores listados arriba y vuelve a ejecutar
     echo.
-    pause
+    pause >nul
+    goto :eof
 )
 
 cls
