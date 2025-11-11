@@ -114,7 +114,12 @@
       "Bash(sed:*)",
       "Bash(md5sum:*)",
       "Bash(for file in docs/github/prompts/*.md)",
-      "Bash(while read name)"
+      "Bash(while read name)",
+      "Bash(printf:*)",
+      "Bash(ANALISIS_EXHAUSTIVO_ARCHIVOS_MD.md)",
+      "Bash(bash:*)",
+      "Bash(rm:*)",
+      "Bash(mv:*)"
     ],
     "deny": [],
     "ask": []
