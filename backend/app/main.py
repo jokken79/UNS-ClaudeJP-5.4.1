@@ -251,6 +251,7 @@ from app.api import (
     salary,
     settings as settings_router,
     timer_cards,
+    yukyu,
 )
 
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
@@ -276,6 +277,7 @@ app.include_router(monitoring.router, prefix="/api/monitoring", tags=["Monitorin
 app.include_router(pages.router)
 app.include_router(settings_router.router, prefix="/api/settings", tags=["Settings"])
 app.include_router(role_permissions.router, tags=["Role Permissions"])
+app.include_router(yukyu.router, prefix="/api/yukyu", tags=["Yukyu (有給休暇 - Paid Vacation)"])
 
 
 if __name__ == "__main__":  # pragma: no cover

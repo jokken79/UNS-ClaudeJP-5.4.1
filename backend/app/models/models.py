@@ -55,6 +55,12 @@ class RequestStatus(str, enum.Enum):
     REJECTED = "rejected"
 
 
+class YukyuStatus(str, enum.Enum):
+    """Status of yukyu balance - active or expired"""
+    ACTIVE = "active"
+    EXPIRED = "expired"
+
+
 class ShiftType(str, enum.Enum):
     ASA = "asa"  # 朝番
     HIRU = "hiru"  # 昼番
@@ -992,4 +998,136 @@ class Workplace(Base):
     # Relationships
     region = relationship("Region", backref="workplaces")
     employees = relationship("Employee", back_populates="workplace")
+
+
+# ============================================
+# YUKYU (有給休暇 - PAID VACATION) MODELS
+# ============================================
+
+class YukyuBalance(Base):
+    """
+    有給休暇残高 (Yukyu Balance) - Tracks paid vacation days by fiscal year
+
+    Each row represents one fiscal year's allocation of yukyu for an employee.
+    Follows Japanese labor law:
+    - 6 months:  10 days
+    - 18 months: 11 days
+    - 30 months: 12 days
+    - 42 months: 14 days
+    - 54 months: 16 days
+    - 66+ months: 18-20 days
+
+    Yukyus expire after 2 years (時効 - jikou).
+    """
+    __tablename__ = "yukyu_balances"
+
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("employees.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Year and assignment tracking
+    fiscal_year = Column(Integer, nullable=False, index=True)  # 2023, 2024, 2025
+    assigned_date = Column(Date, nullable=False)  # 有給発生日 - Date when yukyu was assigned
+    months_worked = Column(Integer, nullable=False)  # 経過月 - Months since hire_date (6, 18, 30, 42, etc.)
+
+    # Balance tracking (follows Excel structure)
+    days_assigned = Column(Integer, nullable=False, default=0)  # 付与数 - Days assigned this year
+    days_carried_over = Column(Integer, nullable=False, default=0)  # 繰越 - Carried from previous year
+    days_total = Column(Integer, nullable=False, default=0)  # 保有数 - Total available (assigned + carried)
+    days_used = Column(Integer, nullable=False, default=0)  # 消化日数 - Days consumed
+    days_remaining = Column(Integer, nullable=False, default=0)  # 期末残高 - Balance at period end
+    days_expired = Column(Integer, nullable=False, default=0)  # 時効数 - Days expired after 2 years
+    days_available = Column(Integer, nullable=False, default=0)  # 時効後残 - Final available days
+
+    # Expiration tracking
+    expires_on = Column(Date, nullable=False)  # Expiration date (assigned_date + 2 years)
+    status = Column(SQLEnum(YukyuStatus, name='yukyu_status'), nullable=False, default=YukyuStatus.ACTIVE)
+
+    # Audit fields
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    notes = Column(Text)  # 備考 - Additional notes
+
+    # Relationships
+    employee = relationship("Employee", backref="yukyu_balances")
+    usage_details = relationship("YukyuUsageDetail", back_populates="balance", cascade="all, delete-orphan")
+
+
+class YukyuRequest(Base):
+    """
+    有給休暇申請 (Yukyu Request) - Yukyu request by TANTOSHA for employees
+
+    Workflow:
+    1. TANTOSHA (担当者) creates request for employee
+    2. KEIRI (経理) approves or rejects
+    3. On approval, days are deducted using LIFO (newest first)
+    """
+    __tablename__ = "yukyu_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Who and what
+    employee_id = Column(Integer, ForeignKey("employees.id", ondelete="CASCADE"), nullable=False, index=True)
+    requested_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # TANTOSHA
+    factory_id = Column(Integer, ForeignKey("factories.id"), nullable=True, index=True)  # 派遣先
+
+    # Yukyu details
+    request_type = Column(SQLEnum(RequestType, name='request_type'), nullable=False, default=RequestType.YUKYU)
+    start_date = Column(Date, nullable=False)  # Yukyu start date
+    end_date = Column(Date, nullable=False)  # Yukyu end date
+    days_requested = Column(Numeric(4, 1), nullable=False)  # Days requested (1.0, 0.5 for hannichi)
+    yukyu_available_at_request = Column(Integer, nullable=False)  # Snapshot: days available when requested
+
+    # Request tracking
+    request_date = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    status = Column(SQLEnum(RequestStatus, name='request_status'), nullable=False, default=RequestStatus.PENDING, index=True)
+
+    # Approval/Rejection
+    approved_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # KEIRI who approved/rejected
+    approval_date = Column(DateTime(timezone=True), nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+
+    # Additional info
+    notes = Column(Text)  # 備考 - Additional notes
+
+    # Audit fields
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    employee = relationship("Employee", backref="yukyu_requests")
+    requested_by = relationship("User", foreign_keys=[requested_by_user_id], backref="yukyu_requests_created")
+    approved_by = relationship("User", foreign_keys=[approved_by_user_id], backref="yukyu_requests_approved")
+    factory = relationship("Factory", backref="yukyu_requests")
+    usage_details = relationship("YukyuUsageDetail", back_populates="request", cascade="all, delete-orphan")
+
+
+class YukyuUsageDetail(Base):
+    """
+    有給休暇使用明細 (Yukyu Usage Detail) - Tracks specific dates and which balance they were deducted from
+
+    This table links:
+    - YukyuRequest (the approval)
+    - YukyuBalance (which fiscal year's balance was used)
+    - Specific dates when yukyu was taken
+
+    Implements LIFO deduction: newest balances are used first.
+    """
+    __tablename__ = "yukyu_usage_details"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Links
+    request_id = Column(Integer, ForeignKey("yukyu_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    balance_id = Column(Integer, ForeignKey("yukyu_balances.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Usage tracking
+    usage_date = Column(Date, nullable=False, index=True)  # Specific date yukyu was taken (e.g., 2025年4月19日)
+    days_deducted = Column(Numeric(3, 1), nullable=False, default=1.0)  # 0.5 for hannichi, 1.0 for full day
+
+    # Audit fields
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    request = relationship("YukyuRequest", back_populates="usage_details")
+    balance = relationship("YukyuBalance", back_populates="usage_details")
 

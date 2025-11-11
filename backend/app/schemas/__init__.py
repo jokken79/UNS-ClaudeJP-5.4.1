@@ -133,6 +133,29 @@ from app.schemas.settings import (
     SystemSettingResponse,
 )
 
+# Yukyu (有給休暇 - Paid Vacation) schemas
+from app.schemas.yukyu import (
+    YukyuBalanceBase,
+    YukyuBalanceCreate,
+    YukyuBalanceUpdate,
+    YukyuBalanceResponse,
+    YukyuBalanceSummary,
+    YukyuRequestBase,
+    YukyuRequestCreate,
+    YukyuRequestUpdate,
+    YukyuRequestApprove,
+    YukyuRequestReject,
+    YukyuRequestResponse,
+    YukyuUsageDetailBase,
+    YukyuUsageDetailCreate,
+    YukyuUsageDetailResponse,
+    YukyuCalculationRequest,
+    YukyuCalculationResponse,
+    YukyuReport,
+    YukyuAlert,
+    EmployeeByFactoryResponse,
+)
+
 __all__ = [
     # Authentication
     "UserLogin",
@@ -228,4 +251,25 @@ __all__ = [
     "VisibilityToggleResponse",
     "VisibilityToggleUpdate",
     "SystemSettingResponse",
+
+    # Yukyu (有給休暇 - Paid Vacation)
+    "YukyuBalanceBase",
+    "YukyuBalanceCreate",
+    "YukyuBalanceUpdate",
+    "YukyuBalanceResponse",
+    "YukyuBalanceSummary",
+    "YukyuRequestBase",
+    "YukyuRequestCreate",
+    "YukyuRequestUpdate",
+    "YukyuRequestApprove",
+    "YukyuRequestReject",
+    "YukyuRequestResponse",
+    "YukyuUsageDetailBase",
+    "YukyuUsageDetailCreate",
+    "YukyuUsageDetailResponse",
+    "YukyuCalculationRequest",
+    "YukyuCalculationResponse",
+    "YukyuReport",
+    "YukyuAlert",
+    "EmployeeByFactoryResponse",
 ]
