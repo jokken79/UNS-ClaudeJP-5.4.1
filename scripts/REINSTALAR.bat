@@ -260,85 +260,23 @@ echo   √ Backend listo
 
 echo.
 echo   ▶ Creando todas las tablas de la base de datos...
-docker exec uns-claudejp-backend bash -c "cd /app && python -c \"
-from app.models.models import *
-from sqlalchemy import create_engine
-
-engine = create_engine('postgresql://uns_admin:VF3sp-ZYs0ohQknm_rEmYU5UuEVfm7nGA3i-a_NetOs@db:5432/uns_claudejp')
-Base.metadata.create_all(bind=engine)
-print('√ Tablas creadas exitosamente')
-\""
+docker exec uns-claudejp-backend bash -c "cd /app && python -c \"from app.models.models import *; from sqlalchemy import create_engine; engine = create_engine('postgresql://uns_admin:VF3sp-ZYs0ohQknm_rEmYU5UuEVfm7nGA3i-a_NetOs@db:5432/uns_claudejp'); Base.metadata.create_all(bind=engine); print('✓ Tablas creadas exitosamente')\""
 if !errorlevel! NEQ 0 (
     echo   X ERROR: Falló la creación de tablas
-    docker stop temp-init 2>nul
     pause >nul
     goto :eof
 )
 echo   √ Todas las tablas creadas (24 tablas)
 
 echo.
-echo   ▶ Creando usuario administrador...
-docker exec uns-claudejp-backend bash -c "cd /app && python -c \"
-from app.models.models import User
-from sqlalchemy import create_engine
-from passlib.context import CryptContext
-
-engine = create_engine('postgresql://uns_admin:VF3sp-ZYs0ohQknm_rEmYU5UuEVfm7nGA3i-a_NetOs@db:5432/uns_claudejp')
-from sqlalchemy.orm import sessionmaker
-
-Session = sessionmaker(bind=engine)
-db = Session()
-
-# Password hash for 'admin123'
-pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
-password_hash = pwd_context.hash('admin123')
-
-admin = User(
-    username='admin',
-    email='admin@uns-kikaku.com',
-    password_hash=password_hash,
-    role='SUPER_ADMIN',
-    full_name='Administrator',
-    is_active=True
-)
-
-# Check if admin exists
-existing = db.query(User).filter(User.username == 'admin').first()
-if existing:
-    existing.password_hash = password_hash
-    existing.email = 'admin@uns-kikaku.com'
-    existing.role = 'SUPER_ADMIN'
-    print('√ Usuario admin actualizado')
-else:
-    db.add(admin)
-    print('√ Usuario admin creado')
-
-db.commit()
-db.close()
-print('√ Usuario admin configurado')
-\""
+echo   ▶ Creando usuario administrador (admin/admin123)...
+docker exec uns-claudejp-db psql -U uns_admin -d uns_claudejp -c "INSERT INTO users (username, email, password_hash, role, full_name, is_active, created_at, updated_at) VALUES ('admin', 'admin@uns-kikaku.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPjnswC9.4o1K', 'SUPER_ADMIN', 'Administrator', true, now(), now()) ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = EXCLUDED.role, updated_at = now();" >nul 2>&1
 if !errorlevel! NEQ 0 (
-    echo   ! Warning: Error creando usuario admin, usando SQL directo...
-    docker exec uns-claudejp-db psql -U uns_admin -d uns_claudejp -c "
-    INSERT INTO users (username, email, password_hash, role, full_name, is_active, created_at, updated_at)
-    VALUES (
-        'admin',
-        'admin@uns-kikaku.com',
-        '\$2b\$12\$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPjnswC9.4o1K',
-        'SUPER_ADMIN',
-        'Administrator',
-        true,
-        now(),
-        now()
-    ) ON CONFLICT (username) DO UPDATE SET
-        password_hash = EXCLUDED.password_hash,
-        role = EXCLUDED.role,
-        updated_at = now();
-    "
-    echo   √ Usuario admin creado con SQL directo
-) else (
-    echo   √ Usuario admin creado
+    echo   ! Warning: Error creando usuario admin
+    pause >nul
+    goto :eof
 )
+echo   √ Usuario admin creado/actualizado correctamente
 
 echo.
 echo   ▶ Verificando tablas en base de datos...
