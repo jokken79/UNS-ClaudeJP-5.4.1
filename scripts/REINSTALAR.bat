@@ -296,7 +296,8 @@ echo ╚════════════════════════
 echo.
 echo   ▶ Iniciando frontend y servicios adicionales...
 echo   i Backend ya está corriendo desde paso 5
-%DOCKER_COMPOSE_CMD% up -d frontend adminer grafana prometheus tempo otel-collector 2>&1
+echo   i Omitiendo servicio importer (tablas ya creadas en paso 5)
+%DOCKER_COMPOSE_CMD% up -d --no-deps frontend adminer grafana prometheus tempo otel-collector 2>&1
 if !errorlevel! NEQ 0 (
     echo   X ERROR: Algunos servicios no iniciaron
     pause >nul
