@@ -370,6 +370,13 @@ class Candidate(Base, SoftDeleteMixin):
     # Relationships
     documents = relationship("Document", back_populates="candidate", foreign_keys="Document.candidate_id")
     form_submissions = relationship("CandidateForm", back_populates="candidate", cascade="all, delete-orphan")
+    employees = relationship(
+        "Employee",
+        back_populates="candidate",
+        foreign_keys="Employee.rirekisho_id",
+        primaryjoin="Candidate.rirekisho_id==Employee.rirekisho_id",
+        cascade="all, delete-orphan"
+    )
 
 
 class CandidateForm(Base):
@@ -590,6 +597,12 @@ class Employee(Base, SoftDeleteMixin):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
+    candidate = relationship(
+        "Candidate",
+        back_populates="employees",
+        foreign_keys=[rirekisho_id],
+        primaryjoin="Employee.rirekisho_id==Candidate.rirekisho_id"
+    )
     factory = relationship("Factory", back_populates="employees", foreign_keys=[factory_id])
     apartment = relationship("Apartment", back_populates="employees")
     workplace = relationship("Workplace", back_populates="employees")

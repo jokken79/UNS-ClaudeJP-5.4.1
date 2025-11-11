@@ -442,6 +442,27 @@ async def get_employee(
     return emp_dict
 
 
+@router.get("/by-rirekisho/{rirekisho_id}", response_model=EmployeeResponse)
+async def get_employee_by_rirekisho(
+    rirekisho_id: str,
+    current_user: User = Depends(auth_service.get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get employee by rirekisho_id"""
+    employee = db.query(Employee).filter(
+        Employee.rirekisho_id == rirekisho_id,
+        Employee.deleted_at.is_(None)
+    ).first()
+
+    if not employee:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Employee with rirekisho_id '{rirekisho_id}' not found"
+        )
+
+    return employee
+
+
 @router.put("/{employee_id}", response_model=EmployeeResponse)
 async def update_employee(
     employee_id: int,
