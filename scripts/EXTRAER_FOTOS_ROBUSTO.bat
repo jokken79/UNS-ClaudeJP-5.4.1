@@ -23,6 +23,7 @@ REM Variables globales
 set "ERROR_COUNT=0"
 set "DB_PATH="
 set "PYTHON_CMD="
+set "FORCE_FLAG="
 
 REM ============================================================================
 REM  VERIFICACIÓN 1: Python Instalado
@@ -302,6 +303,7 @@ if exist "config\access_photo_mappings.json" (
     )
     echo.
     echo    [OK] Regenerando fotos...
+    set "FORCE_FLAG=--force"
 )
 
 echo.
@@ -312,11 +314,11 @@ echo.
 echo    Este proceso puede tardar 15-30 minutos para ~1,148 fotos
 echo    Por favor NO cierres esta ventana durante el proceso
 echo.
-echo    Ejecutando: %PYTHON_CMD% backend\scripts\auto_extract_photos_from_databasejp.py
+echo    Ejecutando: %PYTHON_CMD% backend\scripts\auto_extract_photos_from_databasejp.py %FORCE_FLAG%
 echo.
 
 REM Ejecutar script de extracción
-%PYTHON_CMD% backend\scripts\auto_extract_photos_from_databasejp.py
+%PYTHON_CMD% backend\scripts\auto_extract_photos_from_databasejp.py %FORCE_FLAG%
 set "PYTHON_EXIT=%errorlevel%"
 
 echo.
