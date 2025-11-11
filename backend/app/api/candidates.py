@@ -23,6 +23,7 @@ from app.schemas.candidate import (
 from app.schemas.base import PaginatedResponse
 from app.services.auth_service import auth_service
 from app.services.azure_ocr_service import azure_ocr_service
+from app.services.photo_service import photo_service
 
 import logging
 
@@ -384,7 +385,35 @@ async def save_rirekisho_form(
         candidate = db.query(Candidate).filter(Candidate.applicant_id == applicant_id).first()
 
     photo_data_url = payload.photo_data_url or payload.form_data.get("photoDataUrl")
-    
+
+    # Validate and compress photo automatically
+    if photo_data_url:
+        # Validate photo size (max 10MB before compression)
+        if not photo_service.validate_photo_size(photo_data_url, max_size_mb=10):
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="Photo size exceeds 10MB limit. Please use a smaller image."
+            )
+
+        # Log original photo info
+        original_info = photo_service.get_photo_info(photo_data_url)
+        if original_info:
+            logger.info(
+                f"Original photo: {original_info['width']}x{original_info['height']} pixels, "
+                f"{original_info['size_mb']:.2f}MB ({original_info['format']})"
+            )
+
+        # Compress photo automatically (800x1000 max, quality 85)
+        photo_data_url = photo_service.compress_photo(photo_data_url)
+
+        # Log compressed photo info
+        compressed_info = photo_service.get_photo_info(photo_data_url)
+        if compressed_info:
+            logger.info(
+                f"Compressed photo: {compressed_info['width']}x{compressed_info['height']} pixels, "
+                f"{compressed_info['size_mb']:.2f}MB"
+            )
+
     # Pass applicant_id if it exists, otherwise it will be generated for new candidates
     updates = _map_form_to_candidate(payload.form_data, applicant_id, photo_data_url)
 
