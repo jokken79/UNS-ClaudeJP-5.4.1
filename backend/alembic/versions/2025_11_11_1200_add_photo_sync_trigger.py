@@ -1,0 +1,64 @@
+"""Add trigger for automatic photo synchronization
+
+Revision ID: add_photo_sync_trigger
+Revises: 68534af764e0
+Create Date: 2025-11-11 12:00:00.000000
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision: str = 'add_photo_sync_trigger'
+down_revision: Union[str, None] = '68534af764e0'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    """Create trigger for automatic photo synchronization from candidates to employees"""
+
+    # Create function for photo synchronization
+    op.execute("""
+        CREATE OR REPLACE FUNCTION sync_candidate_photo_to_employees()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            -- Sync photo_data_url and photo_url to all employees with same rirekisho_id
+            UPDATE employees
+            SET
+                photo_data_url = NEW.photo_data_url,
+                photo_url = NEW.photo_url,
+                updated_at = NOW()
+            WHERE
+                rirekisho_id = NEW.rirekisho_id
+                AND deleted_at IS NULL;
+
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+    """)
+
+    # Create trigger on candidates table
+    op.execute("""
+        CREATE TRIGGER candidate_photo_update_trigger
+        AFTER UPDATE OF photo_data_url, photo_url ON candidates
+        FOR EACH ROW
+        WHEN (
+            OLD.photo_data_url IS DISTINCT FROM NEW.photo_data_url
+            OR OLD.photo_url IS DISTINCT FROM NEW.photo_url
+        )
+        EXECUTE FUNCTION sync_candidate_photo_to_employees();
+    """)
+
+
+def downgrade() -> None:
+    """Remove photo synchronization trigger and function"""
+
+    # Drop trigger
+    op.execute("DROP TRIGGER IF EXISTS candidate_photo_update_trigger ON candidates")
+
+    # Drop function
+    op.execute("DROP FUNCTION IF EXISTS sync_candidate_photo_to_employees()")

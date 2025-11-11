@@ -1,7 +1,7 @@
 """
 Candidates API Endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request
 import asyncio
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
@@ -11,6 +11,8 @@ from typing import Optional, Dict, Any
 from datetime import datetime, date
 import re
 import json
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.core.database import get_db
 from app.core.config import settings
@@ -23,10 +25,13 @@ from app.schemas.candidate import (
 from app.schemas.base import PaginatedResponse
 from app.services.auth_service import auth_service
 from app.services.azure_ocr_service import azure_ocr_service
+from app.services.photo_service import photo_service
+from app.services.candidate_service import CandidateService
 
 import logging
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 logger = logging.getLogger(__name__)
 
@@ -322,13 +327,16 @@ def generate_applicant_id(db: Session) -> str:
 
 
 @router.post("/", response_model=CandidateResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("30/minute")
 async def create_candidate(
+    request: Request,
     candidate: CandidateCreate,
     current_user: User = Depends(auth_service.get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
     Create new candidate from rirekisho (履歴書)
+    Rate limit: 30 requests per minute
     """
     # Basic validation
     if not candidate.full_name_kanji and not candidate.full_name_roman:
@@ -359,12 +367,17 @@ async def create_candidate(
 
 
 @router.post("/rirekisho/form", response_model=CandidateFormResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("30/minute")
 async def save_rirekisho_form(
+    request: Request,
     payload: RirekishoFormCreate,
     current_user: User = Depends(auth_service.get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Persist a raw rirekisho form snapshot and sync key fields into candidates."""
+    """
+    Persist a raw rirekisho form snapshot and sync key fields into candidates.
+    Rate limit: 30 requests per minute
+    """
 
     if not payload.form_data:
         raise HTTPException(
@@ -384,7 +397,35 @@ async def save_rirekisho_form(
         candidate = db.query(Candidate).filter(Candidate.applicant_id == applicant_id).first()
 
     photo_data_url = payload.photo_data_url or payload.form_data.get("photoDataUrl")
-    
+
+    # Validate and compress photo automatically
+    if photo_data_url:
+        # Validate photo size (max 10MB before compression)
+        if not photo_service.validate_photo_size(photo_data_url, max_size_mb=10):
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="Photo size exceeds 10MB limit. Please use a smaller image."
+            )
+
+        # Log original photo info
+        original_info = photo_service.get_photo_info(photo_data_url)
+        if original_info:
+            logger.info(
+                f"Original photo: {original_info['width']}x{original_info['height']} pixels, "
+                f"{original_info['size_mb']:.2f}MB ({original_info['format']})"
+            )
+
+        # Compress photo automatically (800x1000 max, quality 85)
+        photo_data_url = photo_service.compress_photo(photo_data_url)
+
+        # Log compressed photo info
+        compressed_info = photo_service.get_photo_info(photo_data_url)
+        if compressed_info:
+            logger.info(
+                f"Compressed photo: {compressed_info['width']}x{compressed_info['height']} pixels, "
+                f"{compressed_info['size_mb']:.2f}MB"
+            )
+
     # Pass applicant_id if it exists, otherwise it will be generated for new candidates
     updates = _map_form_to_candidate(payload.form_data, applicant_id, photo_data_url)
 
@@ -450,44 +491,13 @@ async def list_candidates(
         actual_skip = (page - 1) * page_size
         actual_limit = page_size
 
-    query = db.query(Candidate)
-
-    # Exclude soft-deleted candidates by default
-    query = query.filter(Candidate.deleted_at.is_(None))
-
-    # Apply filters
-    if status_filter:
-        query = query.filter(Candidate.status == status_filter)
-
-    if search:
-        query = query.filter(
-            (Candidate.full_name_kanji.ilike(f"%{search}%")) |
-            (Candidate.full_name_kana.ilike(f"%{search}%")) |
-            (Candidate.full_name_roman.ilike(f"%{search}%")) |
-            (Candidate.rirekisho_id.ilike(f"%{search}%"))
-        )
-
-    # Apply sorting
-    if sort == "oldest":
-        query = query.order_by(Candidate.id.asc())
-    elif sort == "newest":
-        query = query.order_by(Candidate.id.desc())
-    elif sort == "id_asc":
-        query = query.order_by(Candidate.id.asc())
-    elif sort == "id_desc":
-        query = query.order_by(Candidate.id.desc())
-    else:  # default to newest (by ID)
-        query = query.order_by(Candidate.id.desc())
-
-    # Get total count
-    total = query.count()
-
-    # Apply pagination
-    candidates = (
-        query
-        .offset(actual_skip)
-        .limit(actual_limit)
-        .all()
+    service = CandidateService(db)
+    candidates, total = await service.list_candidates(
+        skip=actual_skip,
+        limit=actual_limit,
+        status_filter=status_filter,
+        search=search,
+        sort=sort
     )
 
     # Convert SQLAlchemy objects to Pydantic models
@@ -515,17 +525,8 @@ async def get_candidate(
     """
     Get candidate by ID with eager loaded relationships
     """
-    candidate = (
-        db.query(Candidate)
-        .filter(Candidate.id == candidate_id)
-        .filter(Candidate.deleted_at.is_(None))  # Exclude soft-deleted
-        .first()
-    )
-    if not candidate:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Candidate not found"
-        )
+    service = CandidateService(db)
+    candidate = await service.get_candidate_by_id(candidate_id)
     return candidate
 
 
@@ -539,20 +540,8 @@ async def update_candidate(
     """
     Update candidate
     """
-    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
-    if not candidate:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Candidate not found"
-        )
-
-    # Update fields
-    for field, value in candidate_update.model_dump(exclude_unset=True).items():
-        setattr(candidate, field, value)
-
-    db.commit()
-    db.refresh(candidate)
-
+    service = CandidateService(db)
+    candidate = await service.update_candidate(candidate_id, candidate_update, current_user)
     return candidate
 
 
@@ -568,23 +557,8 @@ async def delete_candidate(
     Marks the candidate as deleted without removing from database.
     Allows for auditing and potential restoration.
     """
-    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
-    if not candidate:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Candidate not found"
-        )
-
-    # Check if already deleted
-    if candidate.is_deleted:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Candidate is already deleted"
-        )
-
-    candidate.soft_delete()
-    db.commit()
-
+    service = CandidateService(db)
+    await service.soft_delete_candidate(candidate_id, current_user)
     return {"message": "Candidate deleted successfully"}
 
 
@@ -599,23 +573,8 @@ async def restore_candidate(
 
     Restores a previously soft-deleted candidate, making it active again.
     """
-    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
-    if not candidate:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Candidate not found"
-        )
-
-    # Check if not deleted
-    if not candidate.is_deleted:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Candidate is not deleted"
-        )
-
-    candidate.restore()
-    db.commit()
-
+    service = CandidateService(db)
+    await service.restore_candidate(candidate_id, current_user)
     return {"message": "Candidate restored successfully"}
 
 
@@ -651,7 +610,9 @@ async def quick_evaluate_candidate(
 
 
 @router.post("/{candidate_id}/upload", response_model=DocumentUpload)
+@limiter.limit("20/minute")
 async def upload_document(
+    request: Request,
     candidate_id: int,
     file: UploadFile = File(...),
     document_type: str = Form(...),
@@ -660,6 +621,7 @@ async def upload_document(
 ):
     """
     Upload document for candidate with OCR processing
+    Rate limit: 20 requests per minute
     """
     # Verify candidate exists
     candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
@@ -791,110 +753,27 @@ async def upload_document(
 
 
 @router.post("/{candidate_id}/approve", response_model=CandidateResponse)
+@limiter.limit("30/minute")
 async def approve_candidate(
+    request: Request,
     candidate_id: int,
     approve_data: CandidateApprove,
     current_user: User = Depends(auth_service.require_role("admin")),
     db: Session = Depends(get_db)
 ):
     """
-    Approve candidate
+    Approve candidate and optionally promote to employee
+    Rate limit: 30 requests per minute
     """
-    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
-    if not candidate:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Candidate not found"
-        )
-
-    candidate.status = CandidateStatus.APPROVED
-    candidate.approved_by = current_user.id
-    candidate.approved_at = func.now()
-
-    if approve_data.promote_to_employee:
-        # Avoid creating duplicate employees for the same rirekisho_id
-        existing_employee = db.query(Employee).filter(Employee.rirekisho_id == candidate.rirekisho_id).first()
-
-        if not existing_employee:
-            employee_name = candidate.full_name_kanji or candidate.full_name_roman
-            if not employee_name:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Candidate name is required to create an employee",
-                )
-
-            last_employee = db.query(Employee).order_by(Employee.hakenmoto_id.desc()).first()
-            next_hakenmoto_id = (last_employee.hakenmoto_id + 1) if last_employee else 1
-
-            # Keep the 3-part Japanese address structure
-            address_parts = [
-                candidate.current_address,
-                candidate.address_banchi,
-                candidate.address_building,
-            ]
-            candidate_address = " ".join([part for part in address_parts if part]) or candidate.registered_address
-
-            jikyu_value = approve_data.jikyu if approve_data.jikyu is not None else 0
-
-            new_employee = Employee(
-                hakenmoto_id=next_hakenmoto_id,
-                rirekisho_id=candidate.rirekisho_id,
-                factory_id=approve_data.factory_id,
-                hakensaki_shain_id=approve_data.hakensaki_shain_id,
-                full_name_kanji=employee_name,
-                full_name_kana=candidate.full_name_kana,
-                photo_url=candidate.photo_url,
-                photo_data_url=candidate.photo_data_url,
-                date_of_birth=candidate.date_of_birth,
-                gender=candidate.gender,
-                nationality=candidate.nationality,
-                zairyu_card_number=candidate.residence_card_number,
-                zairyu_expire_date=candidate.residence_expiry,
-                address=candidate_address,
-                current_address=candidate.current_address,  # 現住所 - Base address
-                address_banchi=candidate.address_banchi,  # 番地 - Block/lot number
-                address_building=candidate.address_building,  # 物件名 - Building name
-                postal_code=candidate.postal_code,
-                phone=candidate.mobile or candidate.phone,
-                email=candidate.email,
-                emergency_contact_name=candidate.emergency_contact_name,
-                emergency_contact_relationship=candidate.emergency_contact_relation,
-                emergency_contact_phone=candidate.emergency_contact_phone,
-                hire_date=approve_data.hire_date or candidate.hire_date,
-                jikyu=jikyu_value,
-                position=approve_data.position,
-                contract_type=approve_data.contract_type,
-                notes=approve_data.notes,
-            )
-
-            db.add(new_employee)
-            db.flush()
-
-            # Copy candidate documents to the new employee profile
-            candidate_documents = db.query(Document).filter(Document.candidate_id == candidate.id).all()
-            for doc in candidate_documents:
-                employee_document = Document(
-                    employee_id=new_employee.id,
-                    candidate_id=None,
-                    document_type=doc.document_type,
-                    file_name=doc.file_name,
-                    file_path=doc.file_path,
-                    file_size=doc.file_size,
-                    mime_type=doc.mime_type,
-                    ocr_data=doc.ocr_data,
-                    uploaded_by=current_user.id,
-                )
-                db.add(employee_document)
-        candidate.status = CandidateStatus.HIRED
-
-    db.commit()
-    db.refresh(candidate)
-
+    service = CandidateService(db)
+    candidate = await service.approve_candidate(candidate_id, approve_data, current_user)
     return candidate
 
 
 @router.post("/{candidate_id}/reject", response_model=CandidateResponse)
+@limiter.limit("30/minute")
 async def reject_candidate(
+    request: Request,
     candidate_id: int,
     reject_data: CandidateReject,
     current_user: User = Depends(auth_service.require_role("admin")),
@@ -902,21 +781,10 @@ async def reject_candidate(
 ):
     """
     Reject candidate
+    Rate limit: 30 requests per minute
     """
-    candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
-    if not candidate:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Candidate not found"
-        )
-
-    candidate.status = CandidateStatus.REJECTED
-    candidate.approved_by = current_user.id
-    candidate.approved_at = func.now()
-
-    db.commit()
-    db.refresh(candidate)
-
+    service = CandidateService(db)
+    candidate = await service.reject_candidate(candidate_id, reject_data, current_user)
     return candidate
 
 
@@ -927,13 +795,16 @@ async def ocr_process_options():
 
 
 @router.post("/ocr/process")
+@limiter.limit("10/minute")
 async def process_ocr_document(
+    request: Request,
     file: UploadFile = File(...),
     document_type: str = Form(...)
 ):
     """
     Process document with OCR without creating candidate
     Returns extracted data including personal information
+    Rate limit: 10 requests per minute (resource intensive operation)
 
     Supported document types:
     - rirekisho: Resume/CV (履歴書)

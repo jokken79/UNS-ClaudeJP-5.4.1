@@ -259,14 +259,20 @@ timeout /t 20 /nobreak >nul
 echo   ∁EBackend listo
 
 echo.
-echo   ▶ Creando todas las tablas de la base de datos...
-docker exec uns-claudejp-backend bash -c "cd /app && python -c \"from app.models.models import *; from sqlalchemy import create_engine; engine = create_engine('postgresql://uns_admin:VF3sp-ZYs0ohQknm_rEmYU5UuEVfm7nGA3i-a_NetOs@db:5432/uns_claudejp'); Base.metadata.create_all(bind=engine); print('✁ETablas creadas exitosamente')\""
+echo   ▶ Ejecutando migraciones de Alembic (incluye triggers e índices)...
+echo   i Esto aplicará TODAS las migraciones incluyendo:
+echo   i   - Tablas base (24 tablas)
+echo   i   - Trigger de sincronización de fotos
+echo   i   - Índices de búsqueda (12 índices GIN/trigram)
+docker exec uns-claudejp-backend bash -c "cd /app && alembic upgrade head"
 if !errorlevel! NEQ 0 (
-    echo   X ERROR: Falló la creación de tablas
+    echo   X ERROR: Falló la ejecución de migraciones
+    echo   i Verifica los logs: docker logs uns-claudejp-backend
     pause >nul
     goto :eof
 )
-echo   ∁ETodas las tablas creadas (24 tablas)
+echo   ∁ETodas las migraciones aplicadas correctamente
+echo   i Tablas + Triggers + Índices configurados
 
 echo.
 echo   ▶ Creando usuario administrador (admin/admin123)...

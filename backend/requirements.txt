@@ -62,8 +62,8 @@ pytest-asyncio==0.24.0
 redis==7.0.1
 
 # Face Detection Enhancement
-# mediapipe
-# easyocr
+mediapipe==0.10.15
+easyocr==1.7.2
 
 # Logging
 loguru==0.7.3
