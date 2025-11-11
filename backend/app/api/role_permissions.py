@@ -57,6 +57,7 @@ class PageInfo(BaseModel):
 # ================================
 
 AVAILABLE_PAGES = [
+    # Main Modules (15)
     {"key": "dashboard", "name": "ダッシュボード", "name_en": "Dashboard", "description": "Main dashboard"},
     {"key": "candidates", "name": "候補者", "name_en": "Candidates", "description": "Manage job candidates"},
     {"key": "employees", "name": "従業員", "name_en": "Employees", "description": "Manage employees"},
@@ -72,6 +73,66 @@ AVAILABLE_PAGES = [
     {"key": "help", "name": "ヘルプ", "name_en": "Help", "description": "Documentation"},
     {"key": "terms", "name": "利用規約", "name_en": "Terms", "description": "Terms of service"},
     {"key": "privacy", "name": "プライバシーポリシー", "name_en": "Privacy Policy", "description": "Privacy policy"},
+
+    # Candidates Module (3)
+    {"key": "candidates_create", "name": "候補者作成", "name_en": "Create Candidate", "description": "Create new candidate"},
+    {"key": "candidates_edit", "name": "候補者編集", "name_en": "Edit Candidate", "description": "Edit candidate details"},
+    {"key": "candidates_upload", "name": "候補者アップロード", "name_en": "Upload Candidate", "description": "Upload candidate resume (OCR)"},
+
+    # Employees Module (3)
+    {"key": "employees_create", "name": "従業員作成", "name_en": "Create Employee", "description": "Create new employee"},
+    {"key": "employees_edit", "name": "従業員編集", "name_en": "Edit Employee", "description": "Edit employee details"},
+    {"key": "employees_bulk_operations", "name": "従業員一括操作", "name_en": "Bulk Operations", "description": "Bulk employee operations"},
+
+    # Factories Module (2)
+    {"key": "factories_create", "name": "派遣先作成", "name_en": "Create Factory", "description": "Create new factory"},
+    {"key": "factories_edit", "name": "派遣先編集", "name_en": "Edit Factory", "description": "Edit factory details"},
+
+    # Apartments Module (2)
+    {"key": "apartments_create", "name": "アパート作成", "name_en": "Create Apartment", "description": "Create new apartment"},
+    {"key": "apartments_edit", "name": "アパート編集", "name_en": "Edit Apartment", "description": "Edit apartment details"},
+
+    # Salary Module (3)
+    {"key": "salary_calculations", "name": "給与計算", "name_en": "Salary Calculations", "description": "Salary calculations"},
+    {"key": "salary_history", "name": "給与履歴", "name_en": "Salary History", "description": "Salary history"},
+    {"key": "salary_export", "name": "給与エクスポート", "name_en": "Export Salary", "description": "Export salary data"},
+
+    # Requests Module (2)
+    {"key": "requests_create", "name": "申請作成", "name_en": "Create Request", "description": "Create new request"},
+    {"key": "requests_approval", "name": "申請承認", "name_en": "Request Approval", "description": "Approve/reject requests"},
+
+    # Reports Module (3)
+    {"key": "reports_attendance", "name": "出勤レポート", "name_en": "Attendance Report", "description": "Attendance reports"},
+    {"key": "reports_payroll", "name": "給与レポート", "name_en": "Payroll Report", "description": "Payroll reports"},
+    {"key": "reports_export", "name": "レポートエクスポート", "name_en": "Export Reports", "description": "Export reports"},
+
+    # Settings Module (8)
+    {"key": "settings", "name": "設定", "name_en": "Settings", "description": "System settings"},
+    {"key": "settings_appearance", "name": "外観設定", "name_en": "Appearance Settings", "description": "Theme and appearance"},
+    {"key": "settings_profile", "name": "プロフィール設定", "name_en": "Profile Settings", "description": "User profile"},
+    {"key": "settings_language", "name": "言語設定", "name_en": "Language Settings", "description": "Language preferences"},
+    {"key": "settings_notifications", "name": "通知設定", "name_en": "Notification Settings", "description": "Notification preferences"},
+    {"key": "settings_security", "name": "セキュリティ設定", "name_en": "Security Settings", "description": "Security settings"},
+    {"key": "settings_integrations", "name": "連携設定", "name_en": "Integration Settings", "description": "Integration settings"},
+    {"key": "settings_backup", "name": "バックアップ設定", "name_en": "Backup Settings", "description": "Backup and restore"},
+
+    # Admin Module (5)
+    {"key": "admin", "name": "管理", "name_en": "Admin", "description": "Admin panel"},
+    {"key": "admin_users", "name": "ユーザー管理", "name_en": "User Management", "description": "Manage users"},
+    {"key": "admin_roles", "name": "ロール管理", "name_en": "Role Management", "description": "Manage roles and permissions"},
+    {"key": "admin_system", "name": "システム管理", "name_en": "System Management", "description": "System configuration"},
+    {"key": "admin_audit", "name": "監査ログ", "name_en": "Audit Log", "description": "System audit log"},
+    {"key": "admin_database", "name": "データベース管理", "name_en": "Database Management", "description": "Database tools"},
+
+    # Other Features (8)
+    {"key": "notifications", "name": "通知", "name_en": "Notifications", "description": "Notifications center"},
+    {"key": "import_export", "name": "インポート/エクスポート", "name_en": "Import/Export", "description": "Data import/export"},
+    {"key": "themes", "name": "テーマ", "name_en": "Themes", "description": "Theme gallery"},
+    {"key": "themes_customizer", "name": "テーマカスタマイザー", "name_en": "Theme Customizer", "description": "Custom theme builder"},
+    {"key": "themes_gallery", "name": "テーマギャラリー", "name_en": "Theme Gallery", "description": "Theme gallery"},
+    {"key": "monitoring", "name": "モニタリング", "name_en": "Monitoring", "description": "System monitoring"},
+    {"key": "monitoring_health", "name": "ヘルスチェック", "name_en": "Health Check", "description": "System health"},
+    {"key": "monitoring_performance", "name": "パフォーマンス", "name_en": "Performance", "description": "Performance metrics"},
 ]
 
 # ================================
@@ -79,11 +140,93 @@ AVAILABLE_PAGES = [
 # ================================
 
 AVAILABLE_ROLES = [
-    {"key": "ADMIN", "name": "アドミニストレーター", "name_en": "Administrator", "description": "Full access to all features"},
-    {"key": "KEITOSAN", "name": "経理管理", "name_en": "Finance Manager", "description": "Finance and accounting access"},
-    {"key": "TANTOSHA", "name": "担当者", "name_en": "Representative", "description": "HR and operations access"},
-    {"key": "EMPLOYEE", "name": "従業員", "name_en": "Employee", "description": "Limited access to own data"},
+    {"key": "SUPER_ADMIN", "name": "スーパー管理者", "name_en": "Super Administrator", "description": "Full system control"},
+    {"key": "ADMIN", "name": "アドミニストレーター", "name_en": "Administrator", "description": "Administrative access"},
+    {"key": "COORDINATOR", "name": "コーディネーター", "name_en": "Coordinator", "description": "Coordination tasks"},
+    {"key": "KANRININSHA", "name": "管理人者", "name_en": "Manager", "description": "Manager role"},
+    {"key": "EMPLOYEE", "name": "従業員", "name_en": "Employee", "description": "Employee access"},
+    {"key": "CONTRACT_WORKER", "name": "契約社員", "name_en": "Contract Worker", "description": "Contract worker access"},
+    {"key": "KEITOSAN", "name": "経理管理", "name_en": "Finance Manager", "description": "Finance and accounting (legacy)"},
+    {"key": "TANTOSHA", "name": "担当者", "name_en": "Representative", "description": "HR and operations (legacy)"},
 ]
+
+
+# ================================
+# DEFAULT PERMISSIONS MATRIX
+# ================================
+
+def get_default_permissions_matrix() -> Dict[str, List[str]]:
+    """
+    Returns the default permissions matrix for each role
+    Maps role_key -> list of enabled page_keys
+    """
+    # Extract all page keys
+    all_pages = [page["key"] for page in AVAILABLE_PAGES]
+
+    # Define restricted pages that require admin/elevated access
+    admin_only_pages = [
+        "admin", "admin_users", "admin_roles", "admin_system",
+        "admin_audit", "admin_database", "monitoring",
+        "monitoring_health", "monitoring_performance",
+        "settings_integrations", "settings_backup",
+        "import_export"
+    ]
+
+    finance_pages = [
+        "salary", "salary_calculations", "salary_history",
+        "salary_export", "reports_payroll"
+    ]
+
+    hr_pages = [
+        "candidates", "candidates_create", "candidates_edit", "candidates_upload",
+        "employees", "employees_create", "employees_edit", "employees_bulk_operations",
+        "factories", "factories_create", "factories_edit",
+        "apartments", "apartments_create", "apartments_edit",
+        "requests_approval", "reports_attendance"
+    ]
+
+    basic_pages = [
+        "dashboard", "timer_cards", "requests", "requests_create",
+        "notifications", "support", "help", "terms", "privacy",
+        "settings", "settings_appearance", "settings_profile",
+        "settings_language", "settings_notifications", "settings_security",
+        "design_system", "forms", "themes", "themes_customizer", "themes_gallery"
+    ]
+
+    return {
+        "SUPER_ADMIN": all_pages,  # Full access to all 54 pages
+
+        "ADMIN": [p for p in all_pages if p != "admin_database"],  # All except DB admin
+
+        "COORDINATOR": basic_pages + hr_pages + [
+            "reports", "reports_attendance", "reports_export"
+        ],
+
+        "KANRININSHA": basic_pages + hr_pages + finance_pages + [
+            "reports", "reports_attendance", "reports_payroll", "reports_export"
+        ],
+
+        "EMPLOYEE": basic_pages + [
+            "candidates", "employees", "factories", "apartments",
+            "salary", "salary_history", "reports", "reports_attendance"
+        ],
+
+        "CONTRACT_WORKER": [
+            "dashboard", "timer_cards", "requests", "requests_create",
+            "notifications", "support", "help", "terms", "privacy",
+            "settings", "settings_appearance", "settings_profile",
+            "settings_language", "settings_notifications"
+        ],
+
+        # Legacy roles (backward compatibility)
+        "KEITOSAN": basic_pages + finance_pages + [
+            "employees", "reports", "reports_payroll", "reports_export"
+        ],
+
+        "TANTOSHA": basic_pages + hr_pages + [
+            "reports", "reports_attendance", "reports_export"
+        ],
+    }
 
 
 # ================================
@@ -341,3 +484,76 @@ async def reset_permissions(
         "message": f"Permissions reset for role '{role_key}'",
         "note": "Use the default permissions setup to restore specific values"
     }
+
+
+@router.post("/initialize-defaults", summary="Initialize default permissions for all roles")
+async def initialize_default_permissions(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Initialize default permissions for all roles based on the default matrix
+    This endpoint will:
+    1. Clear ALL existing permissions from the database
+    2. Create fresh permissions based on get_default_permissions_matrix()
+    3. Return a summary of created permissions
+
+    Only ADMIN/SUPER_ADMIN users can access this endpoint
+    Use this for initial setup or to restore default permissions
+    """
+    try:
+        # Step 1: Clear all existing permissions
+        deleted_count = db.query(RolePagePermission).delete()
+        db.commit()
+
+        # Step 2: Get default permissions matrix
+        default_matrix = get_default_permissions_matrix()
+
+        # Step 3: Create permissions for each role
+        created_count = 0
+        role_summary = {}
+
+        for role_key, page_keys in default_matrix.items():
+            enabled_pages = []
+
+            for page_key in page_keys:
+                # Validate page exists in AVAILABLE_PAGES
+                if page_key not in [p["key"] for p in AVAILABLE_PAGES]:
+                    continue  # Skip invalid page keys
+
+                # Create permission
+                db_permission = RolePagePermission(
+                    role_key=role_key,
+                    page_key=page_key,
+                    is_enabled=True
+                )
+                db.add(db_permission)
+                enabled_pages.append(page_key)
+                created_count += 1
+
+            role_summary[role_key] = {
+                "total_pages": len(enabled_pages),
+                "enabled_pages": enabled_pages
+            }
+
+        db.commit()
+
+        # Step 4: Return summary
+        return {
+            "success": True,
+            "message": "Default permissions initialized successfully",
+            "summary": {
+                "deleted_permissions": deleted_count,
+                "created_permissions": created_count,
+                "total_roles": len(default_matrix),
+                "total_pages": len(AVAILABLE_PAGES),
+                "role_summary": role_summary
+            }
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to initialize default permissions: {str(e)}"
+        )

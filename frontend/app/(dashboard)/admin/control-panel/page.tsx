@@ -20,6 +20,8 @@ import {
   Wrench,
   Users,
   UserCog,
+  Search,
+  Database,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,10 +29,10 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { useAllPagesVisibility } from '@/hooks/use-page-visibility';
 import api from '@/lib/api';
-import { UnderConstruction } from '@/components/ui/under-construction';
 
 interface Statistics {
   pages: {
@@ -60,21 +62,66 @@ interface RolePermissionsResponse {
   enabled_pages: number;
 }
 
-const ROLES = [
-  { key: 'ADMIN', name: 'アドミニストレーター', name_en: 'Administrator', description: 'Acceso completo a todas las funciones' },
-  { key: 'KEITOSAN', name: '経理管理', name_en: 'Finance Manager', description: 'Acceso a finanzas y contabilidad' },
-  { key: 'TANTOSHA', name: '担当者', name_en: 'Representative', description: 'Acceso a RRHH y operaciones' },
-  { key: 'EMPLOYEE', name: '従業員', name_en: 'Employee', description: 'Acceso limitado a datos propios' },
-];
+interface Role {
+  key: string;
+  name: string;
+  name_en: string;
+  description: string;
+}
+
+interface Page {
+  key: string;
+  name: string;
+  name_en: string;
+  description?: string;
+}
 
 export default function AdminControlPanelPage() {
-  const { pages, loading: pagesLoading, updatePageVisibility } = useAllPagesVisibility();
+  const { pages: globalPages, loading: pagesLoading, updatePageVisibility } = useAllPagesVisibility();
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [statisticsLoading, setStatisticsLoading] = useState(true);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [rolePermissions, setRolePermissions] = useState<Record<string, RolePermissionsResponse>>({});
   const [roleLoading, setRoleLoading] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState('global');
+
+  // NEW: Dynamic roles and pages from API
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(true);
+  const [availablePages, setAvailablePages] = useState<Page[]>([]);
+  const [availablePagesLoading, setAvailablePagesLoading] = useState(true);
+  const [initializingDefaults, setInitializingDefaults] = useState(false);
+
+  // NEW: Search filter
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch roles from API
+  const fetchRoles = async () => {
+    try {
+      setRolesLoading(true);
+      const response = await api.get('/role-permissions/roles');
+      setRoles(response.data);
+    } catch (error: any) {
+      console.error('Error fetching roles:', error);
+      toast.error('Failed to fetch roles');
+    } finally {
+      setRolesLoading(false);
+    }
+  };
+
+  // Fetch available pages from API
+  const fetchAvailablePages = async () => {
+    try {
+      setAvailablePagesLoading(true);
+      const response = await api.get('/role-permissions/pages');
+      setAvailablePages(response.data);
+    } catch (error: any) {
+      console.error('Error fetching pages:', error);
+      toast.error('Failed to fetch pages');
+    } finally {
+      setAvailablePagesLoading(false);
+    }
+  };
 
   const fetchStatistics = async () => {
     try {
@@ -90,6 +137,8 @@ export default function AdminControlPanelPage() {
   };
 
   useEffect(() => {
+    fetchRoles();
+    fetchAvailablePages();
     fetchStatistics();
   }, []);
 
@@ -195,7 +244,7 @@ export default function AdminControlPanelPage() {
   const handleBulkEnable = async () => {
     try {
       setBulkActionLoading(true);
-      const disabledPages = pages.filter(p => !p.is_enabled);
+      const disabledPages = globalPages.filter(p => !p.is_enabled);
       await api.post('/admin/pages/bulk-toggle', {
         page_keys: disabledPages.map(p => p.page_key),
         is_enabled: true,
@@ -212,7 +261,7 @@ export default function AdminControlPanelPage() {
   const handleBulkDisable = async () => {
     try {
       setBulkActionLoading(true);
-      const enabledPages = pages.filter(p => p.is_enabled);
+      const enabledPages = globalPages.filter(p => p.is_enabled);
       await api.post('/admin/pages/bulk-toggle', {
         page_keys: enabledPages.map(p => p.page_key),
         is_enabled: false,
@@ -243,7 +292,37 @@ export default function AdminControlPanelPage() {
     }
   };
 
-  if (pagesLoading || statisticsLoading) {
+  // NEW: Initialize default permissions
+  const handleInitializeDefaults = async () => {
+    try {
+      setInitializingDefaults(true);
+      const response = await api.post('/role-permissions/initialize-defaults');
+      toast.success('Default permissions initialized successfully');
+      console.log('Initialization summary:', response.data);
+
+      // Refresh all data
+      await Promise.all([
+        fetchStatistics(),
+        ...roles.map(role => fetchRolePermissions(role.key))
+      ]);
+    } catch (error: any) {
+      console.error('Error initializing defaults:', error);
+      toast.error('Failed to initialize default permissions');
+    } finally {
+      setInitializingDefaults(false);
+    }
+  };
+
+  // Filter permissions by search query
+  const filterPermissions = (permissions: RolePermission[]) => {
+    if (!searchQuery.trim()) return permissions;
+    const query = searchQuery.toLowerCase();
+    return permissions.filter(p =>
+      p.page_key.toLowerCase().includes(query)
+    );
+  };
+
+  if (pagesLoading || statisticsLoading || rolesLoading || availablePagesLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <RefreshCw className="h-8 w-8 animate-spin text-primary" />
@@ -261,10 +340,23 @@ export default function AdminControlPanelPage() {
             Panel de Control Administrativo
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Gestiona qué módulos y páginas están visibles para los usuarios por rol
+            Gestiona qué módulos y páginas están visibles para los usuarios por rol ({roles.length} roles, {availablePages.length} páginas)
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            onClick={handleInitializeDefaults}
+            disabled={initializingDefaults}
+            variant="default"
+            className="gap-2"
+          >
+            {initializingDefaults ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              <Database className="h-4 w-4" />
+            )}
+            Initialize Defaults
+          </Button>
           <Button onClick={handleExportConfig} variant="outline" className="gap-2">
             <Download className="h-4 w-4" />
             Exportar Config
@@ -341,18 +433,22 @@ export default function AdminControlPanelPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${roles.length + 1}, minmax(0, 1fr))` }}>
           <TabsTrigger value="global" className="gap-2">
             <Settings className="h-4 w-4" />
             Global
           </TabsTrigger>
-          {ROLES.map(role => (
+          {roles.map(role => (
             <TabsTrigger key={role.key} value={role.key} className="gap-2">
+              {role.key === 'SUPER_ADMIN' && <Shield className="h-4 w-4" />}
               {role.key === 'ADMIN' && <Shield className="h-4 w-4" />}
               {role.key === 'KEITOSAN' && <PieChart className="h-4 w-4" />}
               {role.key === 'TANTOSHA' && <Users className="h-4 w-4" />}
               {role.key === 'EMPLOYEE' && <UserCog className="h-4 w-4" />}
-              {role.key}
+              {role.key === 'CONTRACT_WORKER' && <UserCog className="h-4 w-4" />}
+              {role.key === 'COORDINATOR' && <Users className="h-4 w-4" />}
+              {role.key === 'KANRININSHA' && <Users className="h-4 w-4" />}
+              <span className="hidden sm:inline">{role.key}</span>
             </TabsTrigger>
           ))}
         </TabsList>
@@ -405,7 +501,7 @@ export default function AdminControlPanelPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {pages.map((page, index) => (
+                {globalPages.map((page, index) => (
                   <motion.div
                     key={page.id}
                     initial={{ opacity: 0, y: 20 }}
@@ -445,7 +541,7 @@ export default function AdminControlPanelPage() {
                         />
                       </div>
                     </div>
-                    {index < pages.length - 1 && <Separator className="mt-4" />}
+                    {index < globalPages.length - 1 && <Separator className="mt-4" />}
                   </motion.div>
                 ))}
               </div>
@@ -454,16 +550,20 @@ export default function AdminControlPanelPage() {
         </TabsContent>
 
         {/* Role Tabs */}
-        {ROLES.map(role => (
+        {roles.map(role => (
           <TabsContent key={role.key} value={role.key} className="space-y-6">
             {/* Role Header */}
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold flex items-center gap-2">
+                  {role.key === 'SUPER_ADMIN' && <Shield className="h-6 w-6" />}
                   {role.key === 'ADMIN' && <Shield className="h-6 w-6" />}
                   {role.key === 'KEITOSAN' && <PieChart className="h-6 w-6" />}
                   {role.key === 'TANTOSHA' && <Users className="h-6 w-6" />}
                   {role.key === 'EMPLOYEE' && <UserCog className="h-6 w-6" />}
+                  {role.key === 'CONTRACT_WORKER' && <UserCog className="h-6 w-6" />}
+                  {role.key === 'COORDINATOR' && <Users className="h-6 w-6" />}
+                  {role.key === 'KANRININSHA' && <Users className="h-6 w-6" />}
                   {role.name}
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
@@ -550,13 +650,28 @@ export default function AdminControlPanelPage() {
             {/* Role Permissions List */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5" />
-                  Permisos de Acceso - {role.key}
-                </CardTitle>
-                <CardDescription>
-                  Controla qué páginas puede ver este rol
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Activity className="h-5 w-5" />
+                      Permisos de Acceso - {role.key}
+                    </CardTitle>
+                    <CardDescription>
+                      Controla qué páginas puede ver este rol ({availablePages.length} páginas disponibles)
+                    </CardDescription>
+                  </div>
+                  {rolePermissions[role.key] && (
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar páginas..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9 w-64"
+                      />
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {!rolePermissions[role.key] && !roleLoading[role.key] && (
@@ -578,43 +693,67 @@ export default function AdminControlPanelPage() {
 
                 {rolePermissions[role.key] && (
                   <div className="space-y-4">
-                    {rolePermissions[role.key].permissions.map((permission, index) => (
-                      <motion.div
-                        key={permission.page_key}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.05 }}
-                      >
-                        <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3">
-                              <h3 className="font-semibold capitalize">{permission.page_key.replace('_', ' ')}</h3>
-                              {permission.is_enabled ? (
-                                <Badge variant="default" className="bg-green-600">
-                                  <Eye className="h-3 w-3 mr-1" />
-                                  Puede ver
-                                </Badge>
-                              ) : (
-                                <Badge variant="destructive">
-                                  <EyeOff className="h-3 w-3 mr-1" />
-                                  No puede ver
-                                </Badge>
+                    {filterPermissions(rolePermissions[role.key].permissions).map((permission, index) => {
+                      // Find page info from availablePages
+                      const pageInfo = availablePages.find(p => p.key === permission.page_key);
+                      const displayName = pageInfo?.name_en || permission.page_key.replace(/_/g, ' ');
+                      const displayNameJP = pageInfo?.name || '';
+                      const description = pageInfo?.description || '';
+
+                      return (
+                        <motion.div
+                          key={permission.page_key}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.02 }}
+                        >
+                          <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3">
+                                <h3 className="font-semibold capitalize">{displayName}</h3>
+                                {displayNameJP && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    {displayNameJP}
+                                  </Badge>
+                                )}
+                                {permission.is_enabled ? (
+                                  <Badge variant="default" className="bg-green-600">
+                                    <Eye className="h-3 w-3 mr-1" />
+                                    Puede ver
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="destructive">
+                                    <EyeOff className="h-3 w-3 mr-1" />
+                                    No puede ver
+                                  </Badge>
+                                )}
+                              </div>
+                              {description && (
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {description}
+                                </p>
                               )}
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Última actualización: {permission.updated_at ? new Date(permission.updated_at).toLocaleString() : 'Nunca'}
+                              </p>
                             </div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Última actualización: {permission.updated_at ? new Date(permission.updated_at).toLocaleString() : 'Nunca'}
-                            </p>
+                            <div className="flex items-center gap-4">
+                              <Switch
+                                checked={permission.is_enabled}
+                                onCheckedChange={() => handleRoleToggle(role.key, permission.page_key, permission.is_enabled)}
+                              />
+                            </div>
                           </div>
-                          <div className="flex items-center gap-4">
-                            <Switch
-                              checked={permission.is_enabled}
-                              onCheckedChange={() => handleRoleToggle(role.key, permission.page_key, permission.is_enabled)}
-                            />
-                          </div>
-                        </div>
-                        {index < rolePermissions[role.key].permissions.length - 1 && <Separator className="mt-4" />}
-                      </motion.div>
-                    ))}
+                          {index < filterPermissions(rolePermissions[role.key].permissions).length - 1 && <Separator className="mt-4" />}
+                        </motion.div>
+                      );
+                    })}
+
+                    {filterPermissions(rolePermissions[role.key].permissions).length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No se encontraron páginas que coincidan con "{searchQuery}"
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -633,6 +772,14 @@ export default function AdminControlPanelPage() {
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-sm">
+            <strong>Roles Configurados:</strong>{' '}
+            <Badge variant="default">{roles.length} roles</Badge>
+          </p>
+          <p className="text-sm">
+            <strong>Páginas Disponibles:</strong>{' '}
+            <Badge variant="default">{availablePages.length} páginas</Badge>
+          </p>
+          <p className="text-sm">
             <strong>Modo Mantenimiento:</strong>{' '}
             {statistics?.system.maintenance_mode ? (
               <Badge variant="destructive">Activo</Badge>
@@ -645,6 +792,9 @@ export default function AdminControlPanelPage() {
           </p>
           <p className="text-sm text-muted-foreground">
             Los permisos por rol permiten control granular sobre qué páginas puede ver cada tipo de usuario
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Usa el botón "Initialize Defaults" para restaurar los permisos predeterminados de todos los roles
           </p>
         </CardContent>
       </Card>
