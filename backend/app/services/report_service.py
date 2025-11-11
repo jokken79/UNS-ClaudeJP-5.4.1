@@ -440,5 +440,384 @@ class ReportService:
             }
 
 
+    # =========================================================================
+    # APARTMENT MODULE REPORTS
+    # =========================================================================
+
+    def get_occupancy_report(self, filters: dict = None) -> dict:
+        """
+        Reporte de ocupación de apartamentos
+
+        Args:
+            filters: Filtros opcionales (prefecture, city, etc.)
+
+        Returns:
+            Dict con métricas de ocupación
+        """
+        from sqlalchemy.orm import Session
+        from sqlalchemy import func, and_
+        from app.core.database import SessionLocal
+        from app.models.models import Apartment, ApartmentAssignment, AssignmentStatus
+
+        db = SessionLocal()
+
+        try:
+            # Query base de apartamentos
+            query = db.query(Apartment).filter(Apartment.deleted_at.is_(None))
+
+            # Aplicar filtros si se proporcionan
+            if filters:
+                if filters.get('prefecture'):
+                    query = query.filter(Apartment.prefecture == filters['prefecture'])
+                if filters.get('city'):
+                    query = query.filter(Apartment.city == filters['city'])
+
+            # Métricas principales
+            total_apartments = query.count()
+
+            # Apartamentos con asignaciones activas (ocupados)
+            occupied_query = query.join(ApartmentAssignment).filter(
+                and_(
+                    ApartmentAssignment.status == AssignmentStatus.ACTIVE,
+                    ApartmentAssignment.deleted_at.is_(None)
+                )
+            )
+            occupied_apartments = occupied_query.distinct(Apartment.id).count()
+
+            # Apartamentos vacantes
+            vacant_apartments = total_apartments - occupied_apartments
+
+            # Tasa de ocupación
+            occupancy_rate = (occupied_apartments / total_apartments * 100) if total_apartments > 0 else 0.0
+
+            # Capacidad total vs ocupación actual (por simplicidad, 1 empleado por apartamento)
+            total_capacity = total_apartments
+            current_occupancy = occupied_apartments
+
+            # Desglose por prefectura
+            by_prefecture = db.query(
+                Apartment.prefecture,
+                func.count(Apartment.id).label('total'),
+                func.count(ApartmentAssignment.id).label('occupied')
+            ).outerjoin(
+                ApartmentAssignment,
+                and_(
+                    Apartment.id == ApartmentAssignment.apartment_id,
+                    ApartmentAssignment.status == AssignmentStatus.ACTIVE,
+                    ApartmentAssignment.deleted_at.is_(None)
+                )
+            ).filter(
+                Apartment.deleted_at.is_(None)
+            ).group_by(Apartment.prefecture).all()
+
+            # Desglose por tipo de habitación
+            by_room_type = db.query(
+                Apartment.room_type,
+                func.count(Apartment.id).label('total'),
+                func.count(ApartmentAssignment.id).label('occupied')
+            ).outerjoin(
+                ApartmentAssignment,
+                and_(
+                    Apartment.id == ApartmentAssignment.apartment_id,
+                    ApartmentAssignment.status == AssignmentStatus.ACTIVE,
+                    ApartmentAssignment.deleted_at.is_(None)
+                )
+            ).filter(
+                Apartment.deleted_at.is_(None)
+            ).group_by(Apartment.room_type).all()
+
+            return {
+                "total_apartments": total_apartments,
+                "occupied_apartments": occupied_apartments,
+                "vacant_apartments": vacant_apartments,
+                "occupancy_rate": round(occupancy_rate, 2),
+                "total_capacity": total_capacity,
+                "current_occupancy": current_occupancy,
+                "by_prefecture": [
+                    {
+                        "prefecture": p[0] or "N/A",
+                        "total": p[1],
+                        "occupied": p[2] or 0,
+                        "occupancy_rate": round((p[2] or 0) / p[1] * 100, 2) if p[1] > 0 else 0.0
+                    }
+                    for p in by_prefecture
+                ],
+                "by_room_type": [
+                    {
+                        "room_type": r[0] or "N/A",
+                        "total": r[1],
+                        "occupied": r[2] or 0,
+                        "occupancy_rate": round((r[2] or 0) / r[1] * 100, 2) if r[1] > 0 else 0.0
+                    }
+                    for r in by_room_type
+                ]
+            }
+        finally:
+            db.close()
+
+    def get_arrears_report(self, year: int, month: int) -> dict:
+        """
+        Reporte de pagos pendientes (morosidad)
+
+        Args:
+            year: Año
+            month: Mes
+
+        Returns:
+            Dict con métricas de cobranza
+        """
+        from sqlalchemy.orm import Session
+        from sqlalchemy import func, and_
+        from app.core.database import SessionLocal
+        from app.models.models import RentDeduction, Employee, DeductionStatus
+
+        db = SessionLocal()
+
+        try:
+            # Deducciones del mes
+            deductions = db.query(RentDeduction).filter(
+                and_(
+                    RentDeduction.year == year,
+                    RentDeduction.month == month,
+                    RentDeduction.deleted_at.is_(None)
+                )
+            ).all()
+
+            # Métricas principales
+            total_to_collect = sum([d.total_deduction for d in deductions])
+
+            paid_deductions = [d for d in deductions if d.status == DeductionStatus.PAID]
+            total_paid = sum([d.total_deduction for d in paid_deductions])
+
+            pending_deductions = [d for d in deductions if d.status in [DeductionStatus.PENDING, DeductionStatus.PROCESSED]]
+            total_pending = sum([d.total_deduction for d in pending_deductions])
+
+            employees_with_debt = len(set([d.employee_id for d in pending_deductions]))
+
+            # Top deudores
+            top_debtors_data = db.query(
+                RentDeduction.employee_id,
+                Employee.full_name_kanji,
+                func.sum(RentDeduction.total_deduction).label('total_debt')
+            ).join(
+                Employee,
+                RentDeduction.employee_id == Employee.id
+            ).filter(
+                and_(
+                    RentDeduction.year == year,
+                    RentDeduction.month == month,
+                    RentDeduction.status.in_([DeductionStatus.PENDING, DeductionStatus.PROCESSED]),
+                    RentDeduction.deleted_at.is_(None)
+                )
+            ).group_by(
+                RentDeduction.employee_id,
+                Employee.full_name_kanji
+            ).order_by(
+                func.sum(RentDeduction.total_deduction).desc()
+            ).limit(10).all()
+
+            top_debtors = [
+                {
+                    "employee_id": d[0],
+                    "employee_name": d[1],
+                    "total_debt": d[2]
+                }
+                for d in top_debtors_data
+            ]
+
+            return {
+                "total_to_collect": total_to_collect,
+                "total_paid": total_paid,
+                "total_pending": total_pending,
+                "employees_with_debt": employees_with_debt,
+                "collection_rate": round((total_paid / total_to_collect * 100) if total_to_collect > 0 else 0.0, 2),
+                "top_debtors": top_debtors
+            }
+        finally:
+            db.close()
+
+    def get_maintenance_report(self) -> dict:
+        """
+        Reporte de mantenimiento y cargos adicionales
+
+        Returns:
+            Dict con métricas de mantenimiento
+        """
+        from sqlalchemy.orm import Session
+        from sqlalchemy import func, and_, extract
+        from app.core.database import SessionLocal
+        from app.models.models import AdditionalCharge, Apartment
+        from datetime import datetime, timedelta
+
+        db = SessionLocal()
+
+        try:
+            # Todos los cargos adicionales
+            all_charges = db.query(AdditionalCharge).filter(
+                AdditionalCharge.deleted_at.is_(None)
+            ).all()
+
+            total_charges = len(all_charges)
+
+            # Desglose por tipo de cargo
+            by_charge_type = db.query(
+                AdditionalCharge.charge_type,
+                func.count(AdditionalCharge.id).label('count'),
+                func.sum(AdditionalCharge.amount).label('total_amount')
+            ).filter(
+                AdditionalCharge.deleted_at.is_(None)
+            ).group_by(AdditionalCharge.charge_type).all()
+
+            # Tendencias mensuales (últimos 6 meses)
+            six_months_ago = datetime.now() - timedelta(days=180)
+            monthly_trends = db.query(
+                extract('year', AdditionalCharge.charge_date).label('year'),
+                extract('month', AdditionalCharge.charge_date).label('month'),
+                func.count(AdditionalCharge.id).label('count'),
+                func.sum(AdditionalCharge.amount).label('total_amount')
+            ).filter(
+                and_(
+                    AdditionalCharge.charge_date >= six_months_ago.date(),
+                    AdditionalCharge.deleted_at.is_(None)
+                )
+            ).group_by(
+                extract('year', AdditionalCharge.charge_date),
+                extract('month', AdditionalCharge.charge_date)
+            ).order_by(
+                extract('year', AdditionalCharge.charge_date),
+                extract('month', AdditionalCharge.charge_date)
+            ).all()
+
+            # Apartamentos con más incidentes
+            apartments_with_most_incidents = db.query(
+                AdditionalCharge.apartment_id,
+                Apartment.name,
+                func.count(AdditionalCharge.id).label('incident_count'),
+                func.sum(AdditionalCharge.amount).label('total_cost')
+            ).join(
+                Apartment,
+                AdditionalCharge.apartment_id == Apartment.id
+            ).filter(
+                AdditionalCharge.deleted_at.is_(None)
+            ).group_by(
+                AdditionalCharge.apartment_id,
+                Apartment.name
+            ).order_by(
+                func.count(AdditionalCharge.id).desc()
+            ).limit(10).all()
+
+            return {
+                "total_charges": total_charges,
+                "by_charge_type": {
+                    ct[0]: {
+                        "count": ct[1],
+                        "total_amount": ct[2] or 0
+                    }
+                    for ct in by_charge_type
+                },
+                "monthly_trends": [
+                    {
+                        "year": int(mt[0]),
+                        "month": int(mt[1]),
+                        "count": mt[2],
+                        "total_amount": mt[3] or 0
+                    }
+                    for mt in monthly_trends
+                ],
+                "apartments_with_most_incidents": [
+                    {
+                        "apartment_id": a[0],
+                        "apartment_name": a[1],
+                        "incident_count": a[2],
+                        "total_cost": a[3] or 0
+                    }
+                    for a in apartments_with_most_incidents
+                ]
+            }
+        finally:
+            db.close()
+
+    def get_cost_analysis(self, year: int, month: int) -> dict:
+        """
+        Análisis de costos (solo ADMIN)
+
+        Args:
+            year: Año
+            month: Mes
+
+        Returns:
+            Dict con análisis de costos
+        """
+        from sqlalchemy.orm import Session
+        from sqlalchemy import func, and_
+        from app.core.database import SessionLocal
+        from app.models.models import Apartment, RentDeduction
+
+        db = SessionLocal()
+
+        try:
+            # Costos totales (rentas de todos los apartamentos)
+            all_apartments = db.query(Apartment).filter(
+                Apartment.deleted_at.is_(None)
+            ).all()
+
+            total_costs = sum([
+                (apt.base_rent or 0) + (apt.management_fee or 0)
+                for apt in all_apartments
+            ])
+
+            # Deducciones totales (lo que cobramos)
+            deductions = db.query(RentDeduction).filter(
+                and_(
+                    RentDeduction.year == year,
+                    RentDeduction.month == month,
+                    RentDeduction.deleted_at.is_(None)
+                )
+            ).all()
+
+            total_deductions = sum([d.total_deduction for d in deductions])
+
+            # Margen de beneficio (simplificado)
+            profit_margin = ((total_deductions - total_costs) / total_costs * 100) if total_costs > 0 else 0.0
+
+            # Promedio por apartamento
+            average_per_apartment = total_deductions / len(deductions) if deductions else 0
+
+            # Tendencias de costos (últimos 6 meses)
+            cost_trends = []
+            for i in range(6, 0, -1):
+                target_month = month - i
+                target_year = year
+                if target_month <= 0:
+                    target_month += 12
+                    target_year -= 1
+
+                month_deductions = db.query(
+                    func.sum(RentDeduction.total_deduction)
+                ).filter(
+                    and_(
+                        RentDeduction.year == target_year,
+                        RentDeduction.month == target_month,
+                        RentDeduction.deleted_at.is_(None)
+                    )
+                ).scalar() or 0
+
+                cost_trends.append({
+                    "year": target_year,
+                    "month": target_month,
+                    "total_deductions": month_deductions
+                })
+
+            return {
+                "total_costs": total_costs,
+                "total_deductions": total_deductions,
+                "profit_margin": round(profit_margin, 2),
+                "average_per_apartment": round(average_per_apartment, 2),
+                "cost_trends": cost_trends
+            }
+        finally:
+            db.close()
+
+
 # Global instance
 report_service = ReportService()

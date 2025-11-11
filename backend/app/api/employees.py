@@ -3,9 +3,10 @@ Employees API Endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_
 from typing import Optional
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date
 import io
 
 from app.core.database import get_db
@@ -18,6 +19,9 @@ from app.models.models import (
     Document,
     ContractWorker,
     Staff,
+    Apartment,
+    ApartmentAssignment,
+    AssignmentStatus,
 )
 from app.schemas.employee import (
     EmployeeCreate, EmployeeUpdate, EmployeeResponse,
@@ -449,17 +453,156 @@ async def update_employee(
     current_user: User = Depends(auth_service.require_role("admin")),
     db: Session = Depends(get_db)
 ):
-    """Update employee"""
-    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    """
+    Update employee
+
+    SINCRONIZACIÓN BIDIRECCIONAL:
+    Si se actualiza apartment_id, automáticamente:
+    - Crea/finaliza/transfiere ApartmentAssignment
+    - Mantiene consistencia entre Employee y ApartmentAssignment
+    """
+    employee = db.query(Employee).filter(
+        and_(
+            Employee.id == employee_id,
+            Employee.deleted_at.is_(None)
+        )
+    ).first()
+
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
-    
-    for field, value in employee_update.model_dump(exclude_unset=True).items():
-        setattr(employee, field, value)
-    
-    db.commit()
-    db.refresh(employee)
-    return employee
+
+    # Obtener datos de actualización
+    update_data = employee_update.model_dump(exclude_unset=True)
+
+    # DETECTAR CAMBIO DE APARTAMENTO
+    old_apartment_id = employee.apartment_id
+    new_apartment_id = update_data.get('apartment_id')
+
+    try:
+        # CASO 1: Asignar nuevo apartamento (None → ID)
+        if old_apartment_id is None and new_apartment_id is not None:
+            # Validar que el apartamento existe
+            apartment = db.query(Apartment).filter(
+                and_(
+                    Apartment.id == new_apartment_id,
+                    Apartment.deleted_at.is_(None)
+                )
+            ).first()
+
+            if not apartment:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Apartamento {new_apartment_id} no encontrado"
+                )
+
+            # Verificar que no tenga assignment activo ya
+            existing_assignment = db.query(ApartmentAssignment).filter(
+                and_(
+                    ApartmentAssignment.employee_id == employee_id,
+                    ApartmentAssignment.status == AssignmentStatus.ACTIVE,
+                    ApartmentAssignment.deleted_at.is_(None)
+                )
+            ).first()
+
+            if not existing_assignment:
+                # Crear Assignment automáticamente
+                start_date = update_data.get('apartment_start_date') or date.today()
+                monthly_rent = update_data.get('apartment_rent') or apartment.base_rent
+
+                new_assignment = ApartmentAssignment(
+                    employee_id=employee_id,
+                    apartment_id=new_apartment_id,
+                    start_date=start_date,
+                    end_date=None,  # Activo
+                    monthly_rent=monthly_rent,
+                    status=AssignmentStatus.ACTIVE,
+                    total_deduction=0,  # Se calculará después
+                    notes=f"Asignación creada automáticamente desde actualización de empleado"
+                )
+                db.add(new_assignment)
+
+        # CASO 2: Remover apartamento (ID → None)
+        elif old_apartment_id is not None and new_apartment_id is None:
+            # Finalizar Assignment activo
+            active_assignment = db.query(ApartmentAssignment).filter(
+                and_(
+                    ApartmentAssignment.employee_id == employee_id,
+                    ApartmentAssignment.status == AssignmentStatus.ACTIVE,
+                    ApartmentAssignment.deleted_at.is_(None)
+                )
+            ).first()
+
+            if active_assignment:
+                end_date = update_data.get('apartment_move_out_date') or date.today()
+                active_assignment.status = AssignmentStatus.ENDED
+                active_assignment.end_date = end_date
+                active_assignment.updated_at = datetime.now()
+
+        # CASO 3: Cambiar apartamento (ID1 → ID2)
+        elif old_apartment_id is not None and new_apartment_id is not None and old_apartment_id != new_apartment_id:
+            # Validar que el nuevo apartamento existe
+            new_apartment = db.query(Apartment).filter(
+                and_(
+                    Apartment.id == new_apartment_id,
+                    Apartment.deleted_at.is_(None)
+                )
+            ).first()
+
+            if not new_apartment:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Apartamento {new_apartment_id} no encontrado"
+                )
+
+            # Finalizar assignment antiguo
+            old_assignment = db.query(ApartmentAssignment).filter(
+                and_(
+                    ApartmentAssignment.employee_id == employee_id,
+                    ApartmentAssignment.status == AssignmentStatus.ACTIVE,
+                    ApartmentAssignment.deleted_at.is_(None)
+                )
+            ).first()
+
+            if old_assignment:
+                old_assignment.status = AssignmentStatus.TRANSFERRED
+                old_assignment.end_date = date.today()
+                old_assignment.updated_at = datetime.now()
+
+            # Crear nuevo assignment
+            start_date = update_data.get('apartment_start_date') or date.today()
+            monthly_rent = update_data.get('apartment_rent') or new_apartment.base_rent
+
+            new_assignment = ApartmentAssignment(
+                employee_id=employee_id,
+                apartment_id=new_apartment_id,
+                start_date=start_date,
+                end_date=None,  # Activo
+                monthly_rent=monthly_rent,
+                status=AssignmentStatus.ACTIVE,
+                total_deduction=0,  # Se calculará después
+                notes=f"Transferencia desde apartamento {old_apartment_id}"
+            )
+            db.add(new_assignment)
+
+        # Actualizar campos del empleado normalmente
+        for field, value in update_data.items():
+            setattr(employee, field, value)
+
+        employee.updated_at = datetime.now()
+
+        db.commit()
+        db.refresh(employee)
+        return employee
+
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al actualizar empleado: {str(e)}"
+        )
 
 
 @router.post("/{employee_id}/terminate")

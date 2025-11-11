@@ -2,190 +2,172 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { toast } from 'sonner';
 import { apartmentsV2Service } from '@/lib/api';
 import type { ApartmentUpdate, ApartmentWithStats, RoomType } from '@/types/apartments-v2';
+import { RoomType as RoomTypeEnum } from '@/types/apartments-v2';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
-  ArrowLeftIcon,
-  BuildingOfficeIcon,
-  MapPinIcon,
-  HomeIcon,
-  BanknotesIcon,
-  DocumentTextIcon,
-} from '@heroicons/react/24/outline';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+
+// Zod validation schema
+const apartmentUpdateSchema = z.object({
+  name: z.string().min(1, 'Nombre requerido'),
+  building_name: z.string().optional(),
+  room_number: z.string().optional(),
+  floor_number: z.number().min(0).optional(),
+  postal_code: z.string().optional(),
+  prefecture: z.string().optional(),
+  city: z.string().optional(),
+  address_line1: z.string().optional(),
+  address_line2: z.string().optional(),
+  room_type: z.nativeEnum(RoomTypeEnum).optional(),
+  size_sqm: z.number().min(0).optional(),
+  base_rent: z.number().min(0, 'Renta debe ser mayor a 0'),
+  management_fee: z.number().min(0).default(0),
+  deposit: z.number().min(0).default(0),
+  key_money: z.number().min(0).default(0),
+  default_cleaning_fee: z.number().min(0).default(20000),
+  contract_start_date: z.string().optional(),
+  contract_end_date: z.string().optional(),
+  landlord_name: z.string().optional(),
+  landlord_contact: z.string().optional(),
+  real_estate_agency: z.string().optional(),
+  emergency_contact: z.string().optional(),
+  notes: z.string().optional(),
+  status: z.string().default('active'),
+});
+
+type ApartmentFormData = z.infer<typeof apartmentUpdateSchema>;
 
 export default function EditApartmentPage() {
   const router = useRouter();
   const params = useParams();
   const apartmentId = Number(params.id);
 
-  const [apartment, setApartment] = useState<ApartmentWithStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
-  const [formData, setFormData] = useState<Partial<ApartmentUpdate>>({
-    name: '',
-    building_name: '',
-    room_number: '',
-    floor_number: undefined,
-    status: 'active',
-
-    postal_code: '',
-    prefecture: '',
-    city: '',
-    address_line1: '',
-    address_line2: '',
-
-    room_type: 'R' as RoomType,
-    size_sqm: undefined,
-
-    base_rent: 0,
-    management_fee: 0,
-    deposit: 0,
-    key_money: 0,
-    default_cleaning_fee: 20000,
-
-    contract_start_date: undefined,
-    contract_end_date: undefined,
-    landlord_name: '',
-    landlord_contact: '',
-    real_estate_agency: '',
-    emergency_contact: '',
-
-    notes: '',
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    reset,
+    formState: { errors },
+  } = useForm<ApartmentFormData>({
+    resolver: zodResolver(apartmentUpdateSchema),
   });
 
-  // Load existing apartment data
+  const baseRent = watch('base_rent') || 0;
+  const managementFee = watch('management_fee') || 0;
+  const totalCost = baseRent + managementFee;
+
+  // Load apartment data
   useEffect(() => {
     const loadApartment = async () => {
       try {
         setIsLoading(true);
         const data = await apartmentsV2Service.getApartment(apartmentId);
-        setApartment(data);
 
         // Pre-populate form with existing data
-        setFormData({
+        reset({
           name: data.name,
-          building_name: data.building_name || '',
-          room_number: data.room_number || '',
+          building_name: data.building_name || undefined,
+          room_number: data.room_number || undefined,
           floor_number: data.floor_number || undefined,
           status: data.status || 'active',
-
-          postal_code: data.postal_code || '',
-          prefecture: data.prefecture || '',
-          city: data.city || '',
-          address_line1: data.address_line1 || '',
-          address_line2: data.address_line2 || '',
-
-          room_type: data.room_type || ('R' as RoomType),
+          postal_code: data.postal_code || undefined,
+          prefecture: data.prefecture || undefined,
+          city: data.city || undefined,
+          address_line1: data.address_line1 || undefined,
+          address_line2: data.address_line2 || undefined,
+          room_type: (data.room_type as RoomType) || undefined,
           size_sqm: data.size_sqm || undefined,
-
           base_rent: data.base_rent,
           management_fee: data.management_fee || 0,
           deposit: data.deposit || 0,
           key_money: data.key_money || 0,
           default_cleaning_fee: data.default_cleaning_fee || 20000,
-
           contract_start_date: data.contract_start_date || undefined,
           contract_end_date: data.contract_end_date || undefined,
-          landlord_name: data.landlord_name || '',
-          landlord_contact: data.landlord_contact || '',
-          real_estate_agency: data.real_estate_agency || '',
-          emergency_contact: data.emergency_contact || '',
-
-          notes: data.notes || '',
+          landlord_name: data.landlord_name || undefined,
+          landlord_contact: data.landlord_contact || undefined,
+          real_estate_agency: data.real_estate_agency || undefined,
+          emergency_contact: data.emergency_contact || undefined,
+          notes: data.notes || undefined,
         });
       } catch (err: any) {
-        setError(err.response?.data?.detail || 'Error al cargar el apartamento');
+        console.error('Error loading apartment:', err);
+        toast.error(err.response?.data?.detail || 'Error al cargar el apartamento');
+        router.push('/apartments');
       } finally {
         setIsLoading(false);
       }
     };
 
     loadApartment();
-  }, [apartmentId]);
+  }, [apartmentId, reset, router]);
 
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
-    const { name, value, type } = e.target;
-
-    if (type === 'number') {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value === '' ? undefined : Number(value)
-      }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value || undefined }));
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    // Validation
-    if (!formData.name?.trim()) {
-      setError('El nombre del apartamento es requerido');
-      return;
-    }
-
-    if (formData.base_rent !== undefined && formData.base_rent <= 0) {
-      setError('La renta base debe ser mayor a 0');
-      return;
-    }
-
+  const onSubmit = async (data: ApartmentFormData) => {
     setIsSubmitting(true);
-
     try {
       const updateData: ApartmentUpdate = {
-        name: formData.name,
-        building_name: formData.building_name,
-        room_number: formData.room_number,
-        floor_number: formData.floor_number,
-        status: formData.status,
-
-        postal_code: formData.postal_code,
-        prefecture: formData.prefecture,
-        city: formData.city,
-        address_line1: formData.address_line1,
-        address_line2: formData.address_line2,
-
-        room_type: formData.room_type,
-        size_sqm: formData.size_sqm,
-
-        base_rent: formData.base_rent,
-        management_fee: formData.management_fee,
-        deposit: formData.deposit,
-        key_money: formData.key_money,
-        default_cleaning_fee: formData.default_cleaning_fee,
-
-        contract_start_date: formData.contract_start_date,
-        contract_end_date: formData.contract_end_date,
-        landlord_name: formData.landlord_name,
-        landlord_contact: formData.landlord_contact,
-        real_estate_agency: formData.real_estate_agency,
-        emergency_contact: formData.emergency_contact,
-
-        notes: formData.notes,
+        name: data.name,
+        building_name: data.building_name || undefined,
+        room_number: data.room_number || undefined,
+        floor_number: data.floor_number || undefined,
+        status: data.status,
+        postal_code: data.postal_code || undefined,
+        prefecture: data.prefecture || undefined,
+        city: data.city || undefined,
+        address_line1: data.address_line1 || undefined,
+        address_line2: data.address_line2 || undefined,
+        room_type: data.room_type || undefined,
+        size_sqm: data.size_sqm || undefined,
+        base_rent: data.base_rent,
+        management_fee: data.management_fee,
+        deposit: data.deposit,
+        key_money: data.key_money,
+        default_cleaning_fee: data.default_cleaning_fee,
+        contract_start_date: data.contract_start_date || undefined,
+        contract_end_date: data.contract_end_date || undefined,
+        landlord_name: data.landlord_name || undefined,
+        landlord_contact: data.landlord_contact || undefined,
+        real_estate_agency: data.real_estate_agency || undefined,
+        emergency_contact: data.emergency_contact || undefined,
+        notes: data.notes || undefined,
       };
 
       await apartmentsV2Service.updateApartment(apartmentId, updateData);
-      setSuccess(true);
-
-      setTimeout(() => {
-        router.push(`/apartments/${apartmentId}`);
-      }, 1000);
+      toast.success('Apartamento actualizado exitosamente');
+      router.push(`/apartments/${apartmentId}`);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Error al actualizar el apartamento');
+      console.error('Error updating apartment:', err);
+      toast.error(err.response?.data?.detail || 'Error al actualizar el apartamento');
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  // Calculate total monthly cost
-  const totalMonthlyCost = (formData.base_rent || 0) + (formData.management_fee || 0);
 
   if (isLoading) {
     return (
@@ -198,518 +180,363 @@ export default function EditApartmentPage() {
     );
   }
 
-  if (error && !apartment) {
-    return (
-      <div className="p-6">
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <p className="text-red-800 dark:text-red-400">{error}</p>
-          <button
-            onClick={() => router.push('/apartments')}
-            className="mt-4 text-red-600 dark:text-red-400 hover:underline"
-          >
-            Volver a Apartamentos
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="container mx-auto py-6 px-4 max-w-5xl">
       {/* Header */}
       <div className="mb-6">
-        <button
+        <Button
+          variant="ghost"
           onClick={() => router.push(`/apartments/${apartmentId}`)}
-          className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4"
+          className="mb-4"
         >
-          <ArrowLeftIcon className="h-5 w-5" />
-          Volver a Detalles
-        </button>
-
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-primary/10 rounded-lg">
-            <BuildingOfficeIcon className="h-8 w-8 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold">Editar Apartamento</h1>
-            <p className="text-muted-foreground mt-1">
-              {apartment?.name} - {apartment?.building_name}
-            </p>
-          </div>
-        </div>
+          ← Volver a Detalles
+        </Button>
+        <h1 className="text-3xl font-bold">Editar Apartamento</h1>
+        <p className="text-muted-foreground mt-2">
+          Actualice la información del apartamento. Los campos marcados con * son obligatorios.
+        </p>
       </div>
 
-      {/* Success Message */}
-      {success && (
-        <div className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-          <p className="text-green-800 dark:text-green-400 font-medium">
-            ✓ Apartamento actualizado exitosamente. Redirigiendo...
-          </p>
-        </div>
-      )}
-
-      {/* Error Message */}
-      {error && (
-        <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <p className="text-red-800 dark:text-red-400">{error}</p>
-        </div>
-      )}
-
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-8">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Información Básica */}
-        <div className="bg-card border border-border rounded-lg p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <HomeIcon className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold">Información Básica</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">
+        <Card>
+          <CardHeader>
+            <CardTitle>Información Básica</CardTitle>
+            <CardDescription>Detalles principales del apartamento</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <Label htmlFor="name">
                 Nombre del Apartamento <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                required
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="マンション太陽 201"
+              </Label>
+              <Input
+                id="name"
+                {...register('name')}
+                placeholder="ej. マンション太陽 201"
+                className={errors.name ? 'border-red-500' : ''}
+              />
+              {errors.name && (
+                <p className="text-sm text-red-500 mt-1">{errors.name.message}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="building_name">Nombre del Edificio</Label>
+              <Input
+                id="building_name"
+                {...register('building_name')}
+                placeholder="ej. 太陽ビル"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Nombre del Edificio
-              </label>
-              <input
-                type="text"
-                name="building_name"
-                value={formData.building_name}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="太陽ビル"
+              <Label htmlFor="room_number">Número de Habitación</Label>
+              <Input
+                id="room_number"
+                {...register('room_number')}
+                placeholder="ej. 201"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Número de Habitación
-              </label>
-              <input
-                type="text"
-                name="room_number"
-                value={formData.room_number}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="201"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Piso
-              </label>
-              <input
+              <Label htmlFor="floor_number">Número de Piso</Label>
+              <Input
+                id="floor_number"
                 type="number"
-                name="floor_number"
-                value={formData.floor_number || ''}
-                onChange={handleInputChange}
+                {...register('floor_number', { valueAsNumber: true })}
+                placeholder="ej. 2"
                 min="0"
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="2"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Estado
-              </label>
-              <select
-                name="status"
-                value={formData.status}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              <Label htmlFor="status">Estado</Label>
+              <Select
+                value={watch('status')}
+                onValueChange={(value) => setValue('status', value)}
               >
-                <option value="active">Activo</option>
-                <option value="maintenance">Mantenimiento</option>
-                <option value="inactive">Inactivo</option>
-              </select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Activo</SelectItem>
+                  <SelectItem value="maintenance">Mantenimiento</SelectItem>
+                  <SelectItem value="inactive">Inactivo</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Ubicación */}
-        <div className="bg-card border border-border rounded-lg p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <MapPinIcon className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold">Ubicación</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Ubicación</CardTitle>
+            <CardDescription>Dirección del apartamento</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Código Postal
-              </label>
-              <input
-                type="text"
-                name="postal_code"
-                value={formData.postal_code}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="160-0023"
+              <Label htmlFor="prefecture">Prefectura</Label>
+              <Input
+                id="prefecture"
+                {...register('prefecture')}
+                placeholder="ej. 東京都"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Prefectura
-              </label>
-              <input
-                type="text"
-                name="prefecture"
-                value={formData.prefecture}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="東京都"
+              <Label htmlFor="city">Ciudad</Label>
+              <Input
+                id="city"
+                {...register('city')}
+                placeholder="ej. 新宿区"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Ciudad
-              </label>
-              <input
-                type="text"
-                name="city"
-                value={formData.city}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="新宿区"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Dirección Línea 1
-              </label>
-              <input
-                type="text"
-                name="address_line1"
-                value={formData.address_line1}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="西新宿1-2-3"
+              <Label htmlFor="postal_code">Código Postal</Label>
+              <Input
+                id="postal_code"
+                {...register('postal_code')}
+                placeholder="ej. 160-0022"
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-1">
-                Dirección Línea 2 (opcional)
-              </label>
-              <input
-                type="text"
-                name="address_line2"
-                value={formData.address_line2}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              <Label htmlFor="address_line1">Dirección Línea 1</Label>
+              <Input
+                id="address_line1"
+                {...register('address_line1')}
+                placeholder="ej. 新宿1-2-3"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <Label htmlFor="address_line2">Dirección Línea 2 (opcional)</Label>
+              <Input
+                id="address_line2"
+                {...register('address_line2')}
                 placeholder="Información adicional de dirección"
               />
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Características */}
-        <div className="bg-card border border-border rounded-lg p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <BuildingOfficeIcon className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold">Características</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Características</CardTitle>
+            <CardDescription>Tipo y tamaño del apartamento</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Tipo de Habitación
-              </label>
-              <select
-                name="room_type"
-                value={formData.room_type}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              <Label htmlFor="room_type">Tipo de Habitación</Label>
+              <Select
+                value={watch('room_type')}
+                onValueChange={(value) => setValue('room_type', value as RoomType)}
               >
-                <option value="R">R (Individual)</option>
-                <option value="1K">1K (1 habitación + cocina)</option>
-                <option value="1DK">1DK (1 habitación + comedor-cocina)</option>
-                <option value="1LDK">1LDK (1 habitación + sala-comedor-cocina)</option>
-                <option value="2K">2K (2 habitaciones + cocina)</option>
-                <option value="2DK">2DK (2 habitaciones + comedor-cocina)</option>
-                <option value="2LDK">2LDK (2 habitaciones + sala-comedor-cocina)</option>
-                <option value="3K">3K (3 habitaciones + cocina)</option>
-                <option value="3DK">3DK (3 habitaciones + comedor-cocina)</option>
-                <option value="3LDK">3LDK (3 habitaciones + sala-comedor-cocina)</option>
-                <option value="4K">4K (4 habitaciones + cocina)</option>
-                <option value="4DK">4DK (4 habitaciones + comedor-cocina)</option>
-                <option value="4LDK">4LDK (4 habitaciones + sala-comedor-cocina)</option>
-              </select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={RoomTypeEnum.R}>R (Habitación)</SelectItem>
+                  <SelectItem value={RoomTypeEnum.K}>K (Cocina)</SelectItem>
+                  <SelectItem value={RoomTypeEnum.DK}>DK (Comedor-Cocina)</SelectItem>
+                  <SelectItem value={RoomTypeEnum.LDK}>LDK (Sala-Comedor-Cocina)</SelectItem>
+                  <SelectItem value={RoomTypeEnum.S}>S (Studio)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Tamaño (m²)
-              </label>
-              <input
+              <Label htmlFor="size_sqm">Tamaño (m²)</Label>
+              <Input
+                id="size_sqm"
                 type="number"
-                name="size_sqm"
-                value={formData.size_sqm || ''}
-                onChange={handleInputChange}
-                min="0"
                 step="0.01"
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="25.5"
+                {...register('size_sqm', { valueAsNumber: true })}
+                placeholder="ej. 25.5"
+                min="0"
               />
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Costos */}
-        <div className="bg-card border border-border rounded-lg p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <BanknotesIcon className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold">Costos</h2>
-          </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Costos</CardTitle>
+            <CardDescription>Información de precios y pagos</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="base_rent">
+                  Renta Base (¥) <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="base_rent"
+                  type="number"
+                  {...register('base_rent', { valueAsNumber: true })}
+                  placeholder="ej. 50000"
+                  min="0"
+                  className={errors.base_rent ? 'border-red-500' : ''}
+                />
+                {errors.base_rent && (
+                  <p className="text-sm text-red-500 mt-1">{errors.base_rent.message}</p>
+                )}
+              </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Renta Base (¥) <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                name="base_rent"
-                value={formData.base_rent}
-                onChange={handleInputChange}
-                required
-                min="0"
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="50000"
-              />
+              <div>
+                <Label htmlFor="management_fee">Cuota de Administración (¥)</Label>
+                <Input
+                  id="management_fee"
+                  type="number"
+                  {...register('management_fee', { valueAsNumber: true })}
+                  placeholder="ej. 5000"
+                  min="0"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="deposit">Depósito / 敷金 (¥)</Label>
+                <Input
+                  id="deposit"
+                  type="number"
+                  {...register('deposit', { valueAsNumber: true })}
+                  placeholder="ej. 100000"
+                  min="0"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="key_money">Key Money / 礼金 (¥)</Label>
+                <Input
+                  id="key_money"
+                  type="number"
+                  {...register('key_money', { valueAsNumber: true })}
+                  placeholder="ej. 100000"
+                  min="0"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="default_cleaning_fee">Cargo de Limpieza al Salir (¥)</Label>
+                <Input
+                  id="default_cleaning_fee"
+                  type="number"
+                  {...register('default_cleaning_fee', { valueAsNumber: true })}
+                  placeholder="ej. 20000"
+                  min="0"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Cuota de Administración (¥)
-              </label>
-              <input
-                type="number"
-                name="management_fee"
-                value={formData.management_fee}
-                onChange={handleInputChange}
-                min="0"
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="5000"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Depósito / 敷金 (¥)
-              </label>
-              <input
-                type="number"
-                name="deposit"
-                value={formData.deposit}
-                onChange={handleInputChange}
-                min="0"
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="100000"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Key Money / 礼金 (¥)
-              </label>
-              <input
-                type="number"
-                name="key_money"
-                value={formData.key_money}
-                onChange={handleInputChange}
-                min="0"
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="100000"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Cargo de Limpieza al Salir (¥)
-              </label>
-              <input
-                type="number"
-                name="default_cleaning_fee"
-                value={formData.default_cleaning_fee}
-                onChange={handleInputChange}
-                min="0"
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="20000"
-              />
-            </div>
-
-            {/* Total Monthly Cost Display */}
-            <div className="md:col-span-2 bg-primary/5 border border-primary/20 rounded-lg p-4">
+            <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
               <div className="flex justify-between items-center">
                 <span className="font-medium text-lg">Costo Mensual Total:</span>
                 <span className="text-2xl font-bold text-primary">
-                  ¥{totalMonthlyCost.toLocaleString()}
+                  ¥{totalCost.toLocaleString()}
                 </span>
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                Renta Base (¥{(formData.base_rent || 0).toLocaleString()}) + Administración (¥{(formData.management_fee || 0).toLocaleString()})
+                Renta Base (¥{baseRent.toLocaleString()}) + Administración (¥{managementFee.toLocaleString()})
               </p>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Contrato */}
-        <div className="bg-card border border-border rounded-lg p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <DocumentTextIcon className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold">Información del Contrato</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Información del Contrato</CardTitle>
+            <CardDescription>Detalles del contrato y contactos</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Fecha de Inicio del Contrato
-              </label>
-              <input
+              <Label htmlFor="contract_start_date">Fecha de Inicio del Contrato</Label>
+              <Input
+                id="contract_start_date"
                 type="date"
-                name="contract_start_date"
-                value={formData.contract_start_date || ''}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                {...register('contract_start_date')}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Fecha de Fin del Contrato
-              </label>
-              <input
+              <Label htmlFor="contract_end_date">Fecha de Fin del Contrato</Label>
+              <Input
+                id="contract_end_date"
                 type="date"
-                name="contract_end_date"
-                value={formData.contract_end_date || ''}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                {...register('contract_end_date')}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Nombre del Propietario
-              </label>
-              <input
-                type="text"
-                name="landlord_name"
-                value={formData.landlord_name}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="田中太郎"
+              <Label htmlFor="landlord_name">Nombre del Propietario</Label>
+              <Input
+                id="landlord_name"
+                {...register('landlord_name')}
+                placeholder="ej. 田中太郎"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Contacto del Propietario
-              </label>
-              <input
-                type="text"
-                name="landlord_contact"
-                value={formData.landlord_contact}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="03-1234-5678"
+              <Label htmlFor="landlord_contact">Contacto del Propietario</Label>
+              <Input
+                id="landlord_contact"
+                {...register('landlord_contact')}
+                placeholder="ej. 03-1234-5678"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Agencia Inmobiliaria
-              </label>
-              <input
-                type="text"
-                name="real_estate_agency"
-                value={formData.real_estate_agency}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="不動産エージェント株式会社"
+              <Label htmlFor="real_estate_agency">Agencia Inmobiliaria</Label>
+              <Input
+                id="real_estate_agency"
+                {...register('real_estate_agency')}
+                placeholder="ej. 不動産エージェント株式会社"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Contacto de Emergencia
-              </label>
-              <input
-                type="text"
-                name="emergency_contact"
-                value={formData.emergency_contact}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="090-1234-5678"
+              <Label htmlFor="emergency_contact">Contacto de Emergencia</Label>
+              <Input
+                id="emergency_contact"
+                {...register('emergency_contact')}
+                placeholder="ej. 090-1234-5678"
               />
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Notas */}
-        <div className="bg-card border border-border rounded-lg p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <DocumentTextIcon className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold">Notas Adicionales</h2>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Notas
-            </label>
-            <textarea
-              name="notes"
-              value={formData.notes}
-              onChange={handleInputChange}
+        <Card>
+          <CardHeader>
+            <CardTitle>Notas Adicionales</CardTitle>
+            <CardDescription>Información adicional sobre el apartamento</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Textarea
+              {...register('notes')}
               rows={4}
-              className="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
               placeholder="Información adicional sobre el apartamento..."
             />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Submit Buttons */}
         <div className="flex justify-end gap-4">
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={() => router.push(`/apartments/${apartmentId}`)}
-            className="px-6 py-2 border border-border rounded-md hover:bg-accent transition-colors"
             disabled={isSubmitting}
           >
             Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {isSubmitting ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground"></div>
-                Guardando...
-              </>
-            ) : (
-              'Guardar Cambios'
-            )}
-          </button>
+          </Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
+          </Button>
         </div>
       </form>
     </div>

@@ -18,7 +18,15 @@ from typing import List, Optional
 from datetime import datetime, date
 import io
 
-from app.models.models import User
+from app.models.models import (
+    User,
+    RentDeduction,
+    ApartmentAssignment,
+    AdditionalCharge,
+    Employee,
+    Apartment,
+    AssignmentStatus,
+)
 from app.schemas.apartment_v2 import (
     DeductionCreate,
     DeductionResponse,
@@ -71,28 +79,48 @@ class DeductionService:
         if year < 2020 or year > 2030:
             raise HTTPException(status_code=400, detail="Año debe estar entre 2020 y 2030")
 
-        # TODO: Consultar rent_deductions para el mes
-        # query = self.db.query(RentDeduction).filter(
-        #     and_(
-        #         RentDeduction.year == year,
-        #         RentDeduction.month == month,
-        #         RentDeduction.deleted_at.is_(None)
-        #     )
-        # )
+        # Consultar rent_deductions para el mes
+        query = self.db.query(RentDeduction).filter(
+            and_(
+                RentDeduction.year == year,
+                RentDeduction.month == month,
+                RentDeduction.deleted_at.is_(None)
+            )
+        )
 
         # Aplicar filtros
-        # if apartment_id:
-        #     query = query.filter(RentDeduction.apartment_id == apartment_id)
-        # if employee_id:
-        #     query = query.filter(RentDeduction.employee_id == employee_id)
-        # if status:
-        #     query = query.filter(RentDeduction.status == status)
+        if apartment_id:
+            query = query.filter(RentDeduction.apartment_id == apartment_id)
+        if employee_id:
+            query = query.filter(RentDeduction.employee_id == employee_id)
+        if status:
+            query = query.filter(RentDeduction.status == status)
 
         # Ordenar por created_at desc
-        # deductions = query.order_by(desc(RentDeduction.created_at)).all()
+        deductions = query.order_by(desc(RentDeduction.created_at)).all()
 
-        # Placeholder
-        return []
+        # Construir respuesta
+        results = []
+        for deduction in deductions:
+            results.append(DeductionListItem(
+                id=deduction.id,
+                assignment_id=deduction.assignment_id,
+                employee_id=deduction.employee_id,
+                apartment_id=deduction.apartment_id,
+                year=deduction.year,
+                month=deduction.month,
+                base_rent=deduction.base_rent,
+                additional_charges=deduction.additional_charges,
+                total_deduction=deduction.total_deduction,
+                status=deduction.status,
+                processed_date=deduction.processed_date,
+                paid_date=deduction.paid_date,
+                notes=deduction.notes,
+                created_at=deduction.created_at,
+                updated_at=deduction.updated_at,
+            ))
+
+        return results
 
     async def generate_monthly_deductions(
         self,
@@ -124,39 +152,107 @@ class DeductionService:
             HTTPException: Si ya existen deducciones para el mes
         """
         from fastapi import HTTPException
+        import calendar
 
-        # TODO: Verificar que no existen deducciones para el mes
-        # existing = self.db.query(RentDeduction).filter(
-        #     and_(
-        #         RentDeduction.year == year,
-        #         RentDeduction.month == month,
-        #         RentDeduction.deleted_at.is_(None)
-        #     )
-        # ).first()
-        # if existing:
-        #     raise HTTPException(
-        #         status_code=409,
-        #         detail=f"Ya existen deducciones generadas para {year}/{month:02d}"
-        #     )
+        # Verificar que no existen deducciones para el mes
+        existing = self.db.query(RentDeduction).filter(
+            and_(
+                RentDeduction.year == year,
+                RentDeduction.month == month,
+                RentDeduction.deleted_at.is_(None)
+            )
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Ya existen deducciones generadas para {year}/{month:02d}"
+            )
 
-        # TODO: Buscar asignaciones activas
-        # assignments = self.db.query(ApartmentAssignment).filter(
-        #     and_(
-        #         ApartmentAssignment.status == AssignmentStatus.ACTIVE,
-        #         ApartmentAssignment.deleted_at.is_(None)
-        #     )
-        # ).all()
+        # Buscar asignaciones activas
+        assignments = self.db.query(ApartmentAssignment).filter(
+            and_(
+                ApartmentAssignment.status == AssignmentStatus.ACTIVE,
+                ApartmentAssignment.deleted_at.is_(None)
+            )
+        ).all()
 
-        # TODO: Para cada asignación, crear deducción
-        # for assignment in assignments:
-        #     # Calcular días ocupados
-        #     # Calcular renta prorrateada
-        #     # Sumar cargos adicionales
-        #     # Crear deducción
-        #     pass
+        created_deductions = []
 
-        # Placeholder
-        return []
+        # Para cada asignación, crear deducción
+        for assignment in assignments:
+            # Calcular días del mes
+            days_in_month = calendar.monthrange(year, month)[1]
+
+            # Determinar días ocupados
+            start_of_month = date(year, month, 1)
+            end_of_month = date(year, month, days_in_month)
+
+            # Si la asignación empieza este mes, calcular desde start_date
+            if assignment.start_date.year == year and assignment.start_date.month == month:
+                days_occupied = (end_of_month - assignment.start_date).days + 1
+                base_rent = int((assignment.monthly_rent / days_in_month) * days_occupied)
+            else:
+                # Mes completo
+                days_occupied = days_in_month
+                base_rent = assignment.monthly_rent
+
+            # Sumar cargos adicionales aprobados del mes
+            charges_sum = self.db.query(func.sum(AdditionalCharge.amount)).filter(
+                and_(
+                    AdditionalCharge.assignment_id == assignment.id,
+                    AdditionalCharge.status == 'approved',
+                    AdditionalCharge.charge_date >= start_of_month,
+                    AdditionalCharge.charge_date <= end_of_month,
+                    AdditionalCharge.deleted_at.is_(None)
+                )
+            ).scalar() or 0
+
+            # Calcular total
+            total_deduction = base_rent + charges_sum
+
+            # Crear deducción
+            deduction = RentDeduction(
+                assignment_id=assignment.id,
+                employee_id=assignment.employee_id,
+                apartment_id=assignment.apartment_id,
+                year=year,
+                month=month,
+                base_rent=base_rent,
+                additional_charges=charges_sum,
+                total_deduction=total_deduction,
+                status=DeductionStatus.PENDING,
+                created_at=datetime.now(),
+            )
+
+            self.db.add(deduction)
+            created_deductions.append(deduction)
+
+        # Commit todas las deducciones
+        self.db.commit()
+
+        # Refrescar y construir respuesta
+        results = []
+        for deduction in created_deductions:
+            self.db.refresh(deduction)
+            results.append(DeductionResponse(
+                id=deduction.id,
+                assignment_id=deduction.assignment_id,
+                employee_id=deduction.employee_id,
+                apartment_id=deduction.apartment_id,
+                year=deduction.year,
+                month=deduction.month,
+                base_rent=deduction.base_rent,
+                additional_charges=deduction.additional_charges,
+                total_deduction=deduction.total_deduction,
+                status=deduction.status,
+                processed_date=deduction.processed_date,
+                paid_date=deduction.paid_date,
+                notes=deduction.notes,
+                created_at=deduction.created_at,
+                updated_at=deduction.updated_at,
+            ))
+
+        return results
 
     async def get_deduction(
         self,
@@ -176,9 +272,37 @@ class DeductionService:
         """
         from fastapi import HTTPException
 
-        # TODO: Consultar rent_deductions
-        # Placeholder
-        raise HTTPException(status_code=501, detail="Funcionalidad en desarrollo")
+        # Consultar rent_deductions
+        deduction = self.db.query(RentDeduction).filter(
+            and_(
+                RentDeduction.id == deduction_id,
+                RentDeduction.deleted_at.is_(None)
+            )
+        ).first()
+
+        if not deduction:
+            raise HTTPException(
+                status_code=404,
+                detail="Deducción no encontrada"
+            )
+
+        return DeductionResponse(
+            id=deduction.id,
+            assignment_id=deduction.assignment_id,
+            employee_id=deduction.employee_id,
+            apartment_id=deduction.apartment_id,
+            year=deduction.year,
+            month=deduction.month,
+            base_rent=deduction.base_rent,
+            additional_charges=deduction.additional_charges,
+            total_deduction=deduction.total_deduction,
+            status=deduction.status,
+            processed_date=deduction.processed_date,
+            paid_date=deduction.paid_date,
+            notes=deduction.notes,
+            created_at=deduction.created_at,
+            updated_at=deduction.updated_at,
+        )
 
     async def update_deduction_status(
         self,
@@ -208,15 +332,84 @@ class DeductionService:
         """
         from fastapi import HTTPException
 
-        # TODO: Verificar permisos según el estado
-        # - COORDINATOR+ (marcar como processed)
-        # - ADMIN+ (marcar como paid)
+        # Obtener deducción
+        deduction = self.db.query(RentDeduction).filter(
+            and_(
+                RentDeduction.id == deduction_id,
+                RentDeduction.deleted_at.is_(None)
+            )
+        ).first()
 
-        # TODO: Validar transición de estados
-        # TODO: Actualizar deducción
+        if not deduction:
+            raise HTTPException(
+                status_code=404,
+                detail="Deducción no encontrada"
+            )
 
-        # Placeholder
-        raise HTTPException(status_code=501, detail="Funcionalidad en desarrollo")
+        # Verificar permisos según el estado
+        allowed_roles = ["SUPER_ADMIN", "ADMIN", "COORDINATOR"]
+        if current_user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=403,
+                detail="No tiene permisos para actualizar deducciones"
+            )
+
+        # Si se marca como paid, solo ADMIN+
+        if update.new_status == DeductionStatus.PAID:
+            if current_user.role not in ["SUPER_ADMIN", "ADMIN"]:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Solo ADMIN puede marcar deducciones como pagadas"
+                )
+
+        # Validar transición de estados
+        valid_transitions = {
+            DeductionStatus.PENDING: [DeductionStatus.PROCESSED, DeductionStatus.CANCELLED],
+            DeductionStatus.PROCESSED: [DeductionStatus.PAID, DeductionStatus.PENDING],
+            DeductionStatus.PAID: [DeductionStatus.PROCESSED],
+            DeductionStatus.CANCELLED: [],
+        }
+
+        if update.new_status not in valid_transitions.get(deduction.status, []):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Transición inválida: {deduction.status} -> {update.new_status}"
+            )
+
+        # Actualizar estado
+        deduction.status = update.new_status
+        deduction.updated_at = datetime.now()
+
+        # Actualizar fechas según el estado
+        if update.new_status == DeductionStatus.PROCESSED:
+            deduction.processed_date = date.today()
+        elif update.new_status == DeductionStatus.PAID:
+            deduction.paid_date = date.today()
+
+        # Actualizar notas si se proporcionan
+        if update.notes:
+            deduction.notes = update.notes
+
+        self.db.commit()
+        self.db.refresh(deduction)
+
+        return DeductionResponse(
+            id=deduction.id,
+            assignment_id=deduction.assignment_id,
+            employee_id=deduction.employee_id,
+            apartment_id=deduction.apartment_id,
+            year=deduction.year,
+            month=deduction.month,
+            base_rent=deduction.base_rent,
+            additional_charges=deduction.additional_charges,
+            total_deduction=deduction.total_deduction,
+            status=deduction.status,
+            processed_date=deduction.processed_date,
+            paid_date=deduction.paid_date,
+            notes=deduction.notes,
+            created_at=deduction.created_at,
+            updated_at=deduction.updated_at,
+        )
 
     # -------------------------------------------------------------------------
     # EXPORTACIÓN
@@ -248,51 +441,70 @@ class DeductionService:
         import openpyxl
         from openpyxl.styles import Font, Alignment, PatternFill
 
-        # TODO: Verificar permisos (ADMIN+)
-
-        # TODO: Obtener deducciones
-        # deductions = await self.get_monthly_deductions(year, month, apartment_id)
+        # Obtener deducciones
+        deductions = await self.get_monthly_deductions(year, month, apartment_id)
 
         # Crear workbook
-        # wb = openpyxl.Workbook()
-        # ws = wb.active
-        # ws.title = f"Deducciones {year}-{month:02d}"
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = f"Deducciones {year}-{month:02d}"
 
-        # TODO: Escribir headers
-        # headers = [
-        #     "Empleado ID", "Nombre Kanji", "Nombre Kana",
-        #     "Apartamento", "Dirección", "Renta Base",
-        #     "Cargos Adicionales", "Total Deducción",
-        #     "Días Ocupados", "Fecha Inicio", "Fecha Fin",
-        #     "Estado", "Notas"
-        # ]
-        # for col, header in enumerate(headers, 1):
-        #     cell = ws.cell(row=1, column=col, value=header)
-        #     cell.font = Font(bold=True)
-        #     cell.fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        # Escribir headers
+        headers = [
+            "ID Deducción", "Empleado ID", "Empleado",
+            "Apartamento ID", "Apartamento",
+            "Año", "Mes", "Renta Base",
+            "Cargos Adicionales", "Total Deducción",
+            "Estado", "Fecha Procesado", "Fecha Pagado", "Notas"
+        ]
 
-        # TODO: Escribir datos
-        # for row, deduction in enumerate(deductions, 2):
-        #     ws.cell(row=row, column=1, value=deduction.employee_id)
-        #     ... (resto de columnas)
+        # Estilo de headers
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF")
 
-        # TODO: Auto-ajustar columnas
-        # for col in ws.columns:
-        #     max_length = 0
-        #     column = col[0].column_letter
-        #     for cell in col:
-        #         try:
-        #             if len(str(cell.value)) > max_length:
-        #                 max_length = len(str(cell.value))
-        #         except:
-        #             pass
-        #     adjusted_width = (max_length + 2) * 1.2
-        #     ws.column_dimensions[column].width = adjusted_width
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+
+        # Escribir datos
+        for row_idx, deduction in enumerate(deductions, 2):
+            # Obtener datos relacionados
+            employee = self.db.query(Employee).filter(Employee.id == deduction.employee_id).first()
+            apartment = self.db.query(Apartment).filter(Apartment.id == deduction.apartment_id).first()
+
+            ws.cell(row=row_idx, column=1, value=deduction.id)
+            ws.cell(row=row_idx, column=2, value=deduction.employee_id)
+            ws.cell(row=row_idx, column=3, value=employee.full_name_kanji if employee else "N/A")
+            ws.cell(row=row_idx, column=4, value=deduction.apartment_id)
+            ws.cell(row=row_idx, column=5, value=apartment.name if apartment else "N/A")
+            ws.cell(row=row_idx, column=6, value=deduction.year)
+            ws.cell(row=row_idx, column=7, value=deduction.month)
+            ws.cell(row=row_idx, column=8, value=deduction.base_rent)
+            ws.cell(row=row_idx, column=9, value=deduction.additional_charges)
+            ws.cell(row=row_idx, column=10, value=deduction.total_deduction)
+            ws.cell(row=row_idx, column=11, value=deduction.status)
+            ws.cell(row=row_idx, column=12, value=deduction.processed_date.strftime("%Y-%m-%d") if deduction.processed_date else "")
+            ws.cell(row=row_idx, column=13, value=deduction.paid_date.strftime("%Y-%m-%d") if deduction.paid_date else "")
+            ws.cell(row=row_idx, column=14, value=deduction.notes or "")
+
+        # Auto-ajustar columnas
+        for col in ws.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min((max_length + 2) * 1.2, 50)
+            ws.column_dimensions[column].width = adjusted_width
 
         # Guardar en memory
-        # output = io.BytesIO()
-        # wb.save(output)
-        # output.seek(0)
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
 
-        # Placeholder
-        raise HTTPException(status_code=501, detail="Funcionalidad en desarrollo")
+        return output.getvalue()

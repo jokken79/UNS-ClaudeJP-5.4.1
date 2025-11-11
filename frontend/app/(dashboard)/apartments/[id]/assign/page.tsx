@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { apartmentsV2Service, employeeService } from '@/lib/api';
 import type {
   ApartmentWithStats,
@@ -36,12 +37,11 @@ export default function AssignEmployeePage() {
   const [startDate, setStartDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
-  const [error, setError] = useState<string | null>(null);
   const [calculation, setCalculation] = useState<ProratedCalculationResponse | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
 
   // Fetch apartment details with stats
-  const { data: apartment, isLoading: apartmentLoading } = useQuery({
+  const { data: apartment, isLoading: apartmentLoading, error: apartmentError } = useQuery({
     queryKey: ['apartment-v2', apartmentId],
     queryFn: () => apartmentsV2Service.getApartment(apartmentId),
   });
@@ -76,6 +76,7 @@ export default function AssignEmployeePage() {
         setCalculation(result);
       } catch (err: any) {
         console.error('Error calculating prorated rent:', err);
+        toast.error('Error al calcular la renta prorrateada');
         setCalculation(null);
       } finally {
         setIsCalculating(false);
@@ -94,26 +95,26 @@ export default function AssignEmployeePage() {
       queryClient.invalidateQueries({ queryKey: ['apartment-v2', apartmentId] });
       queryClient.invalidateQueries({ queryKey: ['apartments-v2'] });
       queryClient.invalidateQueries({ queryKey: ['employees-available'] });
+      toast.success('Empleado asignado exitosamente');
       router.push(`/apartments/${apartmentId}`);
     },
     onError: (error: any) => {
       const errorMessage =
         error.response?.data?.detail || 'Error al asignar empleado al apartamento';
-      setError(errorMessage);
+      toast.error(errorMessage);
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
 
     if (!selectedEmployeeId) {
-      setError('Por favor, selecciona un empleado');
+      toast.error('Por favor, selecciona un empleado');
       return;
     }
 
     if (!calculation) {
-      setError('Error al calcular la renta prorrateada. Por favor, verifica la fecha.');
+      toast.error('Error al calcular la renta prorrateada. Por favor, verifica la fecha.');
       return;
     }
 
@@ -141,16 +142,25 @@ export default function AssignEmployeePage() {
   if (apartmentLoading) {
     return (
       <div className="p-6">
-        <div className="text-center py-12">Cargando detalles del apartamento...</div>
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Cargando detalles del apartamento...</p>
+        </div>
       </div>
     );
   }
 
-  if (!apartment) {
+  if (apartmentError || !apartment) {
     return (
       <div className="p-6">
-        <div className="text-center py-12 text-red-500">
-          Apartamento no encontrado
+        <div className="text-center py-12">
+          <p className="text-red-500 font-medium mb-4">Apartamento no encontrado</p>
+          <button
+            onClick={() => router.push('/apartments')}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+          >
+            Volver a Apartamentos
+          </button>
         </div>
       </div>
     );
@@ -350,12 +360,6 @@ export default function AssignEmployeePage() {
         <div className="space-y-4">
           <form onSubmit={handleSubmit} className="bg-card border rounded-lg p-6 space-y-4">
             <h2 className="font-semibold">Detalles de Asignación</h2>
-
-            {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-800 dark:text-red-400">
-                {error}
-              </div>
-            )}
 
             <div>
               <label className="block text-sm font-medium mb-2">

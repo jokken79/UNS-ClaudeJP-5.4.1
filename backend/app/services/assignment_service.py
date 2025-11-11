@@ -20,8 +20,10 @@ from decimal import Decimal
 
 from app.models.models import (
     Apartment,
+    ApartmentAssignment,
     Employee,
     User,
+    AssignmentStatus,
 )
 from app.schemas.apartment_v2 import (
     AssignmentCreate,
@@ -119,7 +121,8 @@ class AssignmentService:
             )
 
         # 3. Verificar que empleado no tiene asignación activa
-        existing_assignment = self.db.query(Employee).filter(
+        # Verificar tanto en Employee como en ApartmentAssignment
+        existing_employee_assignment = self.db.query(Employee).filter(
             and_(
                 Employee.id == assignment.employee_id,
                 Employee.apartment_id.isnot(None),
@@ -127,7 +130,15 @@ class AssignmentService:
             )
         ).first()
 
-        if existing_assignment:
+        existing_assignment_record = self.db.query(ApartmentAssignment).filter(
+            and_(
+                ApartmentAssignment.employee_id == assignment.employee_id,
+                ApartmentAssignment.status == AssignmentStatus.ACTIVE,
+                ApartmentAssignment.deleted_at.is_(None)
+            )
+        ).first()
+
+        if existing_employee_assignment or existing_assignment_record:
             raise HTTPException(
                 status_code=400,
                 detail="El empleado ya tiene una asignación activa. Debe finalizarla primero."
@@ -145,31 +156,57 @@ class AssignmentService:
         # 5. Calcular total a descontar (solo renta por ahora)
         total_deduction = prorated_rent.prorated_rent
 
-        # 6. Crear asignación (placeholder - requiere tabla apartment_assignments)
-        # TODO: Crear registro en apartment_assignments
-        # assignment_record = ApartmentAssignment(...)
+        try:
+            # 6. Crear registro en apartment_assignments
+            assignment_record = ApartmentAssignment(
+                apartment_id=assignment.apartment_id,
+                employee_id=assignment.employee_id,
+                start_date=assignment.start_date,
+                end_date=assignment.end_date,
+                monthly_rent=assignment.monthly_rent,
+                days_in_month=prorated_rent.days_in_month,
+                days_occupied=prorated_rent.days_occupied,
+                prorated_rent=prorated_rent.prorated_rent,
+                is_prorated=prorated_rent.is_prorated,
+                total_deduction=total_deduction,
+                contract_type=assignment.contract_type,
+                status=AssignmentStatus.ACTIVE,
+                notes=assignment.notes,
+            )
+            self.db.add(assignment_record)
+            self.db.flush()  # Para obtener el ID
 
-        # 7. Actualizar empleado
-        employee.apartment_id = assignment.apartment_id
-        employee.apartment_start_date = assignment.start_date
-        employee.apartment_rent = assignment.monthly_rent
-        employee.updated_at = datetime.now()
+            # 7. SINCRONIZAR: Actualizar employee.apartment_id
+            self._sync_employee_apartment(
+                employee_id=assignment.employee_id,
+                apartment_id=assignment.apartment_id,
+                start_date=assignment.start_date,
+                monthly_rent=assignment.monthly_rent,
+                action="assign",
+            )
 
-        # 8. Generar deducción si es mes completo
-        if not prorated_rent.is_prorated:
-            # TODO: Crear deducción en rent_deductions
-            pass
+            # 8. Generar deducción si es mes completo
+            if not prorated_rent.is_prorated:
+                # TODO: Crear deducción en rent_deductions
+                pass
 
-        self.db.commit()
+            self.db.commit()
 
-        # Construir respuesta
-        return await self._build_assignment_response(
-            assignment_id=1,  # Placeholder
-            assignment_data=assignment,
-            employee_data=employee,
-            apartment_data=apartment,
-            prorated_rent=prorated_rent,
-        )
+            # Construir respuesta
+            return await self._build_assignment_response(
+                assignment_id=assignment_record.id,
+                assignment_data=assignment,
+                employee_data=employee,
+                apartment_data=apartment,
+                prorated_rent=prorated_rent,
+            )
+
+        except Exception as e:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error al crear asignación: {str(e)}"
+            )
 
     async def end_assignment(
         self,
@@ -204,12 +241,112 @@ class AssignmentService:
         """
         from fastapi import HTTPException
 
-        # TODO: Obtener asignación desde apartment_assignments
-        # assignment = self.db.query(ApartmentAssignment).filter(...)
-        # if not assignment or assignment.status != AssignmentStatus.ACTIVE:
+        # 1. Validar asignación existe y está activa
+        assignment = self.db.query(ApartmentAssignment).filter(
+            and_(
+                ApartmentAssignment.id == assignment_id,
+                ApartmentAssignment.deleted_at.is_(None)
+            )
+        ).first()
 
-        # Placeholder para ejemplo
-        raise HTTPException(status_code=501, detail="Funcionalidad en desarrollo")
+        if not assignment:
+            raise HTTPException(
+                status_code=404,
+                detail="Asignación no encontrada"
+            )
+
+        if assignment.status != AssignmentStatus.ACTIVE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"La asignación no está activa (estado actual: {assignment.status.value})"
+            )
+
+        # Validar que end_date se haya proporcionado
+        if not update.end_date:
+            raise HTTPException(
+                status_code=400,
+                detail="Debe proporcionar una fecha de finalización"
+            )
+
+        # Validar que end_date sea >= start_date
+        if update.end_date < assignment.start_date:
+            raise HTTPException(
+                status_code=400,
+                detail="La fecha de finalización no puede ser anterior a la fecha de inicio"
+            )
+
+        try:
+            # 2-3. Calcular renta prorrateada hasta la fecha de fin
+            prorated_rent = await self._calculate_rent_for_assignment(
+                assignment.monthly_rent,
+                assignment.start_date,
+                update.end_date,
+                update.end_date.year,
+                update.end_date.month,
+            )
+
+            # 4. Calcular total con cargos adicionales (limpieza, etc.)
+            # TODO: Agregar cargos adicionales de AdditionalCharge
+            total_deduction = prorated_rent.prorated_rent
+
+            # 5. Actualizar asignación como 'ended'
+            assignment.end_date = update.end_date
+            assignment.status = AssignmentStatus.ENDED
+            assignment.days_occupied = prorated_rent.days_occupied
+            assignment.prorated_rent = prorated_rent.prorated_rent
+            assignment.is_prorated = prorated_rent.is_prorated
+            assignment.total_deduction = total_deduction
+            if update.notes:
+                assignment.notes = update.notes
+            assignment.updated_at = datetime.now()
+
+            self.db.flush()
+
+            # 6. SINCRONIZAR: Actualizar empleado (apartment_id = null)
+            self._sync_employee_apartment(
+                employee_id=assignment.employee_id,
+                apartment_id=None,
+                action="unassign",
+            )
+
+            # 7. Generar deducción final
+            # TODO: Crear deducción en rent_deductions
+
+            self.db.commit()
+
+            # Obtener datos para respuesta
+            employee = self.db.query(Employee).filter(Employee.id == assignment.employee_id).first()
+            apartment = self.db.query(Apartment).filter(Apartment.id == assignment.apartment_id).first()
+
+            # Construir datos de asignación para la respuesta
+            from app.schemas.apartment_v2 import AssignmentCreate
+            assignment_data = AssignmentCreate(
+                apartment_id=assignment.apartment_id,
+                employee_id=assignment.employee_id,
+                start_date=assignment.start_date,
+                end_date=assignment.end_date,
+                monthly_rent=assignment.monthly_rent,
+                contract_type=assignment.contract_type,
+                notes=assignment.notes,
+            )
+
+            return await self._build_assignment_response(
+                assignment_id=assignment.id,
+                assignment_data=assignment_data,
+                employee_data=employee,
+                apartment_data=apartment,
+                prorated_rent=prorated_rent,
+            )
+
+        except HTTPException:
+            self.db.rollback()
+            raise
+        except Exception as e:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error al finalizar asignación: {str(e)}"
+            )
 
     async def transfer_assignment(
         self,
@@ -500,3 +637,64 @@ class AssignmentService:
                 "full_name_kana": employee_data.full_name_kana,
             },
         )
+
+    def _sync_employee_apartment(
+        self,
+        employee_id: int,
+        apartment_id: Optional[int],
+        start_date: Optional[date] = None,
+        monthly_rent: Optional[int] = None,
+        action: str = "assign",
+    ) -> Employee:
+        """
+        Sincronizar employee.apartment_id con ApartmentAssignment
+
+        Esta función mantiene la sincronización bidireccional entre:
+        - Employee.apartment_id (sistema legacy V1)
+        - ApartmentAssignment (sistema moderno V2)
+
+        Args:
+            employee_id: ID del empleado
+            apartment_id: ID del apartamento (None para limpiar)
+            start_date: Fecha de inicio de asignación
+            monthly_rent: Renta mensual
+            action: 'assign' | 'unassign' | 'transfer'
+
+        Returns:
+            Empleado actualizado
+
+        Raises:
+            HTTPException: Si el empleado no existe
+        """
+        from fastapi import HTTPException
+
+        employee = self.db.query(Employee).filter(
+            and_(
+                Employee.id == employee_id,
+                Employee.deleted_at.is_(None)
+            )
+        ).first()
+
+        if not employee:
+            raise HTTPException(status_code=404, detail="Empleado no encontrado")
+
+        if action == "assign":
+            employee.apartment_id = apartment_id
+            employee.apartment_start_date = start_date or date.today()
+            employee.apartment_rent = monthly_rent or 0
+            employee.apartment_move_out_date = None
+
+        elif action == "unassign":
+            employee.apartment_id = None
+            employee.apartment_move_out_date = date.today()
+            employee.apartment_rent = None
+
+        elif action == "transfer":
+            employee.apartment_id = apartment_id
+            employee.apartment_start_date = start_date or date.today()
+            employee.apartment_rent = monthly_rent or 0
+
+        employee.updated_at = datetime.now()
+        self.db.flush()
+
+        return employee

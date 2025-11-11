@@ -2,408 +2,382 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { toast } from 'sonner';
 import { apartmentsV2Service } from '@/lib/api';
 import type { ApartmentCreate } from '@/types/apartments-v2';
 import { RoomType } from '@/types/apartments-v2';
 
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+
+// Zod validation schema
+const apartmentCreateSchema = z.object({
+  name: z.string().min(1, 'Nombre requerido'),
+  building_name: z.string().optional(),
+  room_number: z.string().optional(),
+  floor_number: z.number().min(0).optional(),
+  postal_code: z.string().optional(),
+  prefecture: z.string().optional(),
+  city: z.string().optional(),
+  address_line1: z.string().optional(),
+  address_line2: z.string().optional(),
+  room_type: z.nativeEnum(RoomType).optional(),
+  size_sqm: z.number().min(0).optional(),
+  base_rent: z.number().min(0, 'Renta debe ser mayor a 0'),
+  management_fee: z.number().min(0).default(0),
+  deposit: z.number().min(0).default(0),
+  key_money: z.number().min(0).default(0),
+  default_cleaning_fee: z.number().min(0).default(20000),
+  contract_start_date: z.string().optional(),
+  contract_end_date: z.string().optional(),
+  landlord_name: z.string().optional(),
+  landlord_contact: z.string().optional(),
+  real_estate_agency: z.string().optional(),
+  emergency_contact: z.string().optional(),
+  notes: z.string().optional(),
+  status: z.string().default('active'),
+});
+
+type ApartmentFormData = z.infer<typeof apartmentCreateSchema>;
+
 export default function CreateApartmentPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
-  // Form state with only existing backend fields
-  const [formData, setFormData] = useState<Partial<ApartmentCreate>>({
-    name: '',
-    building_name: '',
-    room_number: '',
-    floor_number: undefined,
-    postal_code: '',
-    prefecture: '',
-    city: '',
-    address_line1: '',
-    address_line2: '',
-    room_type: RoomType.R,
-    size_sqm: undefined,
-    base_rent: 0,
-    management_fee: 0,
-    deposit: 0,
-    key_money: 0,
-    default_cleaning_fee: 20000,
-    contract_start_date: undefined,
-    contract_end_date: undefined,
-    landlord_name: '',
-    landlord_contact: '',
-    real_estate_agency: '',
-    emergency_contact: '',
-    notes: '',
-    status: 'active',
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<ApartmentFormData>({
+    resolver: zodResolver(apartmentCreateSchema),
+    defaultValues: {
+      default_cleaning_fee: 20000,
+      status: 'active',
+      management_fee: 0,
+      deposit: 0,
+      key_money: 0,
+    },
   });
 
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
-    const { name, value, type } = e.target;
+  const baseRent = watch('base_rent') || 0;
+  const managementFee = watch('management_fee') || 0;
+  const totalCost = baseRent + managementFee;
 
-    if (type === 'number') {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value === '' ? undefined : Number(value)
-      }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value || undefined }));
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(false);
-
-    // Validation
-    if (!formData.name?.trim()) {
-      setError('El nombre del apartamento es requerido');
-      return;
-    }
-
-    if (!formData.base_rent || formData.base_rent <= 0) {
-      setError('La renta base debe ser mayor a 0');
-      return;
-    }
-
+  const onSubmit = async (data: ApartmentFormData) => {
     setIsSubmitting(true);
-
     try {
       const apartmentData: ApartmentCreate = {
-        name: formData.name!,
-        building_name: formData.building_name,
-        room_number: formData.room_number,
-        floor_number: formData.floor_number,
-        postal_code: formData.postal_code,
-        prefecture: formData.prefecture,
-        city: formData.city,
-        address_line1: formData.address_line1,
-        address_line2: formData.address_line2,
-        room_type: formData.room_type,
-        size_sqm: formData.size_sqm,
-        base_rent: formData.base_rent!,
-        management_fee: formData.management_fee || 0,
-        deposit: formData.deposit || 0,
-        key_money: formData.key_money || 0,
-        default_cleaning_fee: formData.default_cleaning_fee || 20000,
-        contract_start_date: formData.contract_start_date,
-        contract_end_date: formData.contract_end_date,
-        landlord_name: formData.landlord_name,
-        landlord_contact: formData.landlord_contact,
-        real_estate_agency: formData.real_estate_agency,
-        emergency_contact: formData.emergency_contact,
-        notes: formData.notes,
-        status: formData.status || 'active',
+        name: data.name,
+        building_name: data.building_name || undefined,
+        room_number: data.room_number || undefined,
+        floor_number: data.floor_number || undefined,
+        postal_code: data.postal_code || undefined,
+        prefecture: data.prefecture || undefined,
+        city: data.city || undefined,
+        address_line1: data.address_line1 || undefined,
+        address_line2: data.address_line2 || undefined,
+        room_type: data.room_type || undefined,
+        size_sqm: data.size_sqm || undefined,
+        base_rent: data.base_rent,
+        management_fee: data.management_fee || 0,
+        deposit: data.deposit || 0,
+        key_money: data.key_money || 0,
+        default_cleaning_fee: data.default_cleaning_fee || 20000,
+        contract_start_date: data.contract_start_date || undefined,
+        contract_end_date: data.contract_end_date || undefined,
+        landlord_name: data.landlord_name || undefined,
+        landlord_contact: data.landlord_contact || undefined,
+        real_estate_agency: data.real_estate_agency || undefined,
+        emergency_contact: data.emergency_contact || undefined,
+        notes: data.notes || undefined,
+        status: data.status || 'active',
       };
 
       const newApartment = await apartmentsV2Service.createApartment(apartmentData);
-
-      setSuccess(true);
-
-      // Redirect to detail page after 1 second
-      setTimeout(() => {
-        router.push(`/apartments/${newApartment.id}`);
-      }, 1000);
-
+      toast.success('Apartamento creado exitosamente');
+      router.push(`/apartments/${newApartment.id}`);
     } catch (err: any) {
       console.error('Error creating apartment:', err);
-      setError(err.response?.data?.detail || 'Error al crear el apartamento');
+      toast.error(err.response?.data?.detail || 'Error al crear el apartamento');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const totalCost = (formData.base_rent || 0) + (formData.management_fee || 0);
-
   return (
     <div className="container mx-auto py-6 px-4 max-w-5xl">
       {/* Header */}
       <div className="mb-6">
-        <button
+        <Button
+          variant="ghost"
           onClick={() => router.back()}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
+          className="mb-4"
         >
           ← Volver
-        </button>
+        </Button>
         <h1 className="text-3xl font-bold">Crear Nuevo Apartamento</h1>
         <p className="text-muted-foreground mt-2">
           Complete la información del apartamento. Los campos marcados con * son obligatorios.
         </p>
       </div>
 
-      {/* Success Message */}
-      {success && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
-          <p className="font-medium text-green-800 dark:text-green-400">
-            ¡Apartamento creado exitosamente!
-          </p>
-          <p className="text-sm text-green-700 dark:text-green-500 mt-1">
-            Redirigiendo a la página de detalles...
-          </p>
-        </div>
-      )}
-
-      {/* Error Message */}
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
-          <p className="font-medium text-red-800 dark:text-red-400">Error</p>
-          <p className="text-sm text-red-700 dark:text-red-500 mt-1">{error}</p>
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Información Básica */}
-        <div className="bg-card border rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Información Básica</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Información Básica</CardTitle>
+            <CardDescription>Detalles principales del apartamento</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-2">
+              <Label htmlFor="name">
                 Nombre del Apartamento <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name || ''}
-                onChange={handleInputChange}
+              </Label>
+              <Input
+                id="name"
+                {...register('name')}
                 placeholder="ej. マンション太陽 201"
-                required
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className={errors.name ? 'border-red-500' : ''}
               />
+              {errors.name && (
+                <p className="text-sm text-red-500 mt-1">{errors.name.message}</p>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Nombre del Edificio</label>
-              <input
-                type="text"
-                name="building_name"
-                value={formData.building_name || ''}
-                onChange={handleInputChange}
+              <Label htmlFor="building_name">Nombre del Edificio</Label>
+              <Input
+                id="building_name"
+                {...register('building_name')}
                 placeholder="ej. 太陽ビル"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Número de Habitación</label>
-              <input
-                type="text"
-                name="room_number"
-                value={formData.room_number || ''}
-                onChange={handleInputChange}
+              <Label htmlFor="room_number">Número de Habitación</Label>
+              <Input
+                id="room_number"
+                {...register('room_number')}
                 placeholder="ej. 201"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Número de Piso</label>
-              <input
+              <Label htmlFor="floor_number">Número de Piso</Label>
+              <Input
+                id="floor_number"
                 type="number"
-                name="floor_number"
-                value={formData.floor_number || ''}
-                onChange={handleInputChange}
-                min="0"
+                {...register('floor_number', { valueAsNumber: true })}
                 placeholder="ej. 2"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                min="0"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Estado</label>
-              <select
-                name="status"
-                value={formData.status || 'active'}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              <Label htmlFor="status">Estado</Label>
+              <Select
+                defaultValue="active"
+                onValueChange={(value) => setValue('status', value)}
               >
-                <option value="active">Activo</option>
-                <option value="maintenance">En Mantenimiento</option>
-                <option value="inactive">Inactivo</option>
-              </select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Activo</SelectItem>
+                  <SelectItem value="maintenance">En Mantenimiento</SelectItem>
+                  <SelectItem value="inactive">Inactivo</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Ubicación */}
-        <div className="bg-card border rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Ubicación</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Ubicación</CardTitle>
+            <CardDescription>Dirección del apartamento</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Prefectura</label>
-              <input
-                type="text"
-                name="prefecture"
-                value={formData.prefecture || ''}
-                onChange={handleInputChange}
+              <Label htmlFor="prefecture">Prefectura</Label>
+              <Input
+                id="prefecture"
+                {...register('prefecture')}
                 placeholder="ej. 東京都"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Ciudad</label>
-              <input
-                type="text"
-                name="city"
-                value={formData.city || ''}
-                onChange={handleInputChange}
+              <Label htmlFor="city">Ciudad</Label>
+              <Input
+                id="city"
+                {...register('city')}
                 placeholder="ej. 新宿区"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Código Postal</label>
-              <input
-                type="text"
-                name="postal_code"
-                value={formData.postal_code || ''}
-                onChange={handleInputChange}
+              <Label htmlFor="postal_code">Código Postal</Label>
+              <Input
+                id="postal_code"
+                {...register('postal_code')}
                 placeholder="ej. 160-0022"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-2">Dirección Línea 1</label>
-              <input
-                type="text"
-                name="address_line1"
-                value={formData.address_line1 || ''}
-                onChange={handleInputChange}
+              <Label htmlFor="address_line1">Dirección Línea 1</Label>
+              <Input
+                id="address_line1"
+                {...register('address_line1')}
                 placeholder="ej. 新宿1-2-3"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-2">Dirección Línea 2</label>
-              <input
-                type="text"
-                name="address_line2"
-                value={formData.address_line2 || ''}
-                onChange={handleInputChange}
+              <Label htmlFor="address_line2">Dirección Línea 2</Label>
+              <Input
+                id="address_line2"
+                {...register('address_line2')}
                 placeholder="ej. Apartamento 5B"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Características */}
-        <div className="bg-card border rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Características</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Características</CardTitle>
+            <CardDescription>Tipo y tamaño del apartamento</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Tipo de Habitación</label>
-              <select
-                name="room_type"
-                value={formData.room_type || RoomType.R}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              <Label htmlFor="room_type">Tipo de Habitación</Label>
+              <Select
+                defaultValue={RoomType.R}
+                onValueChange={(value) => setValue('room_type', value as RoomType)}
               >
-                <option value={RoomType.R}>R (Habitación)</option>
-                <option value={RoomType.K}>K (Cocina)</option>
-                <option value={RoomType.DK}>DK (Comedor-Cocina)</option>
-                <option value={RoomType.LDK}>LDK (Sala-Comedor-Cocina)</option>
-                <option value={RoomType.S}>S (Studio)</option>
-              </select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={RoomType.R}>R (Habitación)</SelectItem>
+                  <SelectItem value={RoomType.K}>K (Cocina)</SelectItem>
+                  <SelectItem value={RoomType.DK}>DK (Comedor-Cocina)</SelectItem>
+                  <SelectItem value={RoomType.LDK}>LDK (Sala-Comedor-Cocina)</SelectItem>
+                  <SelectItem value={RoomType.S}>S (Studio)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Área (m²)</label>
-              <input
+              <Label htmlFor="size_sqm">Área (m²)</Label>
+              <Input
+                id="size_sqm"
                 type="number"
-                name="size_sqm"
-                value={formData.size_sqm || ''}
-                onChange={handleInputChange}
-                min="0"
                 step="0.1"
+                {...register('size_sqm', { valueAsNumber: true })}
                 placeholder="ej. 25.5"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                min="0"
               />
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Costos */}
-        <div className="bg-card border rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Costos</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Renta Base <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                name="base_rent"
-                value={formData.base_rent || ''}
-                onChange={handleInputChange}
-                min="0"
-                required
-                placeholder="ej. 50000"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
+        <Card>
+          <CardHeader>
+            <CardTitle>Costos</CardTitle>
+            <CardDescription>Información de precios y pagos</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="base_rent">
+                  Renta Base <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="base_rent"
+                  type="number"
+                  {...register('base_rent', { valueAsNumber: true })}
+                  placeholder="ej. 50000"
+                  min="0"
+                  className={errors.base_rent ? 'border-red-500' : ''}
+                />
+                {errors.base_rent && (
+                  <p className="text-sm text-red-500 mt-1">{errors.base_rent.message}</p>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="management_fee">Cuota de Administración</Label>
+                <Input
+                  id="management_fee"
+                  type="number"
+                  {...register('management_fee', { valueAsNumber: true })}
+                  placeholder="ej. 3000"
+                  min="0"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="deposit">Depósito (敷金)</Label>
+                <Input
+                  id="deposit"
+                  type="number"
+                  {...register('deposit', { valueAsNumber: true })}
+                  placeholder="ej. 50000"
+                  min="0"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="key_money">Key Money (礼金)</Label>
+                <Input
+                  id="key_money"
+                  type="number"
+                  {...register('key_money', { valueAsNumber: true })}
+                  placeholder="ej. 50000"
+                  min="0"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="default_cleaning_fee">Cargo de Limpieza al Salir</Label>
+                <Input
+                  id="default_cleaning_fee"
+                  type="number"
+                  {...register('default_cleaning_fee', { valueAsNumber: true })}
+                  placeholder="ej. 20000"
+                  min="0"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">Cuota de Administración</label>
-              <input
-                type="number"
-                name="management_fee"
-                value={formData.management_fee || ''}
-                onChange={handleInputChange}
-                min="0"
-                placeholder="ej. 3000"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Depósito (敷金)</label>
-              <input
-                type="number"
-                name="deposit"
-                value={formData.deposit || ''}
-                onChange={handleInputChange}
-                min="0"
-                placeholder="ej. 50000"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Key Money (礼金)</label>
-              <input
-                type="number"
-                name="key_money"
-                value={formData.key_money || ''}
-                onChange={handleInputChange}
-                min="0"
-                placeholder="ej. 50000"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Cargo de Limpieza al Salir</label>
-              <input
-                type="number"
-                name="default_cleaning_fee"
-                value={formData.default_cleaning_fee || ''}
-                onChange={handleInputChange}
-                min="0"
-                placeholder="ej. 20000"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-            </div>
-
-            <div className="md:col-span-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-4">
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
               <p className="text-sm font-medium text-blue-800 dark:text-blue-400">
                 Costo Total Mensual (Renta + Administración)
               </p>
@@ -411,115 +385,100 @@ export default function CreateApartmentPage() {
                 ¥{totalCost.toLocaleString()}
               </p>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Contrato */}
-        <div className="bg-card border rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Información del Contrato</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Información del Contrato</CardTitle>
+            <CardDescription>Detalles del contrato y contactos</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Fecha de Inicio</label>
-              <input
+              <Label htmlFor="contract_start_date">Fecha de Inicio</Label>
+              <Input
+                id="contract_start_date"
                 type="date"
-                name="contract_start_date"
-                value={formData.contract_start_date || ''}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                {...register('contract_start_date')}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Fecha de Fin</label>
-              <input
+              <Label htmlFor="contract_end_date">Fecha de Fin</Label>
+              <Input
+                id="contract_end_date"
                 type="date"
-                name="contract_end_date"
-                value={formData.contract_end_date || ''}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                {...register('contract_end_date')}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Propietario</label>
-              <input
-                type="text"
-                name="landlord_name"
-                value={formData.landlord_name || ''}
-                onChange={handleInputChange}
+              <Label htmlFor="landlord_name">Propietario</Label>
+              <Input
+                id="landlord_name"
+                {...register('landlord_name')}
                 placeholder="ej. 田中太郎"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Contacto del Propietario</label>
-              <input
-                type="text"
-                name="landlord_contact"
-                value={formData.landlord_contact || ''}
-                onChange={handleInputChange}
+              <Label htmlFor="landlord_contact">Contacto del Propietario</Label>
+              <Input
+                id="landlord_contact"
+                {...register('landlord_contact')}
                 placeholder="ej. 03-1234-5678"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Inmobiliaria</label>
-              <input
-                type="text"
-                name="real_estate_agency"
-                value={formData.real_estate_agency || ''}
-                onChange={handleInputChange}
+              <Label htmlFor="real_estate_agency">Inmobiliaria</Label>
+              <Input
+                id="real_estate_agency"
+                {...register('real_estate_agency')}
                 placeholder="ej. ABC不動産"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Contacto de Emergencia</label>
-              <input
-                type="text"
-                name="emergency_contact"
-                value={formData.emergency_contact || ''}
-                onChange={handleInputChange}
+              <Label htmlFor="emergency_contact">Contacto de Emergencia</Label>
+              <Input
+                id="emergency_contact"
+                {...register('emergency_contact')}
                 placeholder="ej. 090-1234-5678"
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Notas */}
-        <div className="bg-card border rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Notas Adicionales</h2>
-          <textarea
-            name="notes"
-            value={formData.notes || ''}
-            onChange={handleInputChange}
-            rows={4}
-            placeholder="Cualquier información adicional sobre el apartamento..."
-            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-          />
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Notas Adicionales</CardTitle>
+            <CardDescription>Información adicional sobre el apartamento</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Textarea
+              {...register('notes')}
+              rows={4}
+              placeholder="Cualquier información adicional sobre el apartamento..."
+            />
+          </CardContent>
+        </Card>
 
         {/* Buttons */}
         <div className="flex gap-4 justify-end">
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={() => router.back()}
             disabled={isSubmitting}
-            className="px-6 py-2 border rounded-lg hover:bg-accent transition-colors disabled:opacity-50"
           >
             Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting || success}
-            className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
+          </Button>
+          <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Creando...' : 'Crear Apartamento'}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

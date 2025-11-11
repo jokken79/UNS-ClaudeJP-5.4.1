@@ -19,7 +19,7 @@ from datetime import datetime
 from decimal import Decimal
 import calendar
 
-from app.models.models import Apartment, User
+from app.models.models import Apartment, User, ApartmentAssignment, AssignmentStatus
 from app.schemas.apartment_v2 import (
     ApartmentCreate,
     ApartmentUpdate,
@@ -140,7 +140,7 @@ class ApartmentService:
                 updated_at=apt.updated_at,
                 full_address=full_address,
                 total_monthly_cost=total_monthly_cost,
-                active_assignments=0  # TODO: Contar asignaciones activas
+                active_assignments=self._count_active_assignments(apt.id)
             ))
 
         return results
@@ -408,8 +408,27 @@ class ApartmentService:
 
         # Filtros numéricos
         if capacity_min is not None:
-            # TODO: Agregar campo capacity a la tabla
-            pass
+            # Filtrar por capacidad (basado en asignaciones activas)
+            # Buscar apartamentos que tengan menos de capacity_min asignaciones activas
+            subquery = self.db.query(
+                ApartmentAssignment.apartment_id,
+                func.count(ApartmentAssignment.id).label('assignment_count')
+            ).filter(
+                and_(
+                    ApartmentAssignment.status == AssignmentStatus.ACTIVE,
+                    ApartmentAssignment.deleted_at.is_(None)
+                )
+            ).group_by(ApartmentAssignment.apartment_id).subquery()
+
+            query = query.outerjoin(
+                subquery,
+                Apartment.id == subquery.c.apartment_id
+            ).filter(
+                or_(
+                    subquery.c.assignment_count < capacity_min,
+                    subquery.c.assignment_count.is_(None)
+                )
+            )
 
         if size_min is not None:
             query = query.filter(Apartment.size_sqm >= size_min)
@@ -620,16 +639,59 @@ class ApartmentService:
             updated_at=apartment.updated_at,
             full_address=full_address,
             total_monthly_cost=total_monthly_cost,
-            active_assignments=0,  # TODO: Implementar
+            active_assignments=self._count_active_assignments(apartment.id),
         )
+
+    def _count_active_assignments(self, apartment_id: int) -> int:
+        """Contar asignaciones activas del apartamento"""
+        return self.db.query(ApartmentAssignment).filter(
+            and_(
+                ApartmentAssignment.apartment_id == apartment_id,
+                ApartmentAssignment.status == AssignmentStatus.ACTIVE,
+                ApartmentAssignment.deleted_at.is_(None)
+            )
+        ).count()
 
     async def _calculate_apartment_stats(self, apartment_id: int) -> dict:
         """Calcular estadísticas de un apartamento"""
-        # TODO: Implementar cálculo de estadísticas
+        # Contar asignaciones activas
+        active_count = self._count_active_assignments(apartment_id)
+
+        # Obtener todas las asignaciones del apartamento
+        all_assignments = self.db.query(ApartmentAssignment).filter(
+            and_(
+                ApartmentAssignment.apartment_id == apartment_id,
+                ApartmentAssignment.deleted_at.is_(None)
+            )
+        ).all()
+
+        # Calcular última fecha de asignación
+        last_assignment_date = None
+        if all_assignments:
+            last_assignment_date = max(
+                [a.start_date for a in all_assignments],
+                default=None
+            )
+
+        # Calcular duración promedio de estancia (solo asignaciones finalizadas)
+        ended_assignments = [a for a in all_assignments if a.end_date is not None]
+        average_stay_duration = None
+        if ended_assignments:
+            total_days = sum(
+                [(a.end_date - a.start_date).days for a in ended_assignments]
+            )
+            average_stay_duration = int(total_days / len(ended_assignments))
+
+        # Max occupancy (por ahora siempre 1, podría ser configurable)
+        max_occupancy = 1
+
+        # Tasa de ocupación
+        occupancy_rate = (active_count / max_occupancy * 100) if max_occupancy > 0 else 0.0
+
         return {
-            "current_occupancy": 0,
-            "max_occupancy": 1,
-            "occupancy_rate": 0.0,
-            "last_assignment_date": None,
-            "average_stay_duration": None,
+            "current_occupancy": active_count,
+            "max_occupancy": max_occupancy,
+            "occupancy_rate": occupancy_rate,
+            "last_assignment_date": last_assignment_date,
+            "average_stay_duration": average_stay_duration,
         }
