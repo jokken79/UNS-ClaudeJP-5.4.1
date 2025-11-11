@@ -113,6 +113,12 @@ export const dashboardConfig: DashboardConfig = {
       icon: DollarSign,
       description: 'Resumen de yukyus para integración con nómina.',
     },
+    {
+      title: 'Historial Yukyu',
+      href: '/yukyu-history',
+      icon: Clock,
+      description: 'Historial detallado de uso de yukyus con lógica LIFO.',
+    },
   ],
   secondaryNav: [
     {
