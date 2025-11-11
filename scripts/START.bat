@@ -341,6 +341,16 @@ if !errorlevel! NEQ 0 (
 )
 echo.
 
+echo   ▶ Sincronizando candidatos con empleados/staff/contract_workers...
+echo   ℹ Vinculando candidatos con registros en employees/staff/contract_workers
+docker exec uns-claudejp-backend python scripts/sync_candidate_employee_status.py 2>&1
+if !errorlevel! NEQ 0 (
+    echo   ⚠ Warning: Error en sincronización (puede ser normal si backend está iniciando)
+) else (
+    echo   ✓ Sincronización completada
+)
+echo.
+
 echo ┌────────────────────────────────────────────────────────────────────┐
 echo │ 📊 [5/5] VERIFICAR ESTADO FINAL DE SERVICIOS                      │
 echo └────────────────────────────────────────────────────────────────────┘

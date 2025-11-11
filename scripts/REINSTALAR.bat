@@ -289,6 +289,17 @@ if !errorlevel! EQU 0 (
 echo   ∁EInicialización de base de datos completada
 echo.
 
+echo   ▶ Sincronizando candidatos con empleados/staff/contract_workers...
+echo   i Este paso vincula candidatos con sus registros en las 3 tablas
+docker exec uns-claudejp-backend python scripts/sync_candidate_employee_status.py 2>&1
+if !errorlevel! NEQ 0 (
+    echo   ! Warning: Error en sincronización (puede ser normal si no hay datos)
+) else (
+    echo   ∁ESincronización completada
+    echo   i Candidatos actualizados a status 'hired' si tienen empleado asociado
+)
+echo.
+
 :: Paso 6: Iniciar servicios finales
 echo ╔══════════════════════════════════════════════════════════════════════╗
 echo ╁E[6/6] INICIAR SERVICIOS FINALES                                     ╁E
@@ -361,3 +372,5 @@ echo ╔════════════════════════
 echo ║         REINSTALACIÓN + LIMPIEZA COMPLETADA AL 100%%                ║
 echo ╚══════════════════════════════════════════════════════════════════════╝
 echo.
+
+pause >nul

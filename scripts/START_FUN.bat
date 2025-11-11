@@ -203,6 +203,17 @@ for /L %%i in (1,1,3) do (
 echo   ✅ Servicios estables
 echo.
 
+echo [PASO 3.5/4] 🔗 Sincronizando candidatos con empleados/staff/contract_workers...
+echo   ℹ Vinculando candidatos con registros en employees/staff/contract_workers
+docker exec uns-claudejp-backend python scripts/sync_candidate_employee_status.py 2>&1
+if !errorlevel! neq 0 (
+    echo   ⚠ Warning: Error en sincronización (puede ser normal si backend está iniciando)
+) else (
+    echo   ✅ Sincronización completada
+)
+echo.
+timeout /t 1 /nobreak >nul
+
 echo [PASO 4/4] 🔍 Estado final de servicios...
 echo.
 %DOCKER_COMPOSE_CMD% ps
