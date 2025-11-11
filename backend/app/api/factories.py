@@ -65,13 +65,23 @@ async def list_factories(
 
     factories = query.all()
 
-    # Convertir a dict para almacenar en cache
-    result = [FactoryResponse.model_validate(f).model_dump() for f in factories]
+    # Calculate employees_count for each factory
+    # FIX: Must compare Employee.factory_id (String) with Factory.factory_id (String)
+    factories_with_count = []
+    for factory in factories:
+        employees_count = db.query(func.count(Employee.id)).filter(
+            Employee.factory_id == factory.factory_id,
+            Employee.is_active == True
+        ).scalar() or 0
+
+        factory_dict = FactoryResponse.model_validate(factory).model_dump()
+        factory_dict['employees_count'] = employees_count
+        factories_with_count.append(factory_dict)
 
     # Guardar en cache (5 minutos)
-    redis_client.set(cache_key, result, ttl=300)
+    redis_client.set(cache_key, factories_with_count, ttl=300)
 
-    return factories
+    return factories_with_count
 
 
 @router.get("/stats", response_model=FactoryStats)
@@ -251,7 +261,9 @@ async def get_factory_with_employees(
         raise HTTPException(status_code=404, detail="Factory not found")
 
     # Get employees for this factory
-    employees = db.query(Employee).filter(Employee.factory_id == factory.id).all()
+    # FIX: Employee.factory_id is a String (e.g., "Company__Plant"), not Integer
+    # Must compare with factory.factory_id, NOT factory.id
+    employees = db.query(Employee).filter(Employee.factory_id == factory.factory_id).all()
 
     # Convert factory to response model
     factory_dict = {
