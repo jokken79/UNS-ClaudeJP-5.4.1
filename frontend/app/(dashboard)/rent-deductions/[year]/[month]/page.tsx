@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
+import api, { apartmentsV2Service } from '@/lib/api';
+import { toast } from 'react-hot-toast';
 import {
   ArrowLeftIcon,
   CalendarIcon,
@@ -37,6 +38,7 @@ export default function DeductionsByMonthPage() {
   const params = useParams();
   const year = params.year as string;
   const month = params.month as string;
+  const [exporting, setExporting] = useState(false);
 
   // Fetch deductions
   const { data: deductions = [], isLoading, error } = useQuery({
@@ -74,6 +76,30 @@ export default function DeductionsByMonthPage() {
 
   const employees = Object.values(groupedByEmployee);
 
+  const handleExport = async () => {
+    try {
+      setExporting(true);
+
+      const blob = await apartmentsV2Service.exportDeductions(parseInt(year), parseInt(month));
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `deducciones-renta-${year}-${month}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success('Exportación completada exitosamente');
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Error al exportar las deducciones');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -96,14 +122,12 @@ export default function DeductionsByMonthPage() {
           </p>
         </div>
         <button
-          onClick={() => {
-            // TODO: Export functionality
-            alert('Funcionalidad de exportación en desarrollo');
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+          onClick={handleExport}
+          disabled={exporting}
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <DocumentArrowDownIcon className="h-5 w-5" />
-          Exportar
+          {exporting ? 'Exportando...' : 'Exportar'}
         </button>
       </div>
 

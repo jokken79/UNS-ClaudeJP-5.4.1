@@ -19,7 +19,7 @@ from datetime import datetime
 from decimal import Decimal
 import calendar
 
-from app.models.models import Apartment, User, ApartmentAssignment, AssignmentStatus
+from app.models.models import Apartment, User, ApartmentAssignment, AssignmentStatus, RentDeduction
 from app.schemas.apartment_v2 import (
     ApartmentCreate,
     ApartmentUpdate,
@@ -342,10 +342,41 @@ class ApartmentService:
                 detail="Apartamento no encontrado"
             )
 
-        # TODO: Verificar si tiene asignaciones activas
-        # TODO: Verificar si tiene deducciones pendientes
+        # Validación 1: Verificar si tiene asignaciones activas
+        active_assignments_count = self.db.query(func.count(ApartmentAssignment.id)).filter(
+            and_(
+                ApartmentAssignment.apartment_id == apartment_id,
+                ApartmentAssignment.status == AssignmentStatus.ACTIVE,
+                ApartmentAssignment.deleted_at.is_(None)
+            )
+        ).scalar()
 
-        # Soft delete
+        if active_assignments_count > 0:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=400,
+                detail=f"No se puede eliminar el apartamento. Tiene {active_assignments_count} asignación(es) activa(s). "
+                       f"Primero debe finalizar todas las asignaciones activas."
+            )
+
+        # Validación 2: Verificar si tiene deducciones pendientes
+        pending_deductions_count = self.db.query(func.count(RentDeduction.id)).filter(
+            and_(
+                RentDeduction.apartment_id == apartment_id,
+                RentDeduction.status == "PENDING",
+                RentDeduction.deleted_at.is_(None)
+            )
+        ).scalar()
+
+        if pending_deductions_count > 0:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=400,
+                detail=f"No se puede eliminar el apartamento. Tiene {pending_deductions_count} deducción(es) de renta pendiente(s). "
+                       f"Primero debe procesar todas las deducciones pendientes."
+            )
+
+        # Soft delete (solo si pasa todas las validaciones)
         db_apartment.deleted_at = datetime.now()
         db_apartment.status = "inactive"
         db_apartment.updated_at = datetime.now()

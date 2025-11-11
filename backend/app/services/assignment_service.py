@@ -24,6 +24,8 @@ from app.models.models import (
     Employee,
     User,
     AssignmentStatus,
+    RentDeduction,
+    DeductionStatus,
 )
 from app.schemas.apartment_v2 import (
     AssignmentCreate,
@@ -37,6 +39,8 @@ from app.schemas.apartment_v2 import (
     TotalCalculationRequest,
     TotalCalculationResponse,
     AssignmentStatus,
+    AssignmentStatisticsResponse,
+    ApartmentResponse,
 )
 
 
@@ -120,6 +124,26 @@ class AssignmentService:
                 detail="El empleado no está activo"
             )
 
+        # 2.1. Verificar capacidad disponible del apartamento
+        # Contar asignaciones activas actuales
+        current_occupancy = self.db.query(func.count(ApartmentAssignment.id)).filter(
+            and_(
+                ApartmentAssignment.apartment_id == assignment.apartment_id,
+                ApartmentAssignment.status == AssignmentStatus.ACTIVE,
+                ApartmentAssignment.deleted_at.is_(None)
+            )
+        ).scalar() or 0
+
+        # Obtener capacidad del apartamento (por ahora asumimos capacidad = 1)
+        # TODO: Agregar campo capacity en tabla apartments si se necesita más de 1 empleado por apartamento
+        apartment_capacity = getattr(apartment, 'capacity', 1)
+
+        if current_occupancy >= apartment_capacity:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Apartamento en capacidad máxima ({apartment_capacity}). No se puede asignar más empleados."
+            )
+
         # 3. Verificar que empleado no tiene asignación activa
         # Verificar tanto en Employee como en ApartmentAssignment
         existing_employee_assignment = self.db.query(Employee).filter(
@@ -142,6 +166,38 @@ class AssignmentService:
             raise HTTPException(
                 status_code=400,
                 detail="El empleado ya tiene una asignación activa. Debe finalizarla primero."
+            )
+
+        # 3.1. Verificar no hay overlap de fechas para el mismo empleado
+        # Buscar asignaciones del empleado que se solapan con las fechas nuevas
+        overlapping_query = self.db.query(ApartmentAssignment).filter(
+            and_(
+                ApartmentAssignment.employee_id == assignment.employee_id,
+                ApartmentAssignment.deleted_at.is_(None),
+                # Overlap condition: nueva asignación empieza antes de que termine una existente
+                or_(
+                    # Caso 1: Asignación existente sin fecha fin (activa)
+                    ApartmentAssignment.end_date.is_(None),
+                    # Caso 2: Asignación existente termina después del inicio de la nueva
+                    ApartmentAssignment.end_date >= assignment.start_date
+                )
+            )
+        )
+
+        # Si hay end_date en la nueva asignación, verificar también que no empiece durante una existente
+        if assignment.end_date:
+            overlapping_query = overlapping_query.filter(
+                # La asignación existente empieza antes de que termine la nueva
+                ApartmentAssignment.start_date <= assignment.end_date
+            )
+
+        overlapping = overlapping_query.first()
+
+        if overlapping:
+            raise HTTPException(
+                status_code=400,
+                detail=f"El empleado tiene una asignación con fechas que se solapan (ID: {overlapping.id}, "
+                       f"desde {overlapping.start_date} hasta {overlapping.end_date or 'activa'})"
             )
 
         # 4. Calcular renta prorrateada si es necesario
@@ -187,8 +243,21 @@ class AssignmentService:
 
             # 8. Generar deducción si es mes completo
             if not prorated_rent.is_prorated:
-                # TODO: Crear deducción en rent_deductions
-                pass
+                # Crear deducción en rent_deductions para mes completo
+                deduction = RentDeduction(
+                    assignment_id=assignment_record.id,
+                    employee_id=assignment.employee_id,
+                    apartment_id=assignment.apartment_id,
+                    year=assignment.start_date.year,
+                    month=assignment.start_date.month,
+                    base_rent=assignment.monthly_rent,
+                    additional_charges=0,  # Se agregarán después vía AdditionalCharge
+                    total_deduction=assignment.monthly_rent,
+                    status=DeductionStatus.PENDING,
+                    created_at=datetime.now(),
+                )
+                self.db.add(deduction)
+                self.db.flush()
 
             self.db.commit()
 
@@ -374,9 +443,196 @@ class AssignmentService:
         from fastapi import HTTPException
         from sqlalchemy.exc import SQLAlchemyError
 
-        # TODO: Implementar transferencia completa
-        # Placeholder para ejemplo
-        raise HTTPException(status_code=501, detail="Funcionalidad en desarrollo")
+        try:
+            # 1. Buscar asignación actual del empleado
+            current_assignment = self.db.query(ApartmentAssignment).filter(
+                and_(
+                    ApartmentAssignment.employee_id == transfer.employee_id,
+                    ApartmentAssignment.apartment_id == transfer.current_apartment_id,
+                    ApartmentAssignment.status == AssignmentStatus.ACTIVE,
+                    ApartmentAssignment.deleted_at.is_(None)
+                )
+            ).first()
+
+            if not current_assignment:
+                raise HTTPException(
+                    status_code=404,
+                    detail="No se encontró una asignación activa para este empleado en el apartamento actual"
+                )
+
+            # 2. Validar nuevo apartamento existe y está disponible
+            new_apartment = self.db.query(Apartment).filter(
+                and_(
+                    Apartment.id == transfer.new_apartment_id,
+                    Apartment.deleted_at.is_(None)
+                )
+            ).first()
+
+            if not new_apartment:
+                raise HTTPException(
+                    status_code=404,
+                    detail="El nuevo apartamento no existe"
+                )
+
+            if new_apartment.status != "active":
+                raise HTTPException(
+                    status_code=400,
+                    detail="El nuevo apartamento no está activo"
+                )
+
+            # 3. Calcular renta prorrateada hasta transfer_date para apartamento actual
+            prorated_old = await self._calculate_rent_for_assignment(
+                current_assignment.monthly_rent,
+                current_assignment.start_date,
+                transfer.transfer_date,
+                transfer.transfer_date.year,
+                transfer.transfer_date.month,
+            )
+
+            # 4. Finalizar asignación actual con renta prorrateada + limpieza
+            current_assignment.end_date = transfer.transfer_date
+            current_assignment.status = AssignmentStatus.TRANSFERRED
+            current_assignment.days_occupied = prorated_old.days_occupied
+            current_assignment.prorated_rent = prorated_old.prorated_rent
+            current_assignment.is_prorated = True
+
+            # Agregar cargo de limpieza
+            old_apartment = self.db.query(Apartment).filter(Apartment.id == transfer.current_apartment_id).first()
+            cleaning_fee = old_apartment.default_cleaning_fee if old_apartment else 20000
+
+            current_assignment.total_deduction = prorated_old.prorated_rent + cleaning_fee
+            current_assignment.notes = (current_assignment.notes or "") + f"\nTransferido a apartamento {transfer.new_apartment_id} el {transfer.transfer_date}"
+            current_assignment.updated_at = datetime.now()
+
+            self.db.flush()
+
+            # 5. Calcular renta prorrateada desde transfer_date para nuevo apartamento
+            prorated_new = await self._calculate_rent_for_assignment(
+                new_apartment.base_rent,
+                transfer.transfer_date,
+                None,  # Sin fecha fin, es activa
+                transfer.transfer_date.year,
+                transfer.transfer_date.month,
+            )
+
+            # 6. Crear nueva asignación
+            new_assignment = ApartmentAssignment(
+                apartment_id=transfer.new_apartment_id,
+                employee_id=transfer.employee_id,
+                start_date=transfer.transfer_date,
+                end_date=None,  # Asignación activa
+                monthly_rent=new_apartment.base_rent,
+                days_in_month=prorated_new.days_in_month,
+                days_occupied=prorated_new.days_occupied,
+                prorated_rent=prorated_new.prorated_rent,
+                is_prorated=prorated_new.is_prorated,
+                total_deduction=prorated_new.prorated_rent,
+                contract_type=current_assignment.contract_type,
+                status=AssignmentStatus.ACTIVE,
+                notes=transfer.notes or f"Transferido desde apartamento {transfer.current_apartment_id}",
+            )
+            self.db.add(new_assignment)
+            self.db.flush()
+
+            # 7. Actualizar Employee.apartment_id
+            self._sync_employee_apartment(
+                employee_id=transfer.employee_id,
+                apartment_id=transfer.new_apartment_id,
+                start_date=transfer.transfer_date,
+                monthly_rent=new_apartment.base_rent,
+                action="transfer",
+            )
+
+            self.db.commit()
+
+            # 8. Construir respuesta con breakdown de costos
+            employee = self.db.query(Employee).filter(Employee.id == transfer.employee_id).first()
+
+            # Construir AssignmentResponse para asignación finalizada
+            from app.schemas.apartment_v2 import AssignmentCreate
+            ended_data = AssignmentCreate(
+                apartment_id=current_assignment.apartment_id,
+                employee_id=current_assignment.employee_id,
+                start_date=current_assignment.start_date,
+                end_date=current_assignment.end_date,
+                monthly_rent=current_assignment.monthly_rent,
+                contract_type=current_assignment.contract_type,
+                notes=current_assignment.notes,
+            )
+
+            ended_response = await self._build_assignment_response(
+                assignment_id=current_assignment.id,
+                assignment_data=ended_data,
+                employee_data=employee,
+                apartment_data=old_apartment,
+                prorated_rent=prorated_old,
+            )
+            ended_response.status = AssignmentStatus.TRANSFERRED
+            ended_response.total_deduction = current_assignment.total_deduction
+
+            # Construir AssignmentResponse para nueva asignación
+            new_data = AssignmentCreate(
+                apartment_id=new_assignment.apartment_id,
+                employee_id=new_assignment.employee_id,
+                start_date=new_assignment.start_date,
+                end_date=new_assignment.end_date,
+                monthly_rent=new_assignment.monthly_rent,
+                contract_type=new_assignment.contract_type,
+                notes=new_assignment.notes,
+            )
+
+            new_response = await self._build_assignment_response(
+                assignment_id=new_assignment.id,
+                assignment_data=new_data,
+                employee_data=employee,
+                apartment_data=new_apartment,
+                prorated_rent=prorated_new,
+            )
+
+            # Calcular totales
+            old_apartment_cost = prorated_old.prorated_rent + cleaning_fee
+            new_apartment_cost = prorated_new.prorated_rent
+            total_monthly_cost = old_apartment_cost + new_apartment_cost
+
+            # Breakdown detallado
+            breakdown = {
+                "old_apartment": {
+                    "apartment_id": transfer.current_apartment_id,
+                    "apartment_name": old_apartment.name if old_apartment else "Unknown",
+                    "prorated_rent": prorated_old.prorated_rent,
+                    "days_occupied": prorated_old.days_occupied,
+                    "cleaning_fee": cleaning_fee,
+                    "subtotal": old_apartment_cost,
+                },
+                "new_apartment": {
+                    "apartment_id": transfer.new_apartment_id,
+                    "apartment_name": new_apartment.name,
+                    "prorated_rent": prorated_new.prorated_rent,
+                    "days_occupied": prorated_new.days_occupied,
+                    "subtotal": new_apartment_cost,
+                },
+                "transfer_date": transfer.transfer_date.isoformat(),
+                "total_deduction": total_monthly_cost,
+            }
+
+            return TransferResponse(
+                ended_assignment=ended_response,
+                new_assignment=new_response,
+                old_apartment_cost=old_apartment_cost,
+                new_apartment_cost=new_apartment_cost,
+                total_monthly_cost=total_monthly_cost,
+                breakdown=breakdown,
+            )
+
+        except HTTPException:
+            self.db.rollback()
+            raise
+        except Exception as e:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error al transferir empleado: {str(e)}"
+            )
 
     # -------------------------------------------------------------------------
     # LISTADO Y CONSULTA
@@ -407,9 +663,67 @@ class AssignmentService:
         Returns:
             Lista de asignaciones
         """
-        # TODO: Implementar consulta a apartment_assignments
-        # Placeholder
-        return []
+        # Query base con joins
+        query = self.db.query(
+            ApartmentAssignment,
+            Apartment.name.label('apartment_name'),
+            Apartment.building_name.label('apartment_code'),
+            Employee.full_name_kanji.label('employee_name_kanji'),
+            Employee.full_name_kana.label('employee_name_kana'),
+        ).join(
+            Apartment,
+            ApartmentAssignment.apartment_id == Apartment.id
+        ).join(
+            Employee,
+            ApartmentAssignment.employee_id == Employee.id
+        ).filter(
+            ApartmentAssignment.deleted_at.is_(None)
+        )
+
+        # Aplicar filtros
+        if employee_id is not None:
+            query = query.filter(ApartmentAssignment.employee_id == employee_id)
+
+        if apartment_id is not None:
+            query = query.filter(ApartmentAssignment.apartment_id == apartment_id)
+
+        if status_filter:
+            query = query.filter(ApartmentAssignment.status == status_filter)
+
+        if start_date_from:
+            query = query.filter(ApartmentAssignment.start_date >= start_date_from)
+
+        if start_date_to:
+            query = query.filter(ApartmentAssignment.start_date <= start_date_to)
+
+        # Ordenar por fecha de inicio descendente (más recientes primero)
+        query = query.order_by(desc(ApartmentAssignment.start_date))
+
+        # Paginación
+        query = query.offset(skip).limit(limit)
+
+        # Ejecutar query
+        results = query.all()
+
+        # Construir lista de items
+        assignments = []
+        for assignment, apt_name, apt_code, emp_name_kanji, emp_name_kana in results:
+            assignments.append(AssignmentListItem(
+                id=assignment.id,
+                apartment_id=assignment.apartment_id,
+                employee_id=assignment.employee_id,
+                start_date=assignment.start_date,
+                end_date=assignment.end_date,
+                status=assignment.status,
+                total_deduction=assignment.total_deduction,
+                created_at=assignment.created_at,
+                apartment_name=apt_name or "Unknown",
+                apartment_code=apt_code,
+                employee_name_kanji=emp_name_kanji or "Unknown",
+                employee_name_kana=emp_name_kana,
+            ))
+
+        return assignments
 
     async def get_assignment(
         self,
@@ -429,9 +743,86 @@ class AssignmentService:
         """
         from fastapi import HTTPException
 
-        # TODO: Implementar consulta a apartment_assignments
-        # Placeholder
-        raise HTTPException(status_code=501, detail="Funcionalidad en desarrollo")
+        # Query con joins para obtener datos relacionados
+        assignment = self.db.query(ApartmentAssignment).filter(
+            and_(
+                ApartmentAssignment.id == assignment_id,
+                ApartmentAssignment.deleted_at.is_(None)
+            )
+        ).first()
+
+        if not assignment:
+            raise HTTPException(
+                status_code=404,
+                detail="Asignación no encontrada"
+            )
+
+        # Obtener apartamento
+        apartment = self.db.query(Apartment).filter(
+            Apartment.id == assignment.apartment_id
+        ).first()
+
+        # Obtener empleado
+        employee = self.db.query(Employee).filter(
+            Employee.id == assignment.employee_id
+        ).first()
+
+        if not apartment or not employee:
+            raise HTTPException(
+                status_code=404,
+                detail="Datos relacionados no encontrados"
+            )
+
+        # Calcular estadísticas
+        days_elapsed = 0
+        if assignment.end_date:
+            days_elapsed = (assignment.end_date - assignment.start_date).days + 1
+        else:
+            days_elapsed = (date.today() - assignment.start_date).days + 1
+
+        # Construir prorated rent response para usar en _build_assignment_response
+        from app.schemas.apartment_v2 import ProratedCalculationResponse
+        prorated_rent = ProratedCalculationResponse(
+            monthly_rent=assignment.monthly_rent,
+            year=assignment.start_date.year,
+            month=assignment.start_date.month,
+            days_in_month=assignment.days_in_month,
+            start_date=assignment.start_date,
+            end_date=assignment.end_date,
+            days_occupied=assignment.days_occupied,
+            daily_rate=Decimal(assignment.monthly_rent) / Decimal(assignment.days_in_month),
+            prorated_rent=assignment.prorated_rent,
+            is_prorated=assignment.is_prorated,
+        )
+
+        # Construir AssignmentCreate para _build_assignment_response
+        from app.schemas.apartment_v2 import AssignmentCreate
+        assignment_data = AssignmentCreate(
+            apartment_id=assignment.apartment_id,
+            employee_id=assignment.employee_id,
+            start_date=assignment.start_date,
+            end_date=assignment.end_date,
+            monthly_rent=assignment.monthly_rent,
+            contract_type=assignment.contract_type,
+            notes=assignment.notes,
+        )
+
+        # Construir respuesta completa
+        response = await self._build_assignment_response(
+            assignment_id=assignment.id,
+            assignment_data=assignment_data,
+            employee_data=employee,
+            apartment_data=apartment,
+            prorated_rent=prorated_rent,
+        )
+
+        # Actualizar con valores reales de la asignación
+        response.status = assignment.status
+        response.created_at = assignment.created_at
+        response.updated_at = assignment.updated_at
+        response.total_deduction = assignment.total_deduction
+
+        return response
 
     async def get_active_assignments(
         self,
@@ -442,8 +833,12 @@ class AssignmentService:
         Returns:
             Lista de asignaciones activas
         """
-        # TODO: Implementar
-        return []
+        # Reutilizar list_assignments con filtro de status
+        return await self.list_assignments(
+            skip=0,
+            limit=1000,  # Suficiente para la mayoría de casos
+            status_filter=AssignmentStatus.ACTIVE.value
+        )
 
     # -------------------------------------------------------------------------
     # CÁLCULOS
@@ -698,3 +1093,100 @@ class AssignmentService:
         self.db.flush()
 
         return employee
+
+    # -------------------------------------------------------------------------
+    # ESTADÍSTICAS
+    # -------------------------------------------------------------------------
+
+    async def get_assignment_statistics(
+        self,
+        period_start: Optional[date] = None,
+        period_end: Optional[date] = None,
+    ) -> AssignmentStatisticsResponse:
+        """
+        Obtener estadísticas de asignaciones
+
+        Args:
+            period_start: Fecha inicio del período (opcional)
+            period_end: Fecha fin del período (opcional)
+
+        Returns:
+            Estadísticas de asignaciones
+        """
+        # Query base
+        query = self.db.query(ApartmentAssignment).filter(
+            ApartmentAssignment.deleted_at.is_(None)
+        )
+
+        # Filtrar por período si se proporciona
+        if period_start:
+            query = query.filter(ApartmentAssignment.start_date >= period_start)
+
+        if period_end:
+            query = query.filter(
+                or_(
+                    ApartmentAssignment.end_date.is_(None),
+                    ApartmentAssignment.end_date <= period_end
+                )
+            )
+
+        # Ejecutar query para obtener todas las asignaciones
+        all_assignments = query.all()
+
+        # Calcular estadísticas con aggregations
+        total_assignments = len(all_assignments)
+
+        active_assignments = sum(
+            1 for a in all_assignments if a.status == AssignmentStatus.ACTIVE
+        )
+
+        completed_assignments = sum(
+            1 for a in all_assignments if a.status == AssignmentStatus.ENDED
+        )
+
+        cancelled_assignments = sum(
+            1 for a in all_assignments if a.status == AssignmentStatus.CANCELLED
+        )
+
+        transferred_assignments = sum(
+            1 for a in all_assignments if a.status == AssignmentStatus.TRANSFERRED
+        )
+
+        # Calcular total de renta cobrada (total_deduction acumulado)
+        total_rent_collected = sum(
+            a.total_deduction for a in all_assignments if a.total_deduction
+        )
+
+        # Calcular renta promedio
+        average_rent = 0.0
+        if total_assignments > 0:
+            average_rent = sum(
+                a.monthly_rent for a in all_assignments if a.monthly_rent
+            ) / total_assignments
+
+        # Calcular promedio de días de ocupación (solo asignaciones finalizadas)
+        ended_assignments = [
+            a for a in all_assignments
+            if a.end_date is not None
+        ]
+
+        average_occupancy_days = 0.0
+        if ended_assignments:
+            total_days = sum(
+                (a.end_date - a.start_date).days + 1
+                for a in ended_assignments
+            )
+            average_occupancy_days = total_days / len(ended_assignments)
+
+        return AssignmentStatisticsResponse(
+            total_assignments=total_assignments,
+            active_assignments=active_assignments,
+            completed_assignments=completed_assignments,
+            cancelled_assignments=cancelled_assignments,
+            transferred_assignments=transferred_assignments,
+            total_rent_collected=total_rent_collected,
+            average_rent=round(average_rent, 2),
+            average_occupancy_days=round(average_occupancy_days, 2),
+            period_start=period_start,
+            period_end=period_end,
+        )

@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { ArrowLeftIcon, UserPlusIcon, PencilIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
+import { candidateService } from '@/lib/api';
 import { FloatingInput } from '@/components/ui/floating-input';
 import { AnimatedTextarea } from '@/components/ui/animated-textarea';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -152,8 +153,13 @@ export default function CandidateForm({ candidateId, isEdit = false }: Candidate
     try {
       setSubmitting(true);
 
-      // TODO: API call to save candidate
-      // await candidateService.createCandidate(formData);
+      if (isEdit && candidateId) {
+        // Update existing candidate
+        await candidateService.updateCandidate(candidateId, formData);
+      } else {
+        // Create new candidate
+        await candidateService.createCandidate(formData);
+      }
 
       toast.success(isEdit ? '候補者情報を更新しました' : '候補者を登録しました');
       router.push('/candidates');

@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
+import api, { apartmentsV2Service } from '@/lib/api';
+import { toast } from 'react-hot-toast';
 import {
   PlusIcon,
   MagnifyingGlassIcon,
@@ -65,6 +66,8 @@ export default function AdditionalChargesPage() {
     notes: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [editingCharge, setEditingCharge] = useState<AdditionalCharge | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   // Fetch charges
   const { data: charges = [], isLoading } = useQuery({
@@ -117,11 +120,46 @@ export default function AdditionalChargesPage() {
       queryClient.invalidateQueries({ queryKey: ['additional-charges'] });
       setShowForm(false);
       resetForm();
+      toast.success('Cargo creado exitosamente');
     },
     onError: (error: any) => {
       if (error.response?.data?.detail) {
         setErrors({ general: error.response.data.detail });
       }
+      toast.error('Error al crear el cargo');
+    },
+  });
+
+  // Update charge mutation
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      return await apartmentsV2Service.updateCharge(id, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['additional-charges'] });
+      setShowEditModal(false);
+      setEditingCharge(null);
+      resetForm();
+      toast.success('Cargo actualizado exitosamente');
+    },
+    onError: (error: any) => {
+      console.error('Update error:', error);
+      toast.error('Error al actualizar el cargo');
+    },
+  });
+
+  // Delete charge mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return await apartmentsV2Service.deleteCharge(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['additional-charges'] });
+      toast.success('Cargo eliminado exitosamente');
+    },
+    onError: (error: any) => {
+      console.error('Delete error:', error);
+      toast.error('Error al eliminar el cargo');
     },
   });
 
@@ -164,7 +202,60 @@ export default function AdditionalChargesPage() {
       return;
     }
 
-    createMutation.mutate(form);
+    if (editingCharge) {
+      // Update existing charge
+      updateMutation.mutate({
+        id: editingCharge.id,
+        data: {
+          apartment_id: Number(form.apartment_id),
+          employee_id: form.employee_id ? Number(form.employee_id) : null,
+          charge_type: form.charge_type,
+          description: form.description,
+          amount: Number(form.amount),
+          charge_date: form.charge_date,
+          period_start: form.period_start || null,
+          period_end: form.period_end || null,
+          is_recurring: form.is_recurring,
+          notes: form.notes || null,
+        },
+      });
+    } else {
+      // Create new charge
+      createMutation.mutate(form);
+    }
+  };
+
+  const handleEdit = (charge: AdditionalCharge) => {
+    setEditingCharge(charge);
+    setShowEditModal(true);
+    setShowForm(true);
+    setForm({
+      apartment_id: charge.apartment_id,
+      employee_id: charge.employee_id || '',
+      charge_type: charge.charge_type,
+      description: charge.description,
+      amount: charge.amount,
+      charge_date: charge.charge_date,
+      period_start: charge.period_start || '',
+      period_end: charge.period_end || '',
+      is_recurring: charge.is_recurring,
+      notes: '',
+    });
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar este cargo? Esta acción no se puede deshacer.')) {
+      return;
+    }
+
+    deleteMutation.mutate(id);
+  };
+
+  const handleCancelEdit = () => {
+    setShowEditModal(false);
+    setEditingCharge(null);
+    setShowForm(false);
+    resetForm();
   };
 
   const formatDate = (dateString: string) => {
@@ -211,7 +302,9 @@ export default function AdditionalChargesPage() {
       {/* Form */}
       {showForm && (
         <div className="bg-card border rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Crear Nuevo Cargo</h2>
+          <h2 className="text-xl font-semibold mb-4">
+            {editingCharge ? 'Editar Cargo' : 'Crear Nuevo Cargo'}
+          </h2>
           <form onSubmit={handleSubmit} className="space-y-6">
             {errors.general && (
               <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
@@ -371,17 +464,16 @@ export default function AdditionalChargesPage() {
             <div className="flex items-center gap-3 pt-4 border-t">
               <button
                 type="submit"
-                disabled={createMutation.isPending}
+                disabled={createMutation.isPending || updateMutation.isPending}
                 className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
-                {createMutation.isPending ? 'Creando...' : 'Crear Cargo'}
+                {editingCharge
+                  ? (updateMutation.isPending ? 'Actualizando...' : 'Actualizar Cargo')
+                  : (createMutation.isPending ? 'Creando...' : 'Crear Cargo')}
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setShowForm(false);
-                  resetForm();
-                }}
+                onClick={handleCancelEdit}
                 className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-accent transition-colors"
               >
                 Cancelar
@@ -449,20 +541,17 @@ export default function AdditionalChargesPage() {
 
                   <div className="flex items-center gap-2 ml-4">
                     <button
-                      onClick={() => {
-                        // TODO: Edit functionality
-                        alert('Funcionalidad de edición en desarrollo');
-                      }}
+                      onClick={() => handleEdit(charge)}
                       className="p-2 hover:bg-accent rounded-lg transition-colors"
+                      title="Editar cargo"
                     >
                       <PencilIcon className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => {
-                        // TODO: Delete functionality
-                        alert('Funcionalidad de eliminación en desarrollo');
-                      }}
-                      className="p-2 hover:bg-accent rounded-lg transition-colors"
+                      onClick={() => handleDelete(charge.id)}
+                      disabled={deleteMutation.isPending}
+                      className="p-2 hover:bg-accent rounded-lg transition-colors text-red-600 disabled:opacity-50"
+                      title="Eliminar cargo"
                     >
                       <TrashIcon className="h-4 w-4" />
                     </button>

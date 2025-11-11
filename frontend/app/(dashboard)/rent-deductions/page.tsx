@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
+import api, { apartmentsV2Service } from '@/lib/api';
+import { toast } from 'react-hot-toast';
 import {
   CalendarIcon,
   CurrencyYenIcon,
@@ -45,6 +46,7 @@ export default function RentDeductionsPage() {
   const router = useRouter();
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number | ''>('');
+  const [exporting, setExporting] = useState(false);
 
   // Fetch deductions
   const { data: deductions = [], isLoading } = useQuery({
@@ -81,6 +83,35 @@ export default function RentDeductionsPage() {
       .toLocaleDateString('es-ES', { year: 'numeric', month: 'long' });
   };
 
+  const handleExport = async () => {
+    if (!selectedMonth) {
+      toast.error('Por favor selecciona un mes para exportar');
+      return;
+    }
+
+    try {
+      setExporting(true);
+
+      const blob = await apartmentsV2Service.exportDeductions(selectedYear, Number(selectedMonth));
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `deducciones-renta-${selectedYear}-${selectedMonth}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success('Exportación completada exitosamente');
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Error al exportar las deducciones');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -92,14 +123,12 @@ export default function RentDeductionsPage() {
           </p>
         </div>
         <button
-          onClick={() => {
-            // TODO: Export functionality
-            alert('Funcionalidad de exportación en desarrollo');
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+          onClick={handleExport}
+          disabled={exporting || !selectedMonth}
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <DocumentArrowDownIcon className="h-5 w-5" />
-          Exportar
+          {exporting ? 'Exportando...' : 'Exportar'}
         </button>
       </div>
 
