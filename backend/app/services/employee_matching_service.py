@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from rapidfuzz import fuzz, process
 
-from app.models.models import Employee
+from app.models.models import Employee, ContractWorker, Staff
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +123,7 @@ class EmployeeMatchingService:
 
     def _get_factory_employees(self, factory_id: str) -> List[Dict]:
         """
-        Obtener lista de empleados de una fábrica
+        Obtener lista de empleados de una fábrica desde las 3 tablas
 
         Args:
             factory_id: ID de la fábrica
@@ -132,21 +132,46 @@ class EmployeeMatchingService:
             Lista de diccionarios con datos del empleado
         """
         try:
+            # 1. Obtener empleados de la tabla Employee
             employees = (
                 self.db_session.query(Employee)
                 .filter(Employee.factory_id == factory_id)
                 .all()
             )
 
-            return [
-                {
+            # 2. Obtener trabajadores por contrato de la tabla ContractWorker
+            contract_workers = (
+                self.db_session.query(ContractWorker)
+                .filter(ContractWorker.factory_id == factory_id)
+                .all()
+            )
+
+            # 3. Staff no tiene factory_id, así que no los incluimos aquí
+            # (Staff trabaja en oficinas, no en fábricas específicas)
+
+            # Combinar resultados
+            result = []
+
+            # Agregar empleados regulares
+            for emp in employees:
+                result.append({
                     'hakenmoto_id': emp.hakenmoto_id,
                     'full_name_kanji': emp.full_name_kanji,
                     'full_name_kana': emp.full_name_kana,
                     'factory_id': emp.factory_id
-                }
-                for emp in employees
-            ]
+                })
+
+            # Agregar trabajadores por contrato
+            for worker in contract_workers:
+                result.append({
+                    'hakenmoto_id': worker.hakenmoto_id,
+                    'full_name_kanji': worker.full_name_kanji,
+                    'full_name_kana': worker.full_name_kana,
+                    'factory_id': worker.factory_id
+                })
+
+            return result
+
         except Exception as e:
             logger.error(f"Error obteniendo empleados de factory {factory_id}: {e}")
             return []

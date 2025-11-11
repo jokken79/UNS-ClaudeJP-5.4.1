@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, '/app')
 
 from app.core.database import SessionLocal
-from app.models.models import Candidate, Employee
+from app.models.models import Candidate, Employee, ContractWorker, Staff
 from sqlalchemy import func
 
 def sync_candidate_employee_status():
@@ -35,15 +35,28 @@ Total de candidatos a procesar: {len(candidates)}
         """)
 
         for candidate in candidates:
-            # Check if this candidate has a corresponding employee
+            # Check if this candidate has a corresponding employee in ANY of the 3 tables
+            # 1. Try Employee table
             employee = db.query(Employee).filter(
                 Employee.rirekisho_id == candidate.rirekisho_id
             ).first()
 
+            # 2. Try ContractWorker table if not found
+            if not employee:
+                employee = db.query(ContractWorker).filter(
+                    ContractWorker.rirekisho_id == candidate.rirekisho_id
+                ).first()
+
+            # 3. Try Staff table if still not found
+            if not employee:
+                employee = db.query(Staff).filter(
+                    Staff.rirekisho_id == candidate.rirekisho_id
+                ).first()
+
             if employee:
-                # Candidate has an employee assignment → status should be "approved" (合格)
-                if candidate.status != "approved":
-                    candidate.status = "approved"
+                # Candidate has an employee assignment → status should be "hired" (採用)
+                if candidate.status != "hired":
+                    candidate.status = "hired"
                     db.commit()
                     updated += 1
                 else:

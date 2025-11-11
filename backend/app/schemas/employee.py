@@ -144,3 +144,154 @@ class YukyuUpdate(BaseModel):
     """Update yukyu balance"""
     yukyu_total: int
     notes: Optional[str] = None
+
+
+# ============================================
+# SCHEMAS SEPARADOS POR TIPO DE EMPLEADO
+# ============================================
+
+class StaffResponse(BaseModel):
+    """Schema para Staff (スタッフ - Personal de oficina)"""
+    id: int
+    staff_id: int
+    rirekisho_id: Optional[str] = None
+
+    # Información personal
+    full_name_kanji: str
+    full_name_kana: Optional[str] = None
+    photo_url: Optional[str] = None
+    photo_data_url: Optional[str] = None
+    date_of_birth: Optional[date] = None
+    gender: Optional[str] = None
+    nationality: Optional[str] = None
+
+    # Contacto
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    address: Optional[str] = None
+    postal_code: Optional[str] = None
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+    emergency_contact_relationship: Optional[str] = None
+
+    # Empleo
+    hire_date: Optional[date] = None
+    position: Optional[str] = None
+    department: Optional[str] = None
+    monthly_salary: Optional[int] = None  # Salario fijo mensual (Staff)
+
+    # Seguro social
+    health_insurance: Optional[int] = None
+    nursing_insurance: Optional[int] = None
+    pension_insurance: Optional[int] = None
+    social_insurance_date: Optional[date] = None
+
+    # Yukyu (vacaciones pagadas)
+    yukyu_total: int = 0
+    yukyu_used: int = 0
+    yukyu_remaining: int = 0
+
+    # Status
+    is_active: bool = True
+    termination_date: Optional[date] = None
+    termination_reason: Optional[str] = None
+    notes: Optional[str] = None
+    is_corporate_housing: bool = False
+
+    # Metadata
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ContractWorkerResponse(BaseModel):
+    """Schema para ContractWorker (請負社員 - Ukeoi)"""
+    id: int
+    hakenmoto_id: int
+    rirekisho_id: Optional[str] = None
+
+    # Información de fábrica
+    factory_id: Optional[str] = None
+    company_name: Optional[str] = None
+    plant_name: Optional[str] = None
+    hakensaki_shain_id: Optional[str] = None
+
+    # Información personal
+    full_name_kanji: str
+    full_name_kana: Optional[str] = None
+    photo_url: Optional[str] = None
+    photo_data_url: Optional[str] = None
+    date_of_birth: Optional[date] = None
+    gender: Optional[str] = None
+    nationality: Optional[str] = None
+
+    # Información de visa
+    zairyu_card_number: Optional[str] = None
+    zairyu_expire_date: Optional[date] = None
+
+    # Contacto
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    address: Optional[str] = None
+    postal_code: Optional[str] = None
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+    emergency_contact_relationship: Optional[str] = None
+
+    # Empleo
+    hire_date: Optional[date] = None
+    current_hire_date: Optional[date] = None
+    jikyu: Optional[int] = None  # Salario por hora
+    jikyu_revision_date: Optional[date] = None
+    position: Optional[str] = None
+    contract_type: Optional[str] = None
+
+    # Asignación
+    assignment_location: Optional[str] = None
+    assignment_line: Optional[str] = None
+    job_description: Optional[str] = None
+
+    # Información financiera
+    hourly_rate_charged: Optional[int] = None
+    billing_revision_date: Optional[date] = None
+    profit_difference: Optional[int] = None
+    standard_compensation: Optional[int] = None
+    health_insurance: Optional[int] = None
+    nursing_insurance: Optional[int] = None
+    pension_insurance: Optional[int] = None
+    social_insurance_date: Optional[date] = None
+
+    # Visa y documentos
+    visa_type: Optional[str] = None
+    license_type: Optional[str] = None
+    license_expire_date: Optional[date] = None
+    commute_method: Optional[str] = None
+    optional_insurance_expire: Optional[date] = None
+    japanese_level: Optional[str] = None
+    career_up_5years: Optional[bool] = False
+    entry_request_date: Optional[date] = None
+
+    # Apartamento
+    apartment_id: Optional[int] = None
+    apartment_start_date: Optional[date] = None
+    apartment_move_out_date: Optional[date] = None
+    apartment_rent: Optional[int] = None
+    is_corporate_housing: bool = False
+
+    # Yukyu (vacaciones pagadas)
+    yukyu_total: int = 0
+    yukyu_used: int = 0
+    yukyu_remaining: int = 0
+
+    # Status
+    is_active: bool = True
+    termination_date: Optional[date] = None
+    termination_reason: Optional[str] = None
+    notes: Optional[str] = None
+
+    # Metadata
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)

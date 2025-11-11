@@ -21,11 +21,22 @@ from app.models.models import (
 )
 from app.schemas.employee import (
     EmployeeCreate, EmployeeUpdate, EmployeeResponse,
-    EmployeeTerminate, YukyuUpdate
+    EmployeeTerminate, YukyuUpdate,
+    StaffResponse,           # NUEVO
+    ContractWorkerResponse   # NUEVO
 )
 from app.services.auth_service import auth_service
+from pydantic import BaseModel
 
 router = APIRouter()
+
+
+class ChangeTypeRequest(BaseModel):
+    """Request schema for changing employee type"""
+    new_type: str  # "employee" | "staff" | "contract_worker"
+    # Campos opcionales específicos de cada tipo
+    monthly_salary: Optional[int] = None  # Para staff
+    jikyu: Optional[int] = None  # Para employee/contract_worker
 
 
 @router.post("/", response_model=EmployeeResponse, status_code=status.HTTP_201_CREATED)
@@ -111,6 +122,7 @@ def _list_contract_workers(
     search: Optional[str],
     db: Session,
 ):
+    """Lista ContractWorker (請負社員) usando ContractWorkerResponse directamente"""
     query = db.query(ContractWorker)
     # Exclude soft-deleted contract workers by default
     query = query.filter(ContractWorker.deleted_at.is_(None))
@@ -161,17 +173,8 @@ def _list_contract_workers(
     total = query.count()
     workers = query.offset((page - 1) * page_size).limit(page_size).all()
 
-    items = []
-    for worker in workers:
-        worker_model = EmployeeResponse.model_validate(worker, from_attributes=True)
-        worker_model.current_status = 'active' if worker.is_active else 'terminated'
-        worker_model.contract_type = worker.contract_type or '請負'
-
-        if worker.factory_id:
-            factory = db.query(Factory).filter(Factory.factory_id == worker.factory_id).first()
-            worker_model.factory_name = factory.name if factory else None
-
-        items.append(worker_model.model_dump())
+    # Usar ContractWorkerResponse directamente (sin mapeo manual)
+    items = [ContractWorkerResponse.model_validate(worker).model_dump() for worker in workers]
 
     return _paginate_response(items, total, page, page_size)
 
@@ -184,6 +187,7 @@ def _list_staff_members(
     search: Optional[str],
     db: Session,
 ):
+    """Lista Staff (スタッフ) usando StaffResponse directamente"""
     query = db.query(Staff)
     # Exclude soft-deleted staff by default
     query = query.filter(Staff.deleted_at.is_(None))
@@ -222,71 +226,8 @@ def _list_staff_members(
     total = query.count()
     staff_members = query.offset((page - 1) * page_size).limit(page_size).all()
 
-    items = []
-    for member in staff_members:
-        employee_like = EmployeeResponse.model_validate(
-            {
-                'id': member.id,
-                'hakenmoto_id': member.staff_id,
-                'rirekisho_id': member.rirekisho_id,
-                'factory_id': None,
-                'factory_name': None,
-                'hakensaki_shain_id': None,
-                'photo_url': member.photo_url,
-                'photo_data_url': member.photo_data_url,
-                'full_name_kanji': member.full_name_kanji,
-                'full_name_kana': member.full_name_kana,
-                'date_of_birth': member.date_of_birth,
-                'gender': member.gender,
-                'nationality': member.nationality,
-                'address': member.address,
-                'phone': member.phone,
-                'email': member.email,
-                'postal_code': member.postal_code,
-                'assignment_location': None,
-                'assignment_line': None,
-                'job_description': member.department,
-                'hire_date': member.hire_date,
-                'current_hire_date': None,
-                'entry_request_date': None,
-                'termination_date': member.termination_date,
-                'jikyu': 0,
-                'jikyu_revision_date': None,
-                'hourly_rate_charged': None,
-                'billing_revision_date': None,
-                'profit_difference': None,
-                'standard_compensation': member.monthly_salary,
-                'health_insurance': member.health_insurance,
-                'nursing_insurance': member.nursing_insurance,
-                'pension_insurance': member.pension_insurance,
-                'social_insurance_date': member.social_insurance_date,
-                'visa_type': None,
-                'zairyu_expire_date': None,
-                'visa_renewal_alert': None,
-                'visa_alert_days': None,
-                'license_type': None,
-                'license_expire_date': None,
-                'commute_method': None,
-                'optional_insurance_expire': None,
-                'japanese_level': None,
-                'career_up_5years': None,
-                'apartment_id': None,
-                'apartment_start_date': None,
-                'apartment_move_out_date': None,
-                'apartment_rent': None,
-                'yukyu_total': member.yukyu_total,
-                'yukyu_used': member.yukyu_used,
-                'yukyu_remaining': member.yukyu_remaining,
-                'current_status': 'active' if member.is_active else 'terminated',
-                'is_active': member.is_active,
-                'termination_reason': member.termination_reason,
-                'notes': member.notes,
-                'contract_type': 'スタッフ',
-                'created_at': member.created_at,
-                'updated_at': member.updated_at,
-            }
-        )
-        items.append(employee_like.model_dump())
+    # Usar StaffResponse directamente (sin mapeo manual)
+    items = [StaffResponse.model_validate(member).model_dump() for member in staff_members]
 
     return _paginate_response(items, total, page, page_size)
 
@@ -701,3 +642,161 @@ async def import_employees_from_excel(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error processing Excel file: {str(e)}")
+
+
+@router.patch("/{employee_id}/change-type", response_model=EmployeeResponse)
+async def change_employee_type(
+    employee_id: int,
+    change_request: ChangeTypeRequest,
+    current_user: User = Depends(auth_service.require_role("admin")),
+    db: Session = Depends(get_db)
+):
+    """
+    Cambia el tipo de empleado entre Employee, Staff y ContractWorker.
+
+    Proceso:
+    1. Buscar el registro actual en las 3 tablas
+    2. Copiar todos los campos comunes
+    3. Crear nuevo registro en la tabla destino
+    4. Eliminar registro original
+    5. Retornar nuevo registro
+    """
+
+    # 1. Buscar en las 3 tablas usando employee_id (id primary key)
+    employee = db.query(Employee).filter(Employee.id == employee_id).first()
+    current_type = "employee"
+    current_hakenmoto_id = None
+
+    if not employee:
+        employee = db.query(ContractWorker).filter(ContractWorker.id == employee_id).first()
+        current_type = "contract_worker"
+
+    if not employee:
+        employee = db.query(Staff).filter(Staff.id == employee_id).first()
+        current_type = "staff"
+
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    # No hacer nada si el tipo es el mismo
+    if current_type == change_request.new_type:
+        # Retornar el empleado actual como EmployeeResponse
+        return EmployeeResponse.model_validate(employee, from_attributes=True)
+
+    # Guardar el hakenmoto_id/staff_id actual
+    if current_type == "staff":
+        current_hakenmoto_id = employee.staff_id
+    else:
+        current_hakenmoto_id = employee.hakenmoto_id
+
+    # 2. Crear diccionario con campos comunes
+    common_fields = {
+        'rirekisho_id': employee.rirekisho_id,
+        'full_name_kanji': employee.full_name_kanji,
+        'full_name_kana': getattr(employee, 'full_name_kana', None),
+        'photo_url': getattr(employee, 'photo_url', None),
+        'photo_data_url': getattr(employee, 'photo_data_url', None),
+        'date_of_birth': getattr(employee, 'date_of_birth', None),
+        'gender': getattr(employee, 'gender', None),
+        'nationality': getattr(employee, 'nationality', None),
+        'address': getattr(employee, 'address', None),
+        'phone': getattr(employee, 'phone', None),
+        'email': getattr(employee, 'email', None),
+        'postal_code': getattr(employee, 'postal_code', None),
+        'emergency_contact_name': getattr(employee, 'emergency_contact_name', None),
+        'emergency_contact_phone': getattr(employee, 'emergency_contact_phone', None),
+        'emergency_contact_relationship': getattr(employee, 'emergency_contact_relationship', None),
+        'hire_date': getattr(employee, 'hire_date', None),
+        'health_insurance': getattr(employee, 'health_insurance', None),
+        'nursing_insurance': getattr(employee, 'nursing_insurance', None),
+        'pension_insurance': getattr(employee, 'pension_insurance', None),
+        'social_insurance_date': getattr(employee, 'social_insurance_date', None),
+        'yukyu_total': getattr(employee, 'yukyu_total', 0),
+        'yukyu_used': getattr(employee, 'yukyu_used', 0),
+        'yukyu_remaining': getattr(employee, 'yukyu_remaining', 0),
+        'is_active': getattr(employee, 'is_active', True),
+        'termination_date': getattr(employee, 'termination_date', None),
+        'termination_reason': getattr(employee, 'termination_reason', None),
+        'notes': getattr(employee, 'notes', None),
+    }
+
+    # Campos específicos de Employee/ContractWorker
+    if current_type in ["employee", "contract_worker"]:
+        common_fields.update({
+            'factory_id': getattr(employee, 'factory_id', None),
+            'company_name': getattr(employee, 'company_name', None),
+            'plant_name': getattr(employee, 'plant_name', None),
+            'hakensaki_shain_id': getattr(employee, 'hakensaki_shain_id', None),
+            'zairyu_card_number': getattr(employee, 'zairyu_card_number', None),
+            'zairyu_expire_date': getattr(employee, 'zairyu_expire_date', None),
+            'current_hire_date': getattr(employee, 'current_hire_date', None),
+            'jikyu': getattr(employee, 'jikyu', None),
+            'jikyu_revision_date': getattr(employee, 'jikyu_revision_date', None),
+            'position': getattr(employee, 'position', None),
+            'contract_type': getattr(employee, 'contract_type', None),
+            'assignment_location': getattr(employee, 'assignment_location', None),
+            'assignment_line': getattr(employee, 'assignment_line', None),
+            'job_description': getattr(employee, 'job_description', None),
+            'hourly_rate_charged': getattr(employee, 'hourly_rate_charged', None),
+            'billing_revision_date': getattr(employee, 'billing_revision_date', None),
+            'profit_difference': getattr(employee, 'profit_difference', None),
+            'standard_compensation': getattr(employee, 'standard_compensation', None),
+            'visa_type': getattr(employee, 'visa_type', None),
+            'license_type': getattr(employee, 'license_type', None),
+            'license_expire_date': getattr(employee, 'license_expire_date', None),
+            'commute_method': getattr(employee, 'commute_method', None),
+            'optional_insurance_expire': getattr(employee, 'optional_insurance_expire', None),
+            'japanese_level': getattr(employee, 'japanese_level', None),
+            'career_up_5years': getattr(employee, 'career_up_5years', False),
+            'entry_request_date': getattr(employee, 'entry_request_date', None),
+            'apartment_id': getattr(employee, 'apartment_id', None),
+            'apartment_start_date': getattr(employee, 'apartment_start_date', None),
+            'apartment_move_out_date': getattr(employee, 'apartment_move_out_date', None),
+            'apartment_rent': getattr(employee, 'apartment_rent', None),
+            'is_corporate_housing': getattr(employee, 'is_corporate_housing', False),
+        })
+
+    # 3. Crear nuevo registro según el tipo destino
+    try:
+        if change_request.new_type == "employee":
+            new_record = Employee(
+                hakenmoto_id=current_hakenmoto_id,
+                **{k: v for k, v in common_fields.items() if hasattr(Employee, k)}
+            )
+            if change_request.jikyu:
+                new_record.jikyu = change_request.jikyu
+
+        elif change_request.new_type == "staff":
+            new_record = Staff(
+                staff_id=current_hakenmoto_id,
+                **{k: v for k, v in common_fields.items() if hasattr(Staff, k)}
+            )
+            if change_request.monthly_salary:
+                new_record.monthly_salary = change_request.monthly_salary
+            # Staff no tiene factory_id, position específico, etc.
+            new_record.position = getattr(employee, 'position', None)
+            new_record.department = getattr(employee, 'job_description', None)
+
+        elif change_request.new_type == "contract_worker":
+            new_record = ContractWorker(
+                hakenmoto_id=current_hakenmoto_id,
+                **{k: v for k, v in common_fields.items() if hasattr(ContractWorker, k)}
+            )
+            if change_request.jikyu:
+                new_record.jikyu = change_request.jikyu
+        else:
+            raise HTTPException(status_code=400, detail="Invalid employee type. Must be: employee, staff, or contract_worker")
+
+        # 4. Guardar nuevo y eliminar viejo (en transacción)
+        db.add(new_record)
+        db.flush()  # Para obtener el ID
+        db.delete(employee)
+        db.commit()
+        db.refresh(new_record)
+
+        # Retornar como EmployeeResponse
+        return EmployeeResponse.model_validate(new_record, from_attributes=True)
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error changing employee type: {str(e)}")
