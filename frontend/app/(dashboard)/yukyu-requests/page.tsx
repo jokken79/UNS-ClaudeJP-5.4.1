@@ -12,6 +12,7 @@ import {
   FileText,
   Filter,
   AlertCircle,
+  FileDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,6 +29,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 
 interface YukyuRequest {
   id: number;
@@ -142,6 +144,36 @@ export default function YukyuRequestsPage() {
   const handleReject = (request: YukyuRequest) => {
     setSelectedRequest(request);
     setRejectDialogOpen(true);
+  };
+
+  // Download PDF for request
+  const handleDownloadPDF = async (requestId: number) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`/api/yukyu/requests/${requestId}/pdf`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) throw new Error('Failed to download PDF');
+
+      // Get the blob and download
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `yukyu_request_${requestId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success('PDFをダウンロードしました');
+    } catch (error) {
+      console.error('PDF download error:', error);
+      toast.error('PDFのダウンロードに失敗しました');
+    }
   };
 
   // Confirm approve
@@ -365,26 +397,36 @@ export default function YukyuRequestsPage() {
                   </div>
 
                   {/* Actions */}
-                  {request.status === 'pending' && (
-                    <div className="flex flex-col gap-2 ml-4">
-                      <Button
-                        size="sm"
-                        onClick={() => handleApprove(request)}
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        <CheckCircle className="mr-1 h-4 w-4" />
-                        承認
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleReject(request)}
-                      >
-                        <XCircle className="mr-1 h-4 w-4" />
-                        却下
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex flex-col gap-2 ml-4">
+                    {request.status === 'pending' && (
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={() => handleApprove(request)}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          <CheckCircle className="mr-1 h-4 w-4" />
+                          承認
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleReject(request)}
+                        >
+                          <XCircle className="mr-1 h-4 w-4" />
+                          却下
+                        </Button>
+                      </>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleDownloadPDF(request.id)}
+                    >
+                      <FileDown className="mr-1 h-4 w-4" />
+                      PDF
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>

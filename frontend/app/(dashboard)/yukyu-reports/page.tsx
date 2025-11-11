@@ -13,11 +13,14 @@ import {
   Clock,
   BarChart3,
   PieChart,
+  FileDown,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 interface YukyuSummary {
   employee_id: number;
@@ -43,6 +46,8 @@ interface YukyuStats {
 }
 
 export default function YukyuReportsPage() {
+  const [isExporting, setIsExporting] = useState(false);
+
   // Fetch all employee summaries
   const { data: employees } = useQuery<any[]>({
     queryKey: ['employees'],
@@ -57,6 +62,39 @@ export default function YukyuReportsPage() {
       return data.items || [];
     }
   });
+
+  // Export to Excel function
+  const handleExportToExcel = async () => {
+    setIsExporting(true);
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch('/api/yukyu/reports/export-excel', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) throw new Error('Failed to export');
+
+      // Get the blob and download
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `yukyu_report_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success('レポートをエクスポートしました');
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('エクスポートに失敗しました');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Calculate statistics
   const stats = React.useMemo(() => {
@@ -119,13 +157,23 @@ export default function YukyuReportsPage() {
   return (
     <div className="container mx-auto p-6">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          有給休暇レポート
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          有給休暇の使用状況と統計
-        </p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            有給休暇レポート
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            有給休暇の使用状況と統計
+          </p>
+        </div>
+        <Button
+          onClick={handleExportToExcel}
+          disabled={isExporting}
+          className="gap-2"
+        >
+          <FileDown className="h-4 w-4" />
+          {isExporting ? 'エクスポート中...' : 'Excelエクスポート'}
+        </Button>
       </div>
 
       {/* Main Stats */}

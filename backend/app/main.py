@@ -20,6 +20,7 @@ from app.core.config import settings
 from app.core.database import get_db, init_db
 from app.core.logging import app_logger
 from app.core.observability import configure_observability
+from app.core.scheduler import start_scheduler, stop_scheduler
 from app.core.middleware import (
     AuditContextMiddleware,
     ExceptionHandlerMiddleware,
@@ -39,6 +40,11 @@ async def lifespan(app: FastAPI):
     try:
         init_db()
         app_logger.info("Database initialised successfully")
+
+        # Start background scheduler for cron jobs
+        start_scheduler()
+        app_logger.info("Scheduler started successfully")
+
     except Exception as exc:  # pragma: no cover
         app_logger.exception("Database init failed", error=str(exc))
         raise
@@ -47,6 +53,8 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     app_logger.info("Shutting down application")
+    stop_scheduler()
+    app_logger.info("Scheduler stopped")
 
 
 app = FastAPI(

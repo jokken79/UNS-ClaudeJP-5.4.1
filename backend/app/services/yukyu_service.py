@@ -22,6 +22,7 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 from dateutil.relativedelta import relativedelta
 
+from app.services.notification_service import notification_service
 from app.models.models import (
     YukyuBalance,
     YukyuRequest,
@@ -473,6 +474,24 @@ class YukyuService:
         self.db.commit()
         self.db.refresh(request)
 
+        # Send notification (async, don't block on failure)
+        try:
+            employee = self.db.query(Employee).filter(Employee.id == request.employee_id).first()
+            approver = self.db.query(User).filter(User.id == user_id).first()
+
+            if employee and employee.email:
+                notification_service.notify_yukyu_approval(
+                    employee_email=employee.email,
+                    employee_name=employee.full_name_kanji or employee.full_name_roman,
+                    status="承認",
+                    yukyu_date=f"{request.start_date.strftime('%Y年%m月%d日')} - {request.end_date.strftime('%Y年%m月%d日')}",
+                    line_user_id=getattr(employee, 'line_user_id', None)
+                )
+        except Exception as e:
+            # Don't fail the request if notification fails
+            from loguru import logger
+            logger.warning(f"Failed to send approval notification: {str(e)}")
+
         return await self._build_request_response(request)
 
     async def reject_request(
@@ -518,6 +537,24 @@ class YukyuService:
 
         self.db.commit()
         self.db.refresh(request)
+
+        # Send notification (async, don't block on failure)
+        try:
+            employee = self.db.query(Employee).filter(Employee.id == request.employee_id).first()
+            rejector = self.db.query(User).filter(User.id == user_id).first()
+
+            if employee and employee.email:
+                notification_service.notify_yukyu_approval(
+                    employee_email=employee.email,
+                    employee_name=employee.full_name_kanji or employee.full_name_roman,
+                    status="却下",
+                    yukyu_date=f"{request.start_date.strftime('%Y年%m月%d日')} - {request.end_date.strftime('%Y年%m月%d日')}",
+                    line_user_id=getattr(employee, 'line_user_id', None)
+                )
+        except Exception as e:
+            # Don't fail the request if notification fails
+            from loguru import logger
+            logger.warning(f"Failed to send rejection notification: {str(e)}")
 
         return await self._build_request_response(request)
 
@@ -734,3 +771,397 @@ class YukyuService:
             requested_by_name=requested_by.full_name if requested_by else None,
             approved_by_name=approved_by.full_name if approved_by else None,
         )
+
+    async def export_to_excel(self) -> bytes:
+        """
+        Export yukyu data to Excel file.
+
+        Creates Excel with multiple sheets:
+        - Summary: Overall statistics
+        - Balances: All employee balances
+        - Requests: All requests history
+        - Alerts: Employees with issues
+
+        Returns:
+            bytes: Excel file as bytes
+        """
+        import pandas as pd
+        from io import BytesIO
+        from datetime import date
+
+        # Create BytesIO buffer
+        output = BytesIO()
+
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            # Sheet 1: Summary
+            summary_data = []
+            employees = self.db.query(Employee).all()
+
+            total_employees = len(employees)
+            total_available = 0
+            total_used = 0
+            total_expired = 0
+
+            for emp in employees:
+                balances = self.db.query(YukyuBalance).filter(
+                    YukyuBalance.employee_id == emp.id,
+                    YukyuBalance.status == YukyuStatus.ACTIVE
+                ).all()
+
+                available = sum(b.days_available for b in balances)
+                used = sum(b.days_used for b in balances)
+                expired = sum(b.days_expired for b in balances)
+
+                total_available += available
+                total_used += used
+                total_expired += expired
+
+            summary_data.append({
+                "指標": "従業員総数",
+                "値": total_employees
+            })
+            summary_data.append({
+                "指標": "有給残日数合計",
+                "値": total_available
+            })
+            summary_data.append({
+                "指標": "消化日数合計",
+                "値": total_used
+            })
+            summary_data.append({
+                "指標": "時効日数合計",
+                "値": total_expired
+            })
+            summary_data.append({
+                "指標": "平均有給日数",
+                "値": round(total_available / total_employees, 2) if total_employees > 0 else 0
+            })
+
+            df_summary = pd.DataFrame(summary_data)
+            df_summary.to_excel(writer, sheet_name='概要', index=False)
+
+            # Sheet 2: Employee Balances
+            balance_data = []
+            for emp in employees:
+                balances = self.db.query(YukyuBalance).filter(
+                    YukyuBalance.employee_id == emp.id,
+                    YukyuBalance.status == YukyuStatus.ACTIVE
+                ).all()
+
+                if balances:
+                    available = sum(b.days_available for b in balances)
+                    used = sum(b.days_used for b in balances)
+                    expired = sum(b.days_expired for b in balances)
+                    oldest_expiry = min(b.expires_on for b in balances)
+
+                    balance_data.append({
+                        "社員番号": emp.employee_id,
+                        "氏名": emp.full_name_kanji,
+                        "派遣先": emp.factory.name if emp.factory else "",
+                        "有給残": available,
+                        "消化済": used,
+                        "時効": expired,
+                        "最も古い期限": oldest_expiry.strftime("%Y-%m-%d"),
+                        "入社日": emp.hire_date.strftime("%Y-%m-%d") if emp.hire_date else "",
+                    })
+
+            df_balances = pd.DataFrame(balance_data)
+            df_balances.to_excel(writer, sheet_name='従業員別有給', index=False)
+
+            # Sheet 3: Requests
+            requests = self.db.query(YukyuRequest).order_by(YukyuRequest.created_at.desc()).limit(500).all()
+            request_data = []
+
+            for req in requests:
+                emp = self.db.query(Employee).filter(Employee.id == req.employee_id).first()
+                requested_by = self.db.query(User).filter(User.id == req.requested_by_user_id).first()
+                approved_by = None
+                if req.approved_by_user_id:
+                    approved_by = self.db.query(User).filter(User.id == req.approved_by_user_id).first()
+
+                request_data.append({
+                    "申請ID": req.id,
+                    "社員番号": emp.employee_id if emp else "",
+                    "氏名": emp.full_name_kanji if emp else "",
+                    "種類": "有給" if req.request_type == "yukyu" else "半休",
+                    "開始日": req.start_date.strftime("%Y-%m-%d"),
+                    "終了日": req.end_date.strftime("%Y-%m-%d"),
+                    "日数": float(req.days_requested),
+                    "状態": req.status.value,
+                    "申請者": requested_by.full_name if requested_by else "",
+                    "承認者": approved_by.full_name if approved_by else "",
+                    "承認日": req.approval_date.strftime("%Y-%m-%d %H:%M") if req.approval_date else "",
+                    "申請日": req.created_at.strftime("%Y-%m-%d %H:%M"),
+                })
+
+            df_requests = pd.DataFrame(request_data)
+            df_requests.to_excel(writer, sheet_name='申請履歴', index=False)
+
+            # Sheet 4: Alerts
+            alert_data = []
+            for emp in employees:
+                balances = self.db.query(YukyuBalance).filter(
+                    YukyuBalance.employee_id == emp.id,
+                    YukyuBalance.status == YukyuStatus.ACTIVE
+                ).all()
+
+                if not balances:
+                    alert_data.append({
+                        "社員番号": emp.employee_id,
+                        "氏名": emp.full_name_kanji,
+                        "派遣先": emp.factory.name if emp.factory else "",
+                        "アラート種類": "有給なし",
+                        "残日数": 0,
+                        "入社日": emp.hire_date.strftime("%Y-%m-%d") if emp.hire_date else "",
+                    })
+                else:
+                    available = sum(b.days_available for b in balances)
+
+                    if available <= 3:
+                        alert_data.append({
+                            "社員番号": emp.employee_id,
+                            "氏名": emp.full_name_kanji,
+                            "派遣先": emp.factory.name if emp.factory else "",
+                            "アラート種類": "有給が少ない (≤3日)",
+                            "残日数": available,
+                            "入社日": emp.hire_date.strftime("%Y-%m-%d") if emp.hire_date else "",
+                        })
+                    elif available >= 15:
+                        alert_data.append({
+                            "社員番号": emp.employee_id,
+                            "氏名": emp.full_name_kanji,
+                            "派遣先": emp.factory.name if emp.factory else "",
+                            "アラート種類": "有給が多い (≥15日)",
+                            "残日数": available,
+                            "入社日": emp.hire_date.strftime("%Y-%m-%d") if emp.hire_date else "",
+                        })
+
+            df_alerts = pd.DataFrame(alert_data)
+            df_alerts.to_excel(writer, sheet_name='アラート', index=False)
+
+        # Get the value from buffer
+        output.seek(0)
+        return output.getvalue()
+
+    async def generate_request_pdf(self, request_id: int) -> bytes:
+        """
+        Generate PDF document for yukyu request.
+
+        Creates a professional Japanese PDF with:
+        - Company header
+        - Request details
+        - Employee information
+        - Approval section
+
+        Args:
+            request_id: ID of the yukyu request
+
+        Returns:
+            bytes: PDF file as bytes
+        """
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import mm
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+        from io import BytesIO
+        from datetime import datetime
+
+        # Get request
+        request = self.db.query(YukyuRequest).filter(YukyuRequest.id == request_id).first()
+        if not request:
+            raise ValueError(f"Request {request_id} not found")
+
+        # Get related data
+        employee = self.db.query(Employee).filter(Employee.id == request.employee_id).first()
+        factory = None
+        if request.factory_id:
+            factory = self.db.query(Factory).filter(Factory.id == request.factory_id).first()
+        requested_by = None
+        if request.requested_by_user_id:
+            requested_by = self.db.query(User).filter(User.id == request.requested_by_user_id).first()
+        approved_by = None
+        if request.approved_by_user_id:
+            approved_by = self.db.query(User).filter(User.id == request.approved_by_user_id).first()
+
+        # Create PDF buffer
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=20*mm,
+            leftMargin=20*mm,
+            topMargin=15*mm,
+            bottomMargin=15*mm,
+        )
+
+        # Container for PDF elements
+        elements = []
+        styles = getSampleStyleSheet()
+
+        # Title
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=18,
+            textColor=colors.HexColor('#1a1a1a'),
+            spaceAfter=20,
+            alignment=TA_CENTER,
+            fontName='Helvetica-Bold',
+        )
+        elements.append(Paragraph('有給休暇申請書', title_style))
+        elements.append(Spacer(1, 10*mm))
+
+        # Request Information Table
+        request_data = [
+            ['申請番号', f'#{request.id}'],
+            ['申請日', request.created_at.strftime('%Y年%m月%d日')],
+            ['申請状態', {
+                'pending': '承認待ち',
+                'approved': '承認済み',
+                'rejected': '却下',
+            }.get(request.status.value, request.status.value)],
+        ]
+
+        if request.approval_date:
+            request_data.append(['承認日', request.approval_date.strftime('%Y年%m月%d日')])
+
+        request_table = Table(request_data, colWidths=[50*mm, 120*mm])
+        request_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f0f0f0')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1a1a1a')),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 10),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(request_table)
+        elements.append(Spacer(1, 10*mm))
+
+        # Employee Information
+        elements.append(Paragraph('<b>従業員情報</b>', styles['Heading2']))
+        elements.append(Spacer(1, 5*mm))
+
+        employee_data = [
+            ['社員番号', employee.employee_id if employee else 'N/A'],
+            ['氏名', employee.full_name_kanji if employee else 'N/A'],
+            ['派遣先', factory.name if factory else 'N/A'],
+            ['入社日', employee.hire_date.strftime('%Y年%m月%d日') if employee and employee.hire_date else 'N/A'],
+        ]
+
+        employee_table = Table(employee_data, colWidths=[50*mm, 120*mm])
+        employee_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f0f0f0')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1a1a1a')),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 10),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(employee_table)
+        elements.append(Spacer(1, 10*mm))
+
+        # Yukyu Request Details
+        elements.append(Paragraph('<b>有給休暇申請内容</b>', styles['Heading2']))
+        elements.append(Spacer(1, 5*mm))
+
+        request_type_display = '有給休暇（全日）' if request.request_type == 'yukyu' else '半日休暇'
+
+        yukyu_data = [
+            ['種類', request_type_display],
+            ['開始日', request.start_date.strftime('%Y年%m月%d日')],
+            ['終了日', request.end_date.strftime('%Y年%m月%d日')],
+            ['申請日数', f'{float(request.days_requested)}日'],
+            ['申請時有給残日数', f'{request.yukyu_available_at_request}日' if request.yukyu_available_at_request else 'N/A'],
+        ]
+
+        if request.notes:
+            yukyu_data.append(['備考', request.notes])
+
+        yukyu_table = Table(yukyu_data, colWidths=[50*mm, 120*mm])
+        yukyu_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f0f0f0')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1a1a1a')),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 10),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(yukyu_table)
+        elements.append(Spacer(1, 10*mm))
+
+        # Approval Section
+        elements.append(Paragraph('<b>承認情報</b>', styles['Heading2']))
+        elements.append(Spacer(1, 5*mm))
+
+        approval_data = [
+            ['申請者', requested_by.full_name if requested_by else 'N/A'],
+        ]
+
+        if request.status.value == 'approved':
+            approval_data.append(['承認者', approved_by.full_name if approved_by else 'N/A'])
+            approval_data.append(['承認日', request.approval_date.strftime('%Y年%m月%d日 %H:%M') if request.approval_date else 'N/A'])
+        elif request.status.value == 'rejected':
+            approval_data.append(['承認者', approved_by.full_name if approved_by else 'N/A'])
+            approval_data.append(['却下日', request.approval_date.strftime('%Y年%m月%d日 %H:%M') if request.approval_date else 'N/A'])
+            if request.rejection_reason:
+                approval_data.append(['却下理由', request.rejection_reason])
+        else:
+            approval_data.append(['承認状態', '承認待ち'])
+
+        approval_table = Table(approval_data, colWidths=[50*mm, 120*mm])
+        approval_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f0f0f0')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1a1a1a')),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 10),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(approval_table)
+        elements.append(Spacer(1, 15*mm))
+
+        # Footer
+        footer_style = ParagraphStyle(
+            'Footer',
+            parent=styles['Normal'],
+            fontSize=8,
+            textColor=colors.grey,
+            alignment=TA_CENTER,
+        )
+        elements.append(Spacer(1, 10*mm))
+        elements.append(Paragraph(
+            f'このドキュメントは {datetime.now().strftime("%Y年%m月%d日 %H:%M")} に生成されました。',
+            footer_style
+        ))
+        elements.append(Paragraph('UNS-ClaudeJP 有給休暇管理システム', footer_style))
+
+        # Build PDF
+        doc.build(elements)
+
+        # Get PDF bytes
+        buffer.seek(0)
+        return buffer.getvalue()

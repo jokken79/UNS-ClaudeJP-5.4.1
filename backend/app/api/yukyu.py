@@ -261,3 +261,250 @@ async def expire_old_yukyus(
         "message": f"Expired {count} yukyu balance(s)",
         "count": count
     }
+
+
+@router.get("/maintenance/scheduler-status", tags=["Maintenance"])
+async def get_scheduler_status(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    **Get Scheduler Status**
+
+    Endpoint para ver el estado del scheduler de cron jobs.
+
+    **Requiere:**
+    - Usuario autenticado (ADMIN o SUPER_ADMIN recomendado)
+
+    **Returns:**
+    - Estado del scheduler (running/stopped)
+    - Lista de jobs configurados con próximas ejecuciones
+    """
+    from app.core.scheduler import get_scheduler_status
+    return get_scheduler_status()
+
+
+@router.get("/reports/export-excel", tags=["Reports"])
+async def export_yukyu_to_excel(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    **Export Yukyu Data to Excel**
+
+    Exporta todos los datos de yukyu a un archivo Excel con 4 hojas:
+
+    1. **概要 (Summary)**: Estadísticas globales
+       - Total empleados
+       - Total días disponibles/usados/expirados
+       - Promedio por empleado
+
+    2. **従業員別有給 (Employee Balances)**: Balances por empleado
+       - Número de empleado, nombre, fábrica
+       - Días disponibles, usados, expirados
+       - Fecha de expiración más antigua
+
+    3. **申請履歴 (Request History)**: Últimas 500 solicitudes
+       - Detalles de la solicitud
+       - Estado (pendiente/aprobado/rechazado)
+       - Fechas y responsables
+
+    4. **アラート (Alerts)**: Empleados con problemas
+       - Sin yukyu (0 días)
+       - Bajo yukyu (≤3 días)
+       - Alto yukyu (≥15 días)
+
+    **Requiere:**
+    - Usuario autenticado
+
+    **Returns:**
+    - Excel file (.xlsx) para descargar
+    """
+    from fastapi.responses import StreamingResponse
+    from datetime import datetime
+    from io import BytesIO
+
+    service = YukyuService(db)
+    excel_bytes = await service.export_to_excel()
+
+    # Create filename with current date
+    filename = f"yukyu_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+
+    return StreamingResponse(
+        BytesIO(excel_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get("/requests/{request_id}/pdf", tags=["Reports"])
+async def generate_request_pdf(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    **Generate PDF for Yukyu Request**
+
+    Genera un documento PDF profesional para una solicitud de yukyu con:
+
+    - **申請番号 (Request Number)**: ID único de la solicitud
+    - **従業員情報 (Employee Info)**: Datos del empleado solicitante
+    - **申請内容 (Request Details)**: Fechas, días solicitados, tipo
+    - **承認情報 (Approval Info)**: Estado de aprobación, responsables
+
+    **Formato:** Documento A4 profesional en japonés con tablas estructuradas
+
+    **Casos de uso:**
+    - Imprimir solicitud para archivos físicos
+    - Enviar por email al empleado
+    - Adjuntar a expediente laboral
+
+    **Requiere:**
+    - Usuario autenticado
+    - `request_id`: ID de la solicitud
+
+    **Returns:**
+    - PDF file (.pdf) para descargar o imprimir
+    """
+    from fastapi.responses import StreamingResponse
+    from io import BytesIO
+
+    service = YukyuService(db)
+
+    try:
+        pdf_bytes = await service.generate_request_pdf(request_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    filename = f"yukyu_request_{request_id}.pdf"
+
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get("/payroll/summary", tags=["Payroll Integration"])
+async def get_payroll_yukyu_summary(
+    year: int,
+    month: int,
+    factory_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    **Get Yukyu Summary for Payroll Integration**
+
+    Retorna el resumen de yukyus usados por empleado en un período específico
+    para integración con el sistema de nómina (payroll).
+
+    **Casos de Uso:**
+    - Calcular deducciones por yukyus no pagados
+    - Reportar días de ausencia justificada (有給欠勤)
+    - Generar estadísticas de uso de vacaciones
+    - Exportar datos para sistemas externos de nómina
+
+    **Query Parameters:**
+    - `year`: Año del período (ej: 2025)
+    - `month`: Mes del período (1-12)
+    - `factory_id` (opcional): Filtrar por fábrica específica
+
+    **Response Structure:**
+    ```json
+    {
+      "period": {
+        "year": 2025,
+        "month": 1,
+        "start_date": "2025-01-01",
+        "end_date": "2025-01-31"
+      },
+      "employees": [
+        {
+          "employee_id": "E001",
+          "employee_name": "山田太郎",
+          "factory_name": "トヨタ自動車",
+          "days_used_in_period": 2.0,
+          "total_available": 15,
+          "requests_count": 2
+        }
+      ],
+      "summary": {
+        "total_employees": 50,
+        "total_days_used": 75.5,
+        "average_days_per_employee": 1.5
+      }
+    }
+    ```
+
+    **Requiere:**
+    - Usuario autenticado (ADMIN, KEIRI, o SUPER_ADMIN recomendado)
+    """
+    from calendar import monthrange
+    from app.models.models import Employee, Factory
+
+    # Calculate period dates
+    _, last_day = monthrange(year, month)
+    start_date = date(year, month, 1)
+    end_date = date(year, month, last_day)
+
+    # Query approved requests in period
+    query = db.query(YukyuRequest).filter(
+        YukyuRequest.status == RequestStatus.APPROVED,
+        YukyuRequest.start_date >= start_date,
+        YukyuRequest.end_date <= end_date
+    )
+
+    if factory_id:
+        query = query.filter(YukyuRequest.factory_id == factory_id)
+
+    requests = query.all()
+
+    # Group by employee
+    employee_data = {}
+    for req in requests:
+        emp_id = req.employee_id
+        if emp_id not in employee_data:
+            employee = db.query(Employee).filter(Employee.id == emp_id).first()
+            factory = None
+            if employee and employee.factory_id:
+                factory = db.query(Factory).filter(Factory.id == employee.factory_id).first()
+
+            # Get total available yukyus
+            service = YukyuService(db)
+            try:
+                summary = await service.get_employee_yukyu_summary(emp_id)
+                total_available = summary.total_available
+            except:
+                total_available = 0
+
+            employee_data[emp_id] = {
+                "employee_id": employee.employee_id if employee else str(emp_id),
+                "employee_name": employee.full_name_kanji if employee else "Unknown",
+                "factory_name": factory.name if factory else "N/A",
+                "days_used_in_period": 0,
+                "total_available": total_available,
+                "requests_count": 0
+            }
+
+        employee_data[emp_id]["days_used_in_period"] += float(req.days_requested)
+        employee_data[emp_id]["requests_count"] += 1
+
+    employees_list = list(employee_data.values())
+    total_days = sum(e["days_used_in_period"] for e in employees_list)
+    total_employees = len(employees_list)
+
+    return {
+        "period": {
+            "year": year,
+            "month": month,
+            "start_date": start_date.strftime("%Y-%m-%d"),
+            "end_date": end_date.strftime("%Y-%m-%d")
+        },
+        "employees": employees_list,
+        "summary": {
+            "total_employees": total_employees,
+            "total_days_used": round(total_days, 2),
+            "average_days_per_employee": round(total_days / total_employees, 2) if total_employees > 0 else 0
+        }
+    }
