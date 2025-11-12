@@ -1,5 +1,5 @@
 """
-Pydantic Schemas for UNS-ClaudeJP 5.2
+Pydantic Schemas for UNS-ClaudeJP 5.4.1
 
 This module exports all Pydantic models for request/response validation.
 Use: from app.schemas import CandidateCreate, EmployeeResponse
@@ -10,10 +10,21 @@ Organized by functional module:
 - Employees: Employee management schemas
 - Factories: Factory/client site schemas
 - Timer Cards: Attendance tracking schemas
-- Salary: Payroll calculation schemas
+- Salary: Payroll calculation schemas (legacy)
+- Unified Salary: NEW consolidated salary/payroll schemas (RECOMMENDED)
 - Requests: Leave request workflow schemas
 - Dashboard: Analytics and statistics schemas
 - Base/Common: Shared base schemas, pagination, responses
+
+NEW in v5.4.1:
+--------------
+Unified Salary Schema (salary_unified.py):
+- Consolidates salary.py + payroll.py into single comprehensive module
+- Improved type safety with Pydantic validators
+- Complete request/response patterns
+- Detailed documentation and examples
+- For new code, import from salary_unified:
+  from app.schemas import SalaryCalculateRequest, SalaryResponse
 """
 
 # Authentication schemas
@@ -89,7 +100,7 @@ from app.schemas.timer_card import (
     TimerCardApprove,
 )
 
-# Salary schemas
+# Salary schemas (legacy - use salary_unified for new code)
 from app.schemas.salary import (
     SalaryCalculationBase,
     SalaryCalculate,
@@ -99,6 +110,50 @@ from app.schemas.salary import (
     SalaryMarkPaid,
     SalaryReport,
     SalaryStatistics,
+)
+
+# Unified Salary schemas (NEW - recommended for all new code)
+from app.schemas.salary_unified import (
+    # Enums
+    SalaryStatus,
+    PayrollRunStatus,
+
+    # Helper Models
+    HoursBreakdown as UnifiedHoursBreakdown,
+    RatesConfiguration,
+    SalaryAmounts,
+    DeductionsDetail as UnifiedDeductionsDetail,
+    PayrollSummary,
+    TimerRecord as UnifiedTimerRecord,
+
+    # Core Response
+    SalaryCalculationResponse as UnifiedSalaryCalculationResponse,
+
+    # Request Models
+    SalaryCalculateRequest,
+    SalaryBulkCalculateRequest,
+    SalaryMarkPaidRequest,
+    SalaryValidateRequest,
+    SalaryUpdateRequest,
+
+    # Response Models
+    SalaryResponse,
+    SalaryListResponse,
+    BulkCalculateResponse,
+    ValidationResult,
+    SalaryStatistics as UnifiedSalaryStatistics,
+
+    # Payslip Models
+    PayslipGenerateRequest,
+    PayslipResponse,
+
+    # CRUD Models
+    SalaryCreateResponse,
+    SalaryUpdateResponse,
+    SalaryDeleteResponse,
+
+    # Error Models
+    SalaryError,
 )
 
 # Request schemas
@@ -216,7 +271,7 @@ __all__ = [
     "TimerCardUploadResponse",
     "TimerCardApprove",
 
-    # Salary
+    # Salary (legacy)
     "SalaryCalculationBase",
     "SalaryCalculate",
     "SalaryCalculationResponse",
@@ -225,6 +280,33 @@ __all__ = [
     "SalaryMarkPaid",
     "SalaryReport",
     "SalaryStatistics",
+
+    # Unified Salary (NEW - recommended)
+    "SalaryStatus",
+    "PayrollRunStatus",
+    "UnifiedHoursBreakdown",
+    "RatesConfiguration",
+    "SalaryAmounts",
+    "UnifiedDeductionsDetail",
+    "PayrollSummary",
+    "UnifiedTimerRecord",
+    "UnifiedSalaryCalculationResponse",
+    "SalaryCalculateRequest",
+    "SalaryBulkCalculateRequest",
+    "SalaryMarkPaidRequest",
+    "SalaryValidateRequest",
+    "SalaryUpdateRequest",
+    "SalaryResponse",
+    "SalaryListResponse",
+    "BulkCalculateResponse",
+    "ValidationResult",
+    "UnifiedSalaryStatistics",
+    "PayslipGenerateRequest",
+    "PayslipResponse",
+    "SalaryCreateResponse",
+    "SalaryUpdateResponse",
+    "SalaryDeleteResponse",
+    "SalaryError",
 
     # Requests
     "RequestBase",
