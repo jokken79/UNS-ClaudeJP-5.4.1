@@ -1,9 +1,9 @@
 """
 Employees API Endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 from typing import Optional
 import pandas as pd
 from datetime import datetime, date
@@ -362,6 +362,115 @@ async def list_employees(
         items.append(emp_dict)
 
     return _paginate_response(items, total, page, page_size)
+
+
+@router.get("/available-for-apartment")
+async def list_available_for_apartment(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(1000, ge=1, le=2000),
+    search: Optional[str] = Query(None),
+    current_user: User = Depends(auth_service.get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get employees and contract workers available for apartment assignment.
+    Combines both employees and contract_workers tables.
+    Returns workers WITHOUT apartment assignments (apartment_id IS NULL).
+    """
+    from sqlalchemy import union_all, cast, String, literal
+
+    # Build search filters for employees
+    employee_filters = [
+        Employee.deleted_at.is_(None),
+        Employee.is_active == True,
+        Employee.contract_type != 'スタッフ',
+        Employee.apartment_id.is_(None)
+    ]
+
+    if search:
+        search_filter = or_(
+            Employee.hakensaki_shain_id.ilike(f"%{search}%"),
+            Employee.full_name_kanji.ilike(f"%{search}%"),
+            cast(Employee.hakenmoto_id, String).ilike(f"%{search}%")
+        )
+        employee_filters.append(search_filter)
+
+    # Query employees - select specific fields and map to common schema
+    employees_query = db.query(
+        Employee.id.label('id'),
+        Employee.hakensaki_shain_id.label('employee_id'),
+        Employee.full_name_kanji.label('full_name_kanji'),
+        Employee.full_name_roman.label('full_name_roman'),
+        Employee.factory_id.label('factory_id'),
+        Employee.hakenmoto_id.label('hakenmoto_id'),
+        Employee.apartment_id.label('apartment_id'),
+        Employee.contract_type.label('contract_type'),
+        literal('employee').label('worker_type')
+    ).filter(and_(*employee_filters))
+
+    # Build search filters for contract workers
+    contract_filters = [
+        ContractWorker.deleted_at.is_(None),
+        ContractWorker.is_active == True,
+        ContractWorker.apartment_id.is_(None)
+    ]
+
+    if search:
+        search_filter = or_(
+            ContractWorker.hakensaki_shain_id.ilike(f"%{search}%"),
+            ContractWorker.full_name_kanji.ilike(f"%{search}%"),
+            cast(ContractWorker.hakenmoto_id, String).ilike(f"%{search}%")
+        )
+        contract_filters.append(search_filter)
+
+    # Query contract workers - map to same schema
+    contract_workers_query = db.query(
+        ContractWorker.id.label('id'),
+        ContractWorker.hakensaki_shain_id.label('employee_id'),
+        ContractWorker.full_name_kanji.label('full_name_kanji'),
+        ContractWorker.full_name_roman.label('full_name_roman'),
+        ContractWorker.factory_id.label('factory_id'),
+        ContractWorker.hakenmoto_id.label('hakenmoto_id'),
+        ContractWorker.apartment_id.label('apartment_id'),
+        literal('請負').label('contract_type'),
+        literal('contract_worker').label('worker_type')
+    ).filter(and_(*contract_filters))
+
+    # Combine both queries with UNION ALL
+    combined_query = union_all(employees_query, contract_workers_query).alias('workers')
+
+    # Get total count
+    total_query = db.query(combined_query).count()
+
+    # Apply pagination
+    offset = (page - 1) * page_size
+    results = db.query(combined_query).offset(offset).limit(page_size).all()
+
+    # Convert results to dictionaries
+    items = []
+    for worker in results:
+        worker_dict = {
+            'id': worker.id,
+            'employee_id': worker.employee_id,
+            'full_name_kanji': worker.full_name_kanji,
+            'full_name_roman': worker.full_name_roman,
+            'factory_id': worker.factory_id,
+            'hakenmoto_id': worker.hakenmoto_id,
+            'apartment_id': worker.apartment_id,
+            'contract_type': worker.contract_type,
+            'worker_type': worker.worker_type
+        }
+
+        # Add factory name if factory_id exists
+        if worker.factory_id:
+            factory = db.query(Factory).filter(Factory.factory_id == worker.factory_id).first()
+            worker_dict['factory_name'] = factory.name if factory else None
+        else:
+            worker_dict['factory_name'] = None
+
+        items.append(worker_dict)
+
+    return _paginate_response(items, total_query, page, page_size)
 
 
 @router.get("/{employee_id}")

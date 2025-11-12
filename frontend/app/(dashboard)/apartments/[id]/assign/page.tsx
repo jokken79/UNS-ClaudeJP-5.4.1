@@ -46,20 +46,20 @@ export default function AssignEmployeePage() {
     queryFn: () => apartmentsV2Service.getApartment(apartmentId),
   });
 
-  // Fetch available employees (not assigned to any apartment)
+  // Fetch available employees and contract workers (not assigned to any apartment)
   const { data: employeesResponse, isLoading: employeesLoading } = useQuery({
-    queryKey: ['employees-available', search],
+    queryKey: ['workers-available', search],
     queryFn: async () => {
-      return await employeeService.getEmployees({
+      return await employeeService.getAvailableForApartment({
         page: 1,
-        page_size: 100,
+        page_size: 1000,
         search: search || undefined,
       });
     },
   });
 
-  // Filter employees without apartment assignment
-  const employees = employeesResponse?.items.filter((emp) => !emp.apartment_id) || [];
+  // No need to filter - backend already returns only workers without apartments
+  const employees = employeesResponse?.items || [];
 
   // Auto-calculate prorated rent when start date changes
   useEffect(() => {

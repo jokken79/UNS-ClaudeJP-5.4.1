@@ -188,6 +188,11 @@ export const employeeService = {
 
   deleteEmployee: async (id: string | number): Promise<void> => {
     await api.delete(`/employees/${id}/`);
+  },
+
+  getAvailableForApartment: async (params?: EmployeeListParams): Promise<PaginatedResponse<Employee>> => {
+    const response = await api.get<PaginatedResponse<Employee>>('/employees/available-for-apartment', { params });
+    return response.data;
   }
 };
 

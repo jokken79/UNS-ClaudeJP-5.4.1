@@ -390,15 +390,6 @@ export default function ApartmentDetailsPage() {
           <h2 className="font-semibold">
             Asignaciones Activas ({assignments.length})
           </h2>
-          {apartment.is_available && (
-            <button
-              onClick={() => router.push(`/apartments/${apartmentId}/assign`)}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors text-sm"
-            >
-              <UserPlusIcon className="h-4 w-4 inline mr-2" />
-              Asignar Empleado
-            </button>
-          )}
         </div>
 
         {assignmentsLoading && (
