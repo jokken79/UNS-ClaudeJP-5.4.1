@@ -69,6 +69,11 @@ class EmployeePayroll(Base):
     # Net amount
     net_amount = Column(Numeric(12, 2), default=0)
 
+    # Yukyu (有給休暇) Information
+    yukyu_days_approved = Column(Numeric(4, 1), default=0)  # Días de yukyu aprobados en período
+    yukyu_deduction_jpy = Column(Numeric(10, 2), default=0)  # Monto deducido por yukyu (¥)
+    yukyu_request_ids = Column(Text, nullable=True)  # JSON: [1, 2, 3] para referencia a requests
+
     # Metadata
     timer_card_period_id = Column(Integer)
     payslip_generated = Column(Boolean, default=False)

@@ -189,7 +189,7 @@ async def create_yukyu_request(
     2. Requests yukyu days (can be 0.5 for hannichi - half day)
     3. System validates employee has enough yukyus available
     4. Request created with status=PENDING
-    5. KEIRI receives notification to approve/reject
+    5. KEITOSAN receives notification to approve/reject
 
     **Request Types:**
     - `yukyu`: Full paid vacation day
@@ -216,7 +216,7 @@ async def list_yukyu_requests(
 
     **Permissions:**
     - **TANTOSHA:** Can only see requests for their factory (factory_id required)
-    - **KEIRI/ADMIN:** Can see all requests (factory_id optional)
+    - **KEITOSAN/ADMIN:** Can see all requests (factory_id optional)
 
     **Filters:**
     - `factory_id`: Filter by factory
@@ -244,7 +244,7 @@ async def approve_yukyu_request(
     db: Session = Depends(get_db)
 ):
     """
-    Approve yukyu request (by KEIRI).
+    Approve yukyu request (by KEITOSAN).
 
     **Permissions:** KEITOSAN, ADMIN
 
@@ -276,7 +276,7 @@ async def reject_yukyu_request(
     db: Session = Depends(get_db)
 ):
     """
-    Reject yukyu request (by KEIRI).
+    Reject yukyu request (by KEITOSAN).
 
     **Permissions:** KEITOSAN, ADMIN
 
@@ -530,7 +530,7 @@ async def get_payroll_yukyu_summary(
     ```
 
     **Requiere:**
-    - Usuario autenticado (ADMIN, KEIRI, o SUPER_ADMIN recomendado)
+    - Usuario autenticado (ADMIN, KEITOSAN, o SUPER_ADMIN recomendado)
     """
     from calendar import monthrange
     from app.models.models import Employee, Factory

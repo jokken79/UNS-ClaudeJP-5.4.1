@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, between
 import logging
 
-from app.models.models import TimerCard, Employee, Factory
+from app.models.models import TimerCard, Employee, Factory, YukyuRequest, RequestStatus
 from app.schemas.payroll import EmployeePayrollResult
 
 logger = logging.getLogger(__name__)
@@ -110,7 +110,8 @@ class PayrollIntegrationService:
                     'full_name_kana': employee.full_name_kana,
                     'jikyu': employee.jikyu or 0,
                     'factory_info': factory_info,
-                    'apartment_rent': employee.apartment_rent or 0
+                    'apartment_rent': employee.apartment_rent or 0,
+                    'standard_hours_per_month': 160  # Default teiji (定時), puede venir de PayrollSettings
                 },
                 'timer_records': timer_records,
                 'date_range': {
@@ -161,6 +162,25 @@ class PayrollIntegrationService:
 
             employee = timer_data['employee']
             timer_records = timer_data['timer_records']
+
+            # Obtener yukyus aprobados para el período
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+
+            yukyu_requests = self.db.query(YukyuRequest).filter(
+                YukyuRequest.employee_id == employee_id,
+                YukyuRequest.status == RequestStatus.APPROVED,
+                YukyuRequest.start_date <= end_date_obj,
+                YukyuRequest.end_date >= start_date_obj
+            ).all()
+
+            yukyu_days_approved = sum(float(r.days_requested) for r in yukyu_requests) if yukyu_requests else 0
+
+            # Log para auditoría
+            if yukyu_days_approved > 0:
+                logger.info(
+                    f"Employee {employee_id}: {yukyu_days_approved} approved yukyu days in period {start_date}-{end_date}"
+                )
 
             if not timer_records:
                 return {

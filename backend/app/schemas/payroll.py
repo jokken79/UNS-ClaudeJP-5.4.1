@@ -74,6 +74,8 @@ class EmployeeData(BaseModel):
     prefecture: str = Field(default="Tokyo", description="Prefecture for resident tax")
     apartment_rent: float = Field(default=30000, ge=0, description="Monthly apartment rent")
     dependents: int = Field(default=0, ge=0, description="Number of dependents")
+    standard_hours_per_month: float = Field(default=160, gt=0, le=300, description="Standard hours per month for teiji (定時) calculation")
+    yukyu_days_approved: float = Field(default=0, ge=0, description="Approved yukyu days in period (有給休暇)")
 
 
 class EmployeePayrollCreate(BaseModel):
@@ -81,6 +83,7 @@ class EmployeePayrollCreate(BaseModel):
     employee_data: EmployeeData
     timer_records: List[TimerRecord]
     payroll_run_id: Optional[int] = Field(None, description="Payroll run ID")
+    yukyu_days_approved: float = Field(default=0, ge=0, description="Yukyu days approved (alternative to employee_data.yukyu_days_approved)")
 
 
 class HoursBreakdown(BaseModel):
@@ -124,6 +127,7 @@ class DeductionsDetail(BaseModel):
     employment_insurance: float
     apartment: float
     other: float
+    yukyu_deduction: float = Field(default=0, description="Deduction for approved yukyu days (有給休暇控除)")
 
 
 class ValidationResult(BaseModel):

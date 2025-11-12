@@ -11,7 +11,7 @@ from app.core.database import get_db
 from app.services.payroll_service import PayrollService
 from app.services.payroll_integration_service import PayrollIntegrationService
 from app.models.payroll_models import PayrollRun as PayrollRunModel, EmployeePayroll
-from app.models.models import Employee
+from app.models.models import Employee, YukyuRequest, RequestStatus
 from app.schemas.payroll import (
     PayrollRunCreate,
     PayrollRun,
@@ -496,7 +496,8 @@ def calculate_employee_payroll(
         result = service.calculate_employee_payroll(
             employee_data=request.employee_data.dict(),
             timer_records=[r.dict() for r in request.timer_records],
-            payroll_run_id=request.payroll_run_id
+            payroll_run_id=request.payroll_run_id,
+            yukyu_days_approved=request.yukyu_days_approved
         )
 
         if not result['success']:
@@ -576,6 +577,118 @@ def calculate_payroll_from_timer_cards(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error calculating payroll from timer cards: {str(e)}"
+        )
+
+
+@router.get(
+    "/yukyu-summary",
+    summary="Get yukyu impact summary on payroll",
+    description="Returns a summary of yukyu (paid vacation) impact on payroll for a given period"
+)
+def get_payroll_yukyu_summary(
+    start_date: str = Query(..., description="Start date in YYYY-MM-DD format"),
+    end_date: str = Query(..., description="End date in YYYY-MM-DD format"),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Get summary of yukyu impact on payroll for a period.
+
+    Returns statistics on approved yukyu requests and their financial impact.
+
+    Args:
+        start_date: Start date (YYYY-MM-DD)
+        end_date: End date (YYYY-MM-DD)
+        db: Database session
+
+    Returns:
+        Dictionary with yukyu impact summary:
+        {
+            "period": "2025-10",
+            "total_employees": 42,
+            "employees_with_yukyu": 28,
+            "total_yukyu_days": 45.5,
+            "total_yukyu_deduction_jpy": 562500,
+            "average_deduction_per_employee": 13437,
+            "details": [...]
+        }
+    """
+    try:
+        # Parse dates
+        start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
+
+        # Query approved yukyu requests in the period
+        yukyu_requests = db.query(YukyuRequest).filter(
+            YukyuRequest.status == RequestStatus.APPROVED,
+            YukyuRequest.start_date <= end_dt,
+            YukyuRequest.end_date >= start_dt
+        ).all()
+
+        # Group by employee
+        employees_yukyu = {}
+        for request in yukyu_requests:
+            emp_id = request.employee_id
+            if emp_id not in employees_yukyu:
+                employees_yukyu[emp_id] = {
+                    'days': 0,
+                    'requests': []
+                }
+            employees_yukyu[emp_id]['days'] += float(request.days_requested)
+            employees_yukyu[emp_id]['requests'].append(request)
+
+        # Get employee names and calculate deductions
+        total_deduction = 0
+        details = []
+
+        for emp_id, yukyu_info in employees_yukyu.items():
+            employee = db.query(Employee).filter(Employee.id == emp_id).first()
+            if employee:
+                # Calculate deduction (8 hours/day × base hourly rate)
+                base_hourly_rate = float(employee.jikyu) if employee.jikyu else 0
+                deduction_jpy = int(yukyu_info['days'] * 8 * base_hourly_rate)
+                total_deduction += deduction_jpy
+
+                details.append({
+                    'employee_id': emp_id,
+                    'employee_name': employee.full_name_kanji or employee.full_name_kana,
+                    'yukyu_days': yukyu_info['days'],
+                    'yukyu_deduction_jpy': deduction_jpy,
+                    'base_hourly_rate': base_hourly_rate
+                })
+
+        # Calculate summary statistics
+        total_employees_with_yukyu = len(employees_yukyu)
+        total_days = sum(info['days'] for info in employees_yukyu.values())
+        avg_deduction = (
+            total_deduction // total_employees_with_yukyu
+            if total_employees_with_yukyu > 0
+            else 0
+        )
+
+        # Format period
+        period_str = f"{start_dt.year}-{start_dt.month:02d}"
+
+        return {
+            'period': period_str,
+            'total_employees_with_yukyu': total_employees_with_yukyu,
+            'total_yukyu_days': total_days,
+            'total_yukyu_deduction_jpy': total_deduction,
+            'average_deduction_per_employee': avg_deduction,
+            'date_range': {
+                'start_date': start_date,
+                'end_date': end_date
+            },
+            'details': details
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid date format. Expected YYYY-MM-DD: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving yukyu summary: {str(e)}"
         )
 
 

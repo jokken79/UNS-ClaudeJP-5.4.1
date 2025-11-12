@@ -100,3 +100,32 @@ class CoordinatorDashboard(BaseModel):
     total_employees_supervised: int
     pending_approvals: int
     recent_activities: List[RecentActivity]
+
+
+class YukyuTrendMonth(BaseModel):
+    """Monthly yukyu trend data"""
+    month: str  # Format: "2025-01"
+    total_approved_days: float  # Total yukyu days approved in month
+    employees_with_yukyu: int  # Count of employees with approved yukyu
+    total_deduction_jpy: float  # Total deduction amount in JPY
+    avg_deduction_per_employee: float  # Average deduction per employee
+
+
+class YukyuComplianceDetail(BaseModel):
+    """Individual employee compliance detail"""
+    employee_id: int
+    employee_name: str
+    total_used_this_year: float  # Total yukyu days used (used + deducted)
+    total_remaining: float  # Remaining yukyu days
+    legal_minimum: float  # Minimum required by law (5 days)
+    is_compliant: bool  # Whether employee meets legal minimum
+    warning: Optional[str]  # Warning message if below minimum
+
+
+class YukyuComplianceStatus(BaseModel):
+    """Yukyu compliance status for all employees"""
+    period: str  # Format: "2025-01" or fiscal year
+    total_employees: int
+    compliant_employees: int  # Employees with >= 5 days remaining
+    non_compliant_employees: int  # Employees with < 5 days remaining
+    employees_details: List[YukyuComplianceDetail]
