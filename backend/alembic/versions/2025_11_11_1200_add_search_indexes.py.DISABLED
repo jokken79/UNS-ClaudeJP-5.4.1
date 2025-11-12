@@ -1,7 +1,7 @@
 """Add search indexes for better performance
 
 Revision ID: add_search_indexes
-Revises: 68534af764e0
+Revises: add_photo_sync_trigger
 Create Date: 2025-11-11 12:00:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_search_indexes'
-down_revision = '68534af764e0'
+down_revision = 'add_photo_sync_trigger'
 branch_labels = None
 depends_on = None
 

@@ -16,8 +16,8 @@ Author: UNS-ClaudeJP System
 """
 
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func, desc
-from typing import List, Optional, Tuple
+from sqlalchemy import or_, func, desc
+from typing import Dict, List, Optional, Tuple
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from dateutil.relativedelta import relativedelta
@@ -186,10 +186,8 @@ class YukyuService:
             carryover = 0
             if milestone > 6:
                 prev_balance = self.db.query(YukyuBalance).filter(
-                    and_(
-                        YukyuBalance.employee_id == employee_id,
-                        YukyuBalance.months_worked == milestone - 12
-                    )
+                    YukyuBalance.employee_id == employee_id,
+                    YukyuBalance.months_worked == milestone - 12
                 ).first()
 
                 if prev_balance:
@@ -225,10 +223,8 @@ class YukyuService:
         total_available = self.db.query(
             func.sum(YukyuBalance.days_available)
         ).filter(
-            and_(
-                YukyuBalance.employee_id == employee_id,
-                YukyuBalance.status == YukyuStatus.ACTIVE
-            )
+            YukyuBalance.employee_id == employee_id,
+            YukyuBalance.status == YukyuStatus.ACTIVE
         ).scalar() or 0
 
         return YukyuCalculationResponse(
@@ -266,10 +262,8 @@ class YukyuService:
 
         # Get all active balances
         balances = self.db.query(YukyuBalance).filter(
-            and_(
-                YukyuBalance.employee_id == employee_id,
-                YukyuBalance.status == YukyuStatus.ACTIVE
-            )
+            YukyuBalance.employee_id == employee_id,
+            YukyuBalance.status == YukyuStatus.ACTIVE
         ).order_by(YukyuBalance.assigned_date.desc()).all()
 
         # Calculate totals
@@ -324,10 +318,8 @@ class YukyuService:
             total_available = self.db.query(
                 func.sum(YukyuBalance.days_available)
             ).filter(
-                and_(
-                    YukyuBalance.employee_id == emp.id,
-                    YukyuBalance.status == YukyuStatus.ACTIVE
-                )
+                YukyuBalance.employee_id == emp.id,
+                YukyuBalance.status == YukyuStatus.ACTIVE
             ).scalar() or 0
 
             result.append(EmployeeByFactoryResponse(
@@ -460,10 +452,8 @@ class YukyuService:
         total_available = self.db.query(
             func.sum(YukyuBalance.days_available)
         ).filter(
-            and_(
-                YukyuBalance.employee_id == request_data.employee_id,
-                YukyuBalance.status == YukyuStatus.ACTIVE
-            )
+            YukyuBalance.employee_id == request_data.employee_id,
+            YukyuBalance.status == YukyuStatus.ACTIVE
         ).scalar() or 0
 
         # Validate enough yukyus
@@ -726,11 +716,9 @@ class YukyuService:
 
         # Get active balances, newest first (LIFO)
         balances = self.db.query(YukyuBalance).filter(
-            and_(
-                YukyuBalance.employee_id == employee_id,
-                YukyuBalance.status == YukyuStatus.ACTIVE,
-                YukyuBalance.days_available > 0
-            )
+            YukyuBalance.employee_id == employee_id,
+            YukyuBalance.status == YukyuStatus.ACTIVE,
+            YukyuBalance.days_available > 0
         ).order_by(YukyuBalance.assigned_date.desc()).all()
 
         if not balances:
@@ -799,10 +787,8 @@ class YukyuService:
 
         # Find balances that should be expired
         balances_to_expire = self.db.query(YukyuBalance).filter(
-            and_(
-                YukyuBalance.status == YukyuStatus.ACTIVE,
-                YukyuBalance.expires_on <= today
-            )
+            YukyuBalance.status == YukyuStatus.ACTIVE,
+            YukyuBalance.expires_on <= today
         ).all()
 
         for balance in balances_to_expire:

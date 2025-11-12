@@ -1,7 +1,7 @@
 """Add candidate_id and employee_data to requests for 入社連絡票 (nyuusha renrakuhyo)
 
 Revision ID: add_nyuusha_fields
-Revises: add_search_indexes
+Revises: add_photo_sync_trigger
 Create Date: 2025-11-11 16:00:00.000000
 
 """
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = 'add_nyuusha_fields'
-down_revision = 'add_search_indexes'
+down_revision = 'add_photo_sync_trigger'
 branch_labels = None
 depends_on = None
 

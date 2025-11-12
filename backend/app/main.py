@@ -278,7 +278,7 @@ app.include_router(requests.router, prefix="/api/requests", tags=["Requests"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(import_export.router, prefix="/api/import", tags=["Import/Export"])
 app.include_router(resilient_import.router, tags=["Resilient Import"])
-app.include_router(payroll.router, prefix="/api/payroll", tags=["Payroll"])
+app.include_router(payroll.router, tags=["Payroll"])  # Router already has prefix="/api/payroll"
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
 app.include_router(monitoring.router, prefix="/api/monitoring", tags=["Monitoring"])

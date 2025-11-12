@@ -127,7 +127,7 @@ export default function YukyuReportsPage() {
 
   // Calculate statistics
   const stats = React.useMemo(() => {
-    if (!employees) return null;
+    if (!employees || !Array.isArray(employees)) return null;
 
     const totalEmployees = employees.length;
     const totalAvailable = employees.reduce((sum, e) => sum + (e.yukyu_remaining || 0), 0);
@@ -154,7 +154,7 @@ export default function YukyuReportsPage() {
 
   // Group employees by yukyu range
   const yukyuDistribution = React.useMemo(() => {
-    if (!employees) return [];
+    if (!employees || !Array.isArray(employees)) return [];
 
     const ranges = [
       { label: '0日', min: 0, max: 0, count: 0, color: 'bg-red-500' },
@@ -175,7 +175,7 @@ export default function YukyuReportsPage() {
 
   // Employees needing attention
   const alerts = React.useMemo(() => {
-    if (!employees) return {
+    if (!employees || !Array.isArray(employees)) return {
       noYukyu: [],
       lowYukyu: [],
       highYukyu: [],

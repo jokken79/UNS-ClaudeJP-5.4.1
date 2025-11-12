@@ -600,6 +600,46 @@
       "dependencies": []
     },
     {
+      "name": "theme-wizard",
+      "file": ".claude/elite/theme-wizard.md",
+      "description": "🎨 WIZARD SUPREMO DE THEMES CSS/TAILWIND - Especialista ELITE en diseño visual y creación de Design Systems completos. Experto en: themes CSS/Tailwind/SCSS personalizados, Dark/Light Mode, Glassmorphism/Neumorphism, clonación de themes premium ($99-$999), conversión de diseños a CSS production-ready, Tailwind config avanzado, CSS Variables/Custom Properties, animaciones CSS/Framer Motion, gradientes y efectos visuales. Use cuando: - Quieres crear un theme desde cero - Necesitas clonar un theme premium - Requieres personalizar colores/estilos del sistema - Buscas implementar dark mode - Necesitas extraer design tokens de imagen/URL - Quieres convertir SCSS/CSS a Tailwind",
+      "category": "elite",
+      "proactive": true,
+      "triggers": [
+        "theme wizard",
+        "theme-wizard",
+        "theme",
+        "themes",
+        "css theme",
+        "tailwind theme",
+        "design system",
+        "design tokens",
+        "dark mode",
+        "glassmorphism",
+        "personalizar theme",
+        "clonar theme"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "ui-clone-master",
+      "file": ".claude/elite/ui-clone-master.md",
+      "description": "🎨 MAESTRO SUPREMO DE CLONACIÓN UI/UX - El agente más poderoso para replicar cualquier diseño. Especialista ELITE en: análisis de diseños visuales, clonación pixel-perfect, extracción de Design Tokens, implementación con Tailwind CSS + Shadcn/Radix UI, responsive design, animaciones, temas dark/light, accessibility WCAG 2.1 AA. 🤝 Trabaja en equipo con @theme-wizard para themes CSS/Tailwind. Use cuando: - Quieres clonar un diseño de imagen/URL - Necesitas implementar mockups/wireframes exactos - Requieres analizar y extraer design system - Buscas implementar componentes visuales complejos - Necesitas convertir Figma/Sketch a código React/Next.js",
+      "category": "elite",
+      "proactive": true,
+      "triggers": [
+        "ui clone master",
+        "ui-clone-master",
+        "clonar diseño",
+        "clone design",
+        "pixel perfect",
+        "implementar diseño",
+        "figma to code",
+        "sketch to code"
+      ],
+      "dependencies": []
+    },
+    {
       "name": "deployment-specialist",
       "file": ".claude/agents/devops/deployment-specialist.md",
       "description": "DevOps specialist focused on deployment automation, CI/CD pipelines, infrastructure as code, and production reliability. Expert in cloud platforms, containerization, and monitoring systems. Use when: - Setting up CI/CD pipelines - Deployment automation and orchestration - Infrastructure provisioning and management - Production monitoring and alerting - Performance optimization and scaling",
@@ -1457,6 +1497,134 @@
         "expert"
       ],
       "dependencies": []
+    },
+    {
+      "name": "yukyu-specialist",
+      "file": ".claude/domain-specialists/yukyu-specialist.md",
+      "description": "Especialista en sistema de yukyu (有給休暇 - vacaciones pagadas) según ley laboral japonesa: cálculo, algoritmo LIFO, workflow de aprobaciones, reportes y compliance",
+      "category": "domain-specialists",
+      "proactive": false,
+      "triggers": [
+        "yukyu specialist",
+        "yukyu-specialist",
+        "vacaciones pagadas",
+        "yukyu",
+        "有給",
+        "cálculo yukyu",
+        "LIFO deduction",
+        "ley laboral japonesa",
+        "yukyu balance",
+        "yukyu request"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "employee-lifecycle-specialist",
+      "file": ".claude/domain-specialists/employee-lifecycle-specialist.md",
+      "description": "Especialista en ciclo de vida completo de empleados: Candidato → Nyuusha (入社) → Empleado → Asignación → Terminación. Maneja conversiones, documentos, tipos de empleado y asignaciones",
+      "category": "domain-specialists",
+      "proactive": false,
+      "triggers": [
+        "employee lifecycle specialist",
+        "employee-lifecycle-specialist",
+        "candidato a empleado",
+        "nyuusha",
+        "入社",
+        "contratación",
+        "employee type",
+        "派遣社員",
+        "staff",
+        "contract worker",
+        "terminación empleado",
+        "factory assignment"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "payroll-specialist",
+      "file": ".claude/domain-specialists/payroll-specialist.md",
+      "description": "Especialista en cálculo de nómina japonesa: salarios (jikyu/gekkyu), deducciones (seguros, impuestos, renta), timer cards, overtime, yukyu payment y reportes de payroll",
+      "category": "domain-specialists",
+      "proactive": false,
+      "triggers": [
+        "payroll specialist",
+        "payroll-specialist",
+        "cálculo nómina",
+        "salario",
+        "給与",
+        "deducciones",
+        "timer card",
+        "タイムカード",
+        "overtime",
+        "時間外",
+        "payslip",
+        "給与明細",
+        "jikyu",
+        "時給"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "apartment-specialist",
+      "file": ".claude/domain-specialists/apartment-specialist.md",
+      "description": "Especialista en gestión de apartamentos y asignaciones: disponibilidad, rentas, deducciones en payroll, mantenimiento, reportes de ocupación y sistema V2",
+      "category": "domain-specialists",
+      "proactive": false,
+      "triggers": [
+        "apartment specialist",
+        "apartment-specialist",
+        "apartamento",
+        "寮",
+        "apartment assignment",
+        "renta",
+        "寮費",
+        "room type",
+        "occupancy",
+        "apartment v2"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "candidate-specialist",
+      "file": ".claude/domain-specialists/candidate-specialist.md",
+      "description": "Especialista en proceso de candidatos: OCR de rirekisho (履歴書), validación de documentos, Azure OCR + fallbacks, proceso de aprobación y conversión a empleado",
+      "category": "domain-specialists",
+      "proactive": false,
+      "triggers": [
+        "candidate specialist",
+        "candidate-specialist",
+        "candidato",
+        "rirekisho",
+        "履歴書",
+        "OCR",
+        "zairyu card",
+        "在留カード",
+        "candidate approval",
+        "azure ocr",
+        "photo extraction"
+      ],
+      "dependencies": []
+    },
+    {
+      "name": "factory-assignment-specialist",
+      "file": ".claude/domain-specialists/factory-assignment-specialist.md",
+      "description": "Especialista en asignaciones a empresas clientes (派遣先): asignación de empleados, gestión de turnos (朝番/昼番/夜番), rotación, reportes por cliente",
+      "category": "domain-specialists",
+      "proactive": false,
+      "triggers": [
+        "factory assignment specialist",
+        "factory-assignment-specialist",
+        "asignación fábrica",
+        "派遣先",
+        "factory",
+        "shift",
+        "朝番",
+        "昼番",
+        "夜番",
+        "client assignment",
+        "rotation"
+      ],
+      "dependencies": []
     }
   ],
   "categories": {
@@ -1577,6 +1745,16 @@
       "description": "User experience and design system specialists",
       "agents": [
         "ux-designer"
+      ]
+    },
+    "elite": {
+      "description": "🌟 AGENTES ELITE DE MÁXIMO PODER - Los especialistas más avanzados del sistema",
+      "agents": [
+        "code-quality-guardian",
+        "full-stack-architect",
+        "master-problem-solver",
+        "theme-wizard",
+        "ui-clone-master"
       ]
     },
     "infrastructure": {
@@ -1736,9 +1914,14 @@
   },
   "metadata": {
     "created": "2024-01-15",
-    "last_updated": "2025-08-07",
-    "total_agents": 107,
+    "last_updated": "2025-11-12",
+    "total_agents": 109,
     "version_history": [
+      {
+        "version": "2.1.0",
+        "date": "2025-11-12",
+        "changes": "Added theme-wizard and ui-clone-master to elite category, updated ui-clone-master with team collaboration"
+      },
       {
         "version": "2.0.0",
         "date": "2025-08-07",

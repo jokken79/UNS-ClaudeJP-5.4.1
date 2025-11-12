@@ -444,7 +444,7 @@ export default function EmployeesPage() {
   const getStatusBadge = (status: string | null) => {
     const statusMap: Record<string, { label: string; color: string }> = {
       active: { label: '在籍中', color: 'bg-green-100 text-green-800' },
-      terminated: { label: '退社済', color: 'bg-gray-100 text-gray-800' },
+      terminated: { label: '退社済', color: 'bg-muted text-muted-foreground' },
       suspended: { label: '休職中', color: 'bg-yellow-100 text-yellow-800' },
     };
 
@@ -452,7 +452,7 @@ export default function EmployeesPage() {
     if (!statusInfo) return '-';
 
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
+      <span className={`inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-medium ${statusInfo.color}`}>
         {statusInfo.label}
       </span>
     );
@@ -473,7 +473,7 @@ export default function EmployeesPage() {
     const isExpiringSoon = expireDate && new Date(expireDate) < new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
 
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+      <span className={`inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-medium ${
         isExpiringSoon ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
       }`}>
         {isExpiringSoon ? '⚠️ 要更新' : '⚠️ 確認'}

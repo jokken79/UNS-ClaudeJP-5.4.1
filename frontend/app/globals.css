@@ -29,6 +29,14 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
+    --success: 142 76% 36%;
+    --success-foreground: 210 40% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 222.2 47.4% 11.2%;
+    --pending: 38 92% 50%;
+    --pending-foreground: 222.2 47.4% 11.2%;
+    --info: 207 89% 47%;
+    --info-foreground: 210 40% 98%;
   }
 
   .dark {
@@ -56,6 +64,10 @@
     --chart-3: 30 80% 60%;
     --chart-4: 280 65% 65%;
     --chart-5: 340 75% 60%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --pending: 38 92% 50%;
+    --info: 207 89% 60%;
   }
 }
 

@@ -70,8 +70,10 @@ def main():
             # Create new apartment
             apartment = Apartment(
                 apartment_code=apt_name,
+                name=apt_name,  # Required field - use apartment_code as name
                 address='(Pendiente - actualizar dirección)',
                 monthly_rent=45000,  # Default rent (¥45,000)
+                base_rent=45000,  # Required field - same as monthly_rent
                 capacity=default_capacity,
                 is_available=True,
                 notes=f'Auto-creado desde importación. {num_employees} empleado(s) actual.'

@@ -112,30 +112,30 @@ export default function CandidatesPage() {
   const getStatusBadge = (status: string) => {
     const statusConfig = {
       pending: {
-        bg: 'bg-yellow-100 dark:bg-yellow-900/30',
-        text: 'text-yellow-800 dark:text-yellow-400',
+        bg: 'bg-pending',
+        text: 'text-pending-foreground',
         label: '審査中'
       },
       approved: {
-        bg: 'bg-green-100 dark:bg-green-900/30',
-        text: 'text-green-800 dark:text-green-400',
+        bg: 'bg-success',
+        text: 'text-success-foreground',
         label: '承認済み'
       },
       rejected: {
-        bg: 'bg-red-100 dark:bg-red-900/30',
-        text: 'text-red-800 dark:text-red-400',
+        bg: 'bg-destructive',
+        text: 'text-destructive-foreground',
         label: '却下'
       },
       hired: {
-        bg: 'bg-blue-100 dark:bg-blue-900/30',
-        text: 'text-blue-800 dark:text-blue-400',
+        bg: 'bg-info',
+        text: 'text-info-foreground',
         label: '採用済み'
       }
     };
 
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
     return (
-      <span className={`px-2 py-1 text-xs rounded-full ${config.bg} ${config.text}`}>
+      <span className={`px-2.5 py-1.5 text-xs font-medium rounded-md ${config.bg} ${config.text}`}>
         {config.label}
       </span>
     );

@@ -16,7 +16,7 @@ from slowapi.util import get_remote_address
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.models.models import Candidate, Document, Employee, User, CandidateStatus, DocumentType, CandidateForm, Request, RequestType, RequestStatus
+from app.models.models import Candidate, Document, Employee, User, CandidateStatus, DocumentType, CandidateForm, Request as RequestModel, RequestType, RequestStatus
 from app.schemas.candidate import (
     CandidateCreate, CandidateUpdate, CandidateResponse,
     CandidateApprove, CandidateReject, DocumentUpload, OCRData,
@@ -608,14 +608,14 @@ async def quick_evaluate_candidate(
 
         # 🆕 AUTO-CREATE 入社連絡票 (New Hire Notification Form)
         # Check if a NYUUSHA request already exists for this candidate
-        existing_nyuusha = db.query(Request).filter(
-            Request.candidate_id == candidate.id,
-            Request.request_type == RequestType.NYUUSHA
+        existing_nyuusha = db.query(RequestModel).filter(
+            RequestModel.candidate_id == candidate.id,
+            RequestModel.request_type == RequestType.NYUUSHA
         ).first()
 
         if not existing_nyuusha:
             # Create new 入社連絡票 request
-            nyuusha_request = Request(
+            nyuusha_request = RequestModel(
                 candidate_id=candidate.id,
                 hakenmoto_id=None,  # Will be filled after employee creation
                 request_type=RequestType.NYUUSHA,

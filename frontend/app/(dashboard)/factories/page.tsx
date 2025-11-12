@@ -76,12 +76,12 @@ export default function FactoriesPage() {
   // Status badge component
   const StatusBadge = ({ isActive }: { isActive: boolean }) => {
     return isActive ? (
-      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+      <span className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
         <CheckCircleIcon className="h-3 w-3" />
         稼働中
       </span>
     ) : (
-      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400">
+      <span className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-muted text-muted-foreground">
         <XCircleIcon className="h-3 w-3" />
         停止中
       </span>
@@ -91,12 +91,12 @@ export default function FactoriesPage() {
   // Config badge component
   const ConfigBadge = ({ hasConfig }: { hasConfig: boolean }) => {
     return hasConfig ? (
-      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+      <span className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
         <CogIcon className="h-3 w-3" />
         設定済み
       </span>
     ) : (
-      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+      <span className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
         <CogIcon className="h-3 w-3" />
         未設定
       </span>

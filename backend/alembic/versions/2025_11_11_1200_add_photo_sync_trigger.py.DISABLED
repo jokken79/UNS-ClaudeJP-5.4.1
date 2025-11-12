@@ -1,7 +1,7 @@
 """Add trigger for automatic photo synchronization
 
 Revision ID: add_photo_sync_trigger
-Revises: 68534af764e0
+Revises: 001
 Create Date: 2025-11-11 12:00:00.000000
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'add_photo_sync_trigger'
-down_revision: Union[str, None] = '68534af764e0'
+down_revision: Union[str, None] = '001'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
