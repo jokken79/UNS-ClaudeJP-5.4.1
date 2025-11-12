@@ -2,9 +2,13 @@
 Salary Calculation API Endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, extract
 from datetime import datetime
+from io import BytesIO
+import tempfile
+import os
 
 from app.core.database import get_db
 from app.core.config import settings
@@ -19,6 +23,8 @@ from app.schemas.salary_unified import (
 )
 from app.schemas.base import PaginatedResponse, create_paginated_response
 from app.services.auth_service import auth_service
+from app.services.salary_export_service import SalaryExportService
+from app.services.payslip_service import PayslipService
 
 router = APIRouter()
 
@@ -703,11 +709,10 @@ async def export_salary_excel(
     """
     Export salary data to Excel file.
 
-    Generates comprehensive Excel workbook with multiple sheets:
-    - Sheet 1: Summary (KPIs and statistics)
-    - Sheet 2: Detailed employee salary data
-    - Sheet 3: Tax analysis
-    - Sheet 4: Period analysis
+    Generates comprehensive Excel workbook with multiple sheets using SalaryExportService:
+    - Sheet 1: Resumen Ejecutivo (Summary with KPIs)
+    - Sheet 2: Detalle por Empleado (Detailed employee salary data)
+    - Sheet 3: Análisis Fiscal (Tax and deductions analysis)
 
     Args:
         filters: Report filters (date range, employees, factories, paid status)
@@ -718,20 +723,15 @@ async def export_salary_excel(
         Excel export response with download URL
 
     Raises:
-        HTTPException 400: Invalid filters or data
+        HTTPException 400: Invalid filters or no data found
         HTTPException 500: Export generation failed
     """
-    import openpyxl
-    from openpyxl.styles import Font, Alignment, PatternFill
-    from datetime import datetime as dt
-    import os
-
     try:
         # Parse dates
-        start = dt.strptime(filters.start_date, "%Y-%m-%d")
-        end = dt.strptime(filters.end_date, "%Y-%m-%d")
+        start = datetime.strptime(filters.start_date, "%Y-%m-%d")
+        end = datetime.strptime(filters.end_date, "%Y-%m-%d")
 
-        # Build query
+        # Build query with filters
         query = db.query(SalaryCalculation).join(Employee)
 
         # Filter by date range
@@ -740,7 +740,7 @@ async def export_salary_excel(
             func.make_date(SalaryCalculation.year, SalaryCalculation.month, 1) <= end.date()
         )
 
-        # Apply filters
+        # Apply additional filters
         if filters.employee_ids:
             query = query.filter(SalaryCalculation.employee_id.in_(filters.employee_ids))
         if filters.factory_ids:
@@ -753,96 +753,32 @@ async def export_salary_excel(
         if not salaries:
             raise HTTPException(status_code=400, detail="No salary data found for specified filters")
 
-        # Create workbook
-        wb = openpyxl.Workbook()
+        # Use SalaryExportService to generate Excel
+        export_service = SalaryExportService()
+        excel_buffer = export_service.export_to_excel(
+            salaries=salaries,
+            period_start=filters.start_date,
+            period_end=filters.end_date
+        )
 
-        # Sheet 1: Summary
-        ws_summary = wb.active
-        ws_summary.title = "Summary"
-
-        # Headers
-        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
-        header_font = Font(bold=True, color="FFFFFF")
-
-        ws_summary["A1"] = "Salary Report Summary"
-        ws_summary["A1"].font = Font(bold=True, size=14)
-        ws_summary["A2"] = f"Period: {filters.start_date} to {filters.end_date}"
-
-        # KPIs
-        ws_summary["A4"] = "KPI"
-        ws_summary["B4"] = "Value"
-        ws_summary["A4"].fill = header_fill
-        ws_summary["A4"].font = header_font
-        ws_summary["B4"].fill = header_fill
-        ws_summary["B4"].font = header_font
-
-        total_employees = len(salaries)
-        total_gross = sum(s.gross_salary for s in salaries)
-        total_net = sum(s.net_salary for s in salaries)
-
-        kpis = [
-            ("Total Employees", total_employees),
-            ("Total Gross Salary", f"¥{total_gross:,.0f}"),
-            ("Total Net Salary", f"¥{total_net:,.0f}"),
-            ("Average Salary", f"¥{total_net/total_employees:,.0f}" if total_employees > 0 else "¥0"),
-            ("Paid Count", sum(1 for s in salaries if s.is_paid)),
-            ("Unpaid Count", sum(1 for s in salaries if not s.is_paid))
-        ]
-
-        for idx, (kpi, value) in enumerate(kpis, start=5):
-            ws_summary[f"A{idx}"] = kpi
-            ws_summary[f"B{idx}"] = value
-
-        # Sheet 2: Detail
-        ws_detail = wb.create_sheet("Detail")
-
-        headers = [
-            "Employee ID", "Employee Name", "Month", "Year",
-            "Regular Hours", "Overtime Hours", "Base Salary",
-            "Overtime Pay", "Bonus", "Gross Salary",
-            "Deductions", "Net Salary", "Paid"
-        ]
-
-        for col, header in enumerate(headers, start=1):
-            cell = ws_detail.cell(row=1, column=col, value=header)
-            cell.fill = header_fill
-            cell.font = header_font
-            cell.alignment = Alignment(horizontal="center")
-
-        # Data rows
-        for row_idx, salary in enumerate(salaries, start=2):
-            employee = db.query(Employee).filter(Employee.id == salary.employee_id).first()
-
-            ws_detail.cell(row=row_idx, column=1, value=salary.employee_id)
-            ws_detail.cell(row=row_idx, column=2, value=employee.full_name_roman if employee else "N/A")
-            ws_detail.cell(row=row_idx, column=3, value=salary.month)
-            ws_detail.cell(row=row_idx, column=4, value=salary.year)
-            ws_detail.cell(row=row_idx, column=5, value=float(salary.total_regular_hours or 0))
-            ws_detail.cell(row=row_idx, column=6, value=float(salary.total_overtime_hours or 0))
-            ws_detail.cell(row=row_idx, column=7, value=salary.base_salary)
-            ws_detail.cell(row=row_idx, column=8, value=salary.overtime_pay)
-            ws_detail.cell(row=row_idx, column=9, value=salary.bonus)
-            ws_detail.cell(row=row_idx, column=10, value=salary.gross_salary)
-            ws_detail.cell(row=row_idx, column=11, value=salary.apartment_deduction + salary.other_deductions)
-            ws_detail.cell(row=row_idx, column=12, value=salary.net_salary)
-            ws_detail.cell(row=row_idx, column=13, value="Yes" if salary.is_paid else "No")
-
-        # Save file
+        # Save to temporary file for download
         exports_dir = os.path.join(os.getcwd(), "exports", "salary")
         os.makedirs(exports_dir, exist_ok=True)
 
-        timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"salary_report_{timestamp}.xlsx"
         filepath = os.path.join(exports_dir, filename)
 
-        wb.save(filepath)
+        # Write buffer to file
+        with open(filepath, "wb") as f:
+            f.write(excel_buffer.getvalue())
 
         return SalaryExportResponse(
             success=True,
             file_url=f"/api/salary/downloads/{filename}",
             filename=filename,
             format="excel",
-            generated_at=dt.now()
+            generated_at=datetime.now()
         )
 
     except HTTPException:
@@ -860,12 +796,11 @@ async def export_salary_pdf(
     """
     Export salary data to PDF file.
 
-    Generates professional PDF report with:
-    - Cover page with date and user info
+    Generates professional PDF report with ReportLab:
+    - Cover page with period and user info
     - Executive summary with KPIs
-    - Detailed salary tables
-    - Charts and visualizations
-    - Footer with page numbers
+    - Detailed salary tables (landscape format)
+    - Professional styling and formatting
 
     Args:
         filters: Report filters (date range, employees, factories, paid status)
@@ -876,7 +811,7 @@ async def export_salary_pdf(
         PDF export response with download URL
 
     Raises:
-        HTTPException 400: Invalid filters or data
+        HTTPException 400: Invalid filters or no data found
         HTTPException 500: Export generation failed
     """
     from reportlab.lib.pagesizes import A4, landscape
@@ -884,16 +819,14 @@ async def export_salary_pdf(
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
-    from reportlab.lib.enums import TA_CENTER, TA_RIGHT
-    from datetime import datetime as dt
-    import os
+    from reportlab.lib.enums import TA_CENTER
 
     try:
         # Parse dates
-        start = dt.strptime(filters.start_date, "%Y-%m-%d")
-        end = dt.strptime(filters.end_date, "%Y-%m-%d")
+        start = datetime.strptime(filters.start_date, "%Y-%m-%d")
+        end = datetime.strptime(filters.end_date, "%Y-%m-%d")
 
-        # Build query (same as Excel export)
+        # Build query with filters (same logic as Excel)
         query = db.query(SalaryCalculation).join(Employee)
 
         query = query.filter(
@@ -913,70 +846,73 @@ async def export_salary_pdf(
         if not salaries:
             raise HTTPException(status_code=400, detail="No salary data found for specified filters")
 
-        # Create PDF
+        # Create PDF file path
         exports_dir = os.path.join(os.getcwd(), "exports", "salary")
         os.makedirs(exports_dir, exist_ok=True)
 
-        timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"salary_report_{timestamp}.pdf"
         filepath = os.path.join(exports_dir, filename)
 
+        # Initialize PDF document
         doc = SimpleDocTemplate(filepath, pagesize=landscape(A4))
         story = []
         styles = getSampleStyleSheet()
 
-        # Title
+        # Custom title style
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
             fontSize=24,
-            textColor=colors.HexColor("#4472C4"),
+            textColor=colors.HexColor("#1e3a8a"),
             spaceAfter=30,
             alignment=TA_CENTER
         )
 
-        story.append(Paragraph("Salary Report", title_style))
-        story.append(Paragraph(f"Period: {filters.start_date} to {filters.end_date}", styles['Normal']))
-        story.append(Paragraph(f"Generated: {dt.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
-        story.append(Paragraph(f"Generated by: {current_user.username}", styles['Normal']))
+        # Title and metadata
+        story.append(Paragraph("REPORTE DE SALARIOS / SALARY REPORT", title_style))
+        story.append(Paragraph(f"<b>Período:</b> {filters.start_date} a {filters.end_date}", styles['Normal']))
+        story.append(Paragraph(f"<b>Generado:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
+        story.append(Paragraph(f"<b>Usuario:</b> {current_user.username}", styles['Normal']))
         story.append(Spacer(1, 0.3*inch))
 
-        # Summary statistics
+        # Summary statistics table
         total_employees = len(salaries)
         total_gross = sum(s.gross_salary for s in salaries)
         total_net = sum(s.net_salary for s in salaries)
+        avg_salary = total_net / total_employees if total_employees > 0 else 0
 
         summary_data = [
-            ["KPI", "Value"],
-            ["Total Employees", f"{total_employees}"],
-            ["Total Gross Salary", f"¥{total_gross:,.0f}"],
-            ["Total Net Salary", f"¥{total_net:,.0f}"],
-            ["Average Salary", f"¥{total_net/total_employees:,.0f}" if total_employees > 0 else "¥0"],
-            ["Paid Count", f"{sum(1 for s in salaries if s.is_paid)}"],
-            ["Unpaid Count", f"{sum(1 for s in salaries if not s.is_paid)}"]
+            ["KPI", "Valor / Value"],
+            ["Total Empleados / Employees", f"{total_employees}"],
+            ["Salario Bruto Total / Total Gross", f"¥{total_gross:,.0f}"],
+            ["Salario Neto Total / Total Net", f"¥{total_net:,.0f}"],
+            ["Salario Promedio / Average", f"¥{avg_salary:,.0f}"],
+            ["Pagados / Paid", f"{sum(1 for s in salaries if s.is_paid)}"],
+            ["No Pagados / Unpaid", f"{sum(1 for s in salaries if not s.is_paid)}"]
         ]
 
         summary_table = Table(summary_data, colWidths=[3*inch, 2*inch])
         summary_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#4472C4")),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1e3a8a")),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 12),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor("#dbeafe")),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey)
         ]))
 
         story.append(summary_table)
         story.append(PageBreak())
 
-        # Detailed table
-        story.append(Paragraph("Detailed Salary Data", styles['Heading2']))
+        # Detailed salary table
+        story.append(Paragraph("Detalle de Salarios / Salary Details", styles['Heading2']))
         story.append(Spacer(1, 0.2*inch))
 
         detail_data = [
-            ["ID", "Name", "Month", "Gross", "Deductions", "Net", "Paid"]
+            ["ID", "Nombre/Name", "Mes/Month", "Bruto/Gross", "Deducciones", "Neto/Net", "Pagado/Paid"]
         ]
 
         for salary in salaries:
@@ -986,14 +922,14 @@ async def export_salary_pdf(
                 employee.full_name_roman[:15] if employee else "N/A",
                 f"{salary.year}/{salary.month:02d}",
                 f"¥{salary.gross_salary:,}",
-                f"¥{salary.apartment_deduction + salary.other_deductions:,}",
+                f"¥{(salary.apartment_deduction or 0) + (salary.other_deductions or 0):,}",
                 f"¥{salary.net_salary:,}",
-                "Yes" if salary.is_paid else "No"
+                "Sí/Yes" if salary.is_paid else "No"
             ])
 
-        detail_table = Table(detail_data, colWidths=[0.6*inch, 1.5*inch, 0.8*inch, 1.2*inch, 1.2*inch, 1.2*inch, 0.6*inch])
+        detail_table = Table(detail_data, colWidths=[0.6*inch, 1.5*inch, 0.9*inch, 1.2*inch, 1.2*inch, 1.2*inch, 0.8*inch])
         detail_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#4472C4")),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1e3a8a")),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
@@ -1001,10 +937,17 @@ async def export_salary_pdf(
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('BACKGROUND', (0, 1), (-1, -1), colors.white),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey])
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#f3f4f6")])
         ]))
 
         story.append(detail_table)
+
+        # Footer
+        story.append(Spacer(1, 0.5*inch))
+        footer_text = f"Generado por UNS-ClaudeJP | {datetime.now().strftime('%d/%m/%Y %H:%M')} | Documento Confidencial"
+        footer = Paragraph(footer_text, styles['Normal'])
+        footer.alignment = TA_CENTER
+        story.append(footer)
 
         # Build PDF
         doc.build(story)
@@ -1014,7 +957,7 @@ async def export_salary_pdf(
             file_url=f"/api/salary/downloads/{filename}",
             filename=filename,
             format="pdf",
-            generated_at=dt.now()
+            generated_at=datetime.now()
         )
 
     except HTTPException:
