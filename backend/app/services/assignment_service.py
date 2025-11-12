@@ -882,6 +882,12 @@ class AssignmentService:
 
         is_prorated = days_occupied != days_in_month
 
+        # Generar fórmula de cálculo
+        if is_prorated:
+            calculation_formula = f"¥{calculation.monthly_rent:,} ÷ {days_in_month} días × {days_occupied} días = ¥{prorated_rent:,}"
+        else:
+            calculation_formula = f"Mes completo: ¥{calculation.monthly_rent:,}"
+
         return ProratedCalculationResponse(
             monthly_rent=calculation.monthly_rent,
             year=calculation.year,
@@ -893,6 +899,7 @@ class AssignmentService:
             daily_rate=daily_rate,
             prorated_rent=prorated_rent,
             is_prorated=is_prorated,
+            calculation_formula=calculation_formula,
         )
 
     async def calculate_total_deduction(

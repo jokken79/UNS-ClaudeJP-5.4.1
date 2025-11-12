@@ -472,6 +472,9 @@ class Apartment(Base, SoftDeleteMixin):
     size_sqm = Column(Numeric(6, 2))  # Size in square meters
     capacity = Column(Integer)  # Legacy field, kept
 
+    # Property information
+    property_type = Column(String(50), nullable=True)  # Casa, Edificio, Apartamento
+
     # Financial information
     base_rent = Column(Integer, nullable=False)  # Base monthly rent
     monthly_rent = Column(Integer)  # Legacy field, kept for compatibility

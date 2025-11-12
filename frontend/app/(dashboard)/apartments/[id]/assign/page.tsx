@@ -68,10 +68,21 @@ export default function AssignEmployeePage() {
     const calculateRent = async () => {
       setIsCalculating(true);
       try {
+        // Parse year and month from start date
+        const startDateObj = new Date(startDate);
+        const year = startDateObj.getFullYear();
+        const month = startDateObj.getMonth() + 1; // JavaScript months are 0-indexed
+
+        // Calculate end of month for this period
+        const endOfMonth = new Date(year, month, 0); // Day 0 of next month = last day of current month
+        const endDateStr = endOfMonth.toISOString().split('T')[0];
+
         const result = await apartmentsV2Service.calculateProratedRent({
-          apartment_id: apartmentId,
+          monthly_rent: apartment.base_rent,
           start_date: startDate,
-          end_date: null, // Active assignment
+          end_date: endDateStr,
+          year: year,
+          month: month,
         });
         setCalculation(result);
       } catch (err: any) {

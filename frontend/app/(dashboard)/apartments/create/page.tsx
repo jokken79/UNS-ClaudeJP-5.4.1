@@ -42,6 +42,7 @@ const apartmentCreateSchema = z.object({
   address_line2: z.string().optional(),
   room_type: z.nativeEnum(RoomType).optional(),
   size_sqm: z.number().min(0).optional(),
+  property_type: z.string().optional(),
   base_rent: z.number().min(0, 'Renta debe ser mayor a 0'),
   management_fee: z.number().min(0).default(0),
   deposit: z.number().min(0).default(0),
@@ -102,6 +103,7 @@ export default function CreateApartmentPage() {
         address_line2: data.address_line2 || undefined,
         room_type: data.room_type || undefined,
         size_sqm: data.size_sqm || undefined,
+        property_type: data.property_type || undefined,
         base_rent: data.base_rent,
         management_fee: data.management_fee || 0,
         deposit: data.deposit || 0,
@@ -280,6 +282,22 @@ export default function CreateApartmentPage() {
             <CardDescription>Tipo y tamaño del apartamento</CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="property_type">Tipo de Propiedad</Label>
+              <Select
+                onValueChange={(value) => setValue('property_type', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Casa">Casa</SelectItem>
+                  <SelectItem value="Edificio">Edificio</SelectItem>
+                  <SelectItem value="Apartamento">Apartamento</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div>
               <Label htmlFor="room_type">Tipo de Habitación</Label>
               <Select

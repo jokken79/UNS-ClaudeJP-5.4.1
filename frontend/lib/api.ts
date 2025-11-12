@@ -596,7 +596,7 @@ export const apartmentsV2Service = {
    * Calculate prorated rent
    */
   calculateProratedRent: async (data: ProratedCalculationRequest): Promise<ProratedCalculationResponse> => {
-    const response = await api.post<ProratedCalculationResponse>('/apartments-v2/calculate/prorated', data);
+    const response = await api.post<ProratedCalculationResponse>('/apartments-v2/apartments/calculate/prorated', data);
     return response.data;
   },
 

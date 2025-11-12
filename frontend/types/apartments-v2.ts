@@ -60,6 +60,9 @@ export interface ApartmentBase {
   room_type?: RoomType | null;
   size_sqm?: number | null;
 
+  // Property type
+  property_type?: string | null;
+
   // Prices
   base_rent: number;
   management_fee?: number;
@@ -314,9 +317,11 @@ export interface DeductionResponse extends DeductionBase {
 // =============================================================================
 
 export interface ProratedCalculationRequest {
-  apartment_id: number;
+  monthly_rent: number;
   start_date: string;
   end_date?: string | null;
+  year: number;
+  month: number;
 }
 
 export interface ProratedCalculationResponse {

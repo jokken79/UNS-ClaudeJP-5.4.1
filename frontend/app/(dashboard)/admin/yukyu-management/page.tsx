@@ -3,11 +3,12 @@
 // Disable static generation for this page (uses client-side hooks)
 export const dynamic = 'force-dynamic';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -21,7 +22,8 @@ import {
   CheckCircle,
   Clock,
   RefreshCw,
-  TrendingUp
+  TrendingUp,
+  Search
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -60,6 +62,7 @@ export default function AdminYukyuManagementPage() {
   const queryClient = useQueryClient();
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [expireDialogOpen, setExpireDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Fetch employees
   const { data: employees } = useQuery<Employee[]>({
@@ -129,6 +132,20 @@ export default function AdminYukyuManagementPage() {
   const confirmExpire = () => {
     expireMutation.mutate();
   };
+
+  // Filtrar empleados por búsqueda
+  const filteredEmployees = useMemo(() => {
+    if (!employees) return [];
+    if (!searchQuery.trim()) return employees;
+
+    const query = searchQuery.toLowerCase();
+    return employees.filter((emp: Employee) => {
+      const matchId = emp.id.toString().includes(query);
+      const matchRirekisho = emp.rirekisho_id?.toLowerCase().includes(query);
+      const matchName = emp.full_name_kanji?.toLowerCase().includes(query);
+      return matchId || matchRirekisho || matchName;
+    });
+  }, [employees, searchQuery]);
 
   // Calcular estadísticas
   const stats = {
@@ -213,17 +230,41 @@ export default function AdminYukyuManagementPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
+              <Label>Buscar Empleado</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Buscar por ID, nombre o rirekisho..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              {searchQuery && (
+                <p className="text-sm text-gray-500 mt-1">
+                  {filteredEmployees.length} empleado{filteredEmployees.length !== 1 ? 's' : ''} encontrado{filteredEmployees.length !== 1 ? 's' : ''}
+                </p>
+              )}
+            </div>
+            <div>
               <Label>Seleccionar Empleado</Label>
               <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecciona un empleado..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {employees?.map((emp: Employee) => (
-                    <SelectItem key={emp.id} value={emp.id.toString()}>
-                      {emp.full_name_kanji} - {emp.rirekisho_id}
+                  {filteredEmployees.length > 0 ? (
+                    filteredEmployees.map((emp: Employee) => (
+                      <SelectItem key={emp.id} value={emp.id.toString()}>
+                        ID: {emp.id} - {emp.full_name_kanji} ({emp.rirekisho_id})
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="no-results" disabled>
+                      No se encontraron empleados
                     </SelectItem>
-                  ))}
+                  )}
                 </SelectContent>
               </Select>
             </div>

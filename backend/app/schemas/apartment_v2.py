@@ -87,6 +87,9 @@ class ApartmentBase(BaseModel):
     room_type: Optional[RoomType] = Field(None, description="Tipo de habitación")
     size_sqm: Optional[Decimal] = Field(None, ge=0, description="Tamaño en metros cuadrados")
 
+    # Tipo de propiedad
+    property_type: Optional[str] = Field(None, max_length=50, description="Tipo de propiedad (Casa, Edificio, Apartamento)")
+
     # Precios
     base_rent: int = Field(..., ge=0, description="Renta base mensual (en yenes)")
     management_fee: int = Field(default=0, ge=0, description="Gastos de administración")
@@ -506,6 +509,7 @@ class ProratedCalculationResponse(BaseModel):
     daily_rate: Decimal = Field(..., description="Tasa diaria (con decimales)")
     prorated_rent: int = Field(..., description="Renta prorrateada (entero, redondeado)")
     is_prorated: bool = Field(default=True, description="¿Es un prorrateo?")
+    calculation_formula: str = Field(..., description="Fórmula del cálculo")
 
 
 class CleaningFeeRequest(BaseModel):

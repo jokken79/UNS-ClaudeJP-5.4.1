@@ -277,11 +277,14 @@ export default function ApartmentDetailsPage() {
                 <p className="text-sm text-muted-foreground">Características</p>
                 <div className="space-y-1">
                   <p className="font-medium">Capacidad: {apartment.max_occupancy} personas</p>
+                  {apartment.property_type && (
+                    <p className="text-sm">Tipo de Propiedad: {apartment.property_type}</p>
+                  )}
                   {apartment.size_sqm && (
                     <p className="text-sm">Tamaño: {apartment.size_sqm} m²</p>
                   )}
                   {apartment.room_type && (
-                    <p className="text-sm">Tipo: {apartment.room_type}</p>
+                    <p className="text-sm">Tipo de Habitación: {apartment.room_type}</p>
                   )}
                 </div>
               </div>
