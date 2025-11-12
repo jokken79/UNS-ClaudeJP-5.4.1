@@ -373,24 +373,24 @@ async def list_available_for_apartment(
     db: Session = Depends(get_db)
 ):
     """
-    Get employees and contract workers available for apartment assignment.
+    Get employees and contract workers for apartment assignment.
     Combines both employees and contract_workers tables.
-    Returns workers WITHOUT apartment assignments (apartment_id IS NULL).
+    Returns ALL active workers (including those already assigned, allowing transfers).
     """
     from sqlalchemy import union_all, cast, String, literal
 
     # Build search filters for employees
     employee_filters = [
         Employee.deleted_at.is_(None),
-        Employee.is_active == True,
-        Employee.apartment_id.is_(None)
+        Employee.is_active == True
+        # Removed: Employee.apartment_id.is_(None) - allow transfers
     ]
 
     if search:
         search_filter = or_(
-            Employee.hakensaki_shain_id.ilike(f"%{search}%"),
+            Employee.hakensaki_shain_id.ilike(f"%{search}%"),  # ID hakenshain
             Employee.full_name_kanji.ilike(f"%{search}%"),
-            cast(Employee.hakenmoto_id, String).ilike(f"%{search}%")
+            cast(Employee.hakenmoto_id, String).ilike(f"%{search}%")  # ID hakenmoto
         )
         employee_filters.append(search_filter)
 
@@ -410,15 +410,15 @@ async def list_available_for_apartment(
     # Build search filters for contract workers
     contract_filters = [
         ContractWorker.deleted_at.is_(None),
-        ContractWorker.is_active == True,
-        ContractWorker.apartment_id.is_(None)
+        ContractWorker.is_active == True
+        # Removed: ContractWorker.apartment_id.is_(None) - allow transfers
     ]
 
     if search:
         search_filter = or_(
-            ContractWorker.hakensaki_shain_id.ilike(f"%{search}%"),
+            ContractWorker.hakensaki_shain_id.ilike(f"%{search}%"),  # ID hakenshain
             ContractWorker.full_name_kanji.ilike(f"%{search}%"),
-            cast(ContractWorker.hakenmoto_id, String).ilike(f"%{search}%")
+            cast(ContractWorker.hakenmoto_id, String).ilike(f"%{search}%")  # ID hakenmoto
         )
         contract_filters.append(search_filter)
 
