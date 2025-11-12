@@ -196,30 +196,63 @@ export interface FactoryCreateData {
 
 export interface TimerCard {
   id: number;
-  employee_id: number;
-  date: string;
+  hakenmoto_id?: number;
+  employee_id?: number;
+  factory_id?: string;
+  work_date: string;  // Changed from 'date' to match backend
+  shift_type?: ShiftType;
   clock_in?: string;
   clock_out?: string;
-  break_duration?: number;
-  total_hours?: number;
+  break_minutes?: number;  // Changed from 'break_duration' to match backend
+  overtime_minutes?: number;
+  // Calculated hours
+  regular_hours?: number;
   overtime_hours?: number;
-  shift_type?: ShiftType;
+  night_hours?: number;
+  holiday_hours?: number;
+  // Approval fields
+  notes?: string;
+  is_approved?: boolean;
+  approved_by?: number;
+  approved_at?: string;
+  // Timestamps
   created_at: string;
   updated_at?: string;
   [key: string]: any;
 }
 
 export interface TimerCardCreateData {
-  employee_id: number;
-  date: string;
+  hakenmoto_id?: number;
+  employee_id?: number;
+  factory_id?: string;
+  work_date: string;  // Changed from 'date' to match backend
+  shift_type?: ShiftType;
   clock_in?: string;
   clock_out?: string;
-  break_duration?: number;
+  break_minutes?: number;  // Changed from 'break_duration' to match backend
+  overtime_minutes?: number;
+  notes?: string;
+}
+
+export interface TimerCardUpdateData {
+  work_date?: string;
   shift_type?: ShiftType;
+  clock_in?: string;
+  clock_out?: string;
+  break_minutes?: number;
+  overtime_minutes?: number;
+  notes?: string;
+}
+
+export interface TimerCardApproveData {
+  timer_card_ids: number[];
 }
 
 export interface TimerCardListParams extends PaginationParams {
   employee_id?: number;
+  hakenmoto_id?: number;
+  factory_id?: string;
+  is_approved?: boolean;
   date_from?: string;
   date_to?: string;
 }
