@@ -149,7 +149,7 @@ export default function PayrollPage() {
             <h3 className="text-sm font-medium text-muted-foreground mb-2">Ejecuciones Pendientes</h3>
             <p className="text-3xl font-bold text-warning">{stats.pendingRuns}</p>
           </div>
-      </div>
+        </div>
 
       {/* Quick Actions */}
       <div className="bg-card p-6 rounded-md shadow-sm border border-border mb-8">
@@ -267,6 +267,7 @@ export default function PayrollPage() {
             </table>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

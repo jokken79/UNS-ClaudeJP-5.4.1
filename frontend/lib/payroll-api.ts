@@ -314,6 +314,33 @@ class PayrollAPI {
     });
     return response.data;
   }
+
+  /**
+   * Mark payroll run as paid
+   */
+  async markPayrollRunAsPaid(id: number): Promise<PayrollRun> {
+    const response = await api.patch(`/payroll/runs/${id}/mark-paid`);
+    return response.data;
+  }
+
+  /**
+   * Delete payroll run
+   */
+  async deletePayrollRun(id: number): Promise<{ success: boolean; message: string }> {
+    const response = await api.delete(`/payroll/runs/${id}`);
+    return response.data;
+  }
+
+  /**
+   * Update payroll run
+   */
+  async updatePayrollRun(
+    id: number,
+    data: Partial<PayrollRunCreate>
+  ): Promise<PayrollRun> {
+    const response = await api.put(`/payroll/runs/${id}`, data);
+    return response.data;
+  }
 }
 
 export const payrollAPI = new PayrollAPI();
