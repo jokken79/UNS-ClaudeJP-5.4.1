@@ -60,7 +60,7 @@ export default function ProratedCalculationPage() {
   const { data: apartments = [] } = useQuery({
     queryKey: ['apartments'],
     queryFn: async () => {
-      const response = await api.get('/apartments/');
+      const response = await api.get('/apartments-v2/apartments');
       return response.data as Apartment[];
     },
   });

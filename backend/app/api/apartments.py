@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 from typing import List, Optional
 from datetime import datetime
+import logging
 
 from app.core.database import get_db
 from app.models.models import Apartment, Employee, User
@@ -17,7 +18,12 @@ from app.schemas.apartment import (
     EmployeeBasic
 )
 
-router = APIRouter()
+# Logger for deprecation warnings
+logger = logging.getLogger(__name__)
+
+# DEPRECATED: This API V1 will be removed on 2025-12-31
+# Please migrate to /api/apartments-v2 (apartments_v2.py)
+router = APIRouter(tags=["apartments-v1-deprecated"])
 
 
 # Helper function to calculate occupancy status
@@ -50,10 +56,24 @@ async def get_apartments(
     current_user: User = Depends(auth_service.get_current_active_user)
 ):
     """
+    DEPRECATED: This API will be removed on 2025-12-31.
+
+    Use GET /api/apartments-v2/apartments instead.
+
+    **Migration Guide:**
+    - New endpoint: GET /api/apartments-v2/apartments
+    - Enhanced features: pagination, advanced filters, statistics
+    - Full documentation at /api/docs#/Apartments%20V2
+
     Obtener lista de apartamentos con filtros.
 
     Requiere autenticación.
     """
+    logger.warning(
+        "DEPRECATED API V1 called: GET /api/apartments/ - "
+        "Please migrate to /api/apartments-v2/apartments (will be removed 2025-12-31)"
+    )
+
     # Base query with employee count
     query = db.query(
         Apartment,
@@ -112,10 +132,24 @@ async def get_apartment_stats(
     current_user: User = Depends(auth_service.get_current_active_user)
 ):
     """
+    DEPRECATED: This API will be removed on 2025-12-31.
+
+    Use GET /api/apartments-v2/reports/occupancy instead.
+
+    **Migration Guide:**
+    - New endpoint: GET /api/apartments-v2/reports/occupancy
+    - More comprehensive statistics and breakdowns
+    - Full documentation at /api/docs#/Apartments%20V2
+
     Obtener estadísticas globales de apartamentos.
 
     Requiere autenticación.
     """
+    logger.warning(
+        "DEPRECATED API V1 called: GET /api/apartments/stats - "
+        "Please migrate to /api/apartments-v2/reports/occupancy (will be removed 2025-12-31)"
+    )
+
     # Total apartments and capacity
     total_apartments = db.query(func.count(Apartment.id)).scalar() or 0
     total_capacity = db.query(func.sum(Apartment.capacity)).scalar() or 0
@@ -172,10 +206,24 @@ async def get_apartment(
     current_user: User = Depends(auth_service.get_current_active_user)
 ):
     """
+    DEPRECATED: This API will be removed on 2025-12-31.
+
+    Use GET /api/apartments-v2/apartments/{apartment_id} instead.
+
+    **Migration Guide:**
+    - New endpoint: GET /api/apartments-v2/apartments/{apartment_id}
+    - Enhanced details with assignment history and statistics
+    - Full documentation at /api/docs#/Apartments%20V2
+
     Obtener detalles de un apartamento específico con empleados asignados.
 
     Requiere autenticación.
     """
+    logger.warning(
+        f"DEPRECATED API V1 called: GET /api/apartments/{apartment_id} - "
+        f"Please migrate to /api/apartments-v2/apartments/{apartment_id} (will be removed 2025-12-31)"
+    )
+
     # Get apartment
     apartment = db.query(Apartment).filter(Apartment.id == apartment_id).first()
     if not apartment:
@@ -226,10 +274,24 @@ async def create_apartment(
     current_user: User = Depends(auth_service.get_current_active_user)
 ):
     """
+    DEPRECATED: This API will be removed on 2025-12-31.
+
+    Use POST /api/apartments-v2/apartments instead.
+
+    **Migration Guide:**
+    - New endpoint: POST /api/apartments-v2/apartments
+    - Enhanced validation and additional fields
+    - Full documentation at /api/docs#/Apartments%20V2
+
     Crear un nuevo apartamento.
 
     Requiere autenticación.
     """
+    logger.warning(
+        "DEPRECATED API V1 called: POST /api/apartments/ - "
+        "Please migrate to /api/apartments-v2/apartments (will be removed 2025-12-31)"
+    )
+
     # Check if apartment code already exists
     existing = db.query(Apartment).filter(
         Apartment.apartment_code == apartment.apartment_code
@@ -271,10 +333,24 @@ async def update_apartment(
     current_user: User = Depends(auth_service.get_current_active_user)
 ):
     """
+    DEPRECATED: This API will be removed on 2025-12-31.
+
+    Use PUT /api/apartments-v2/apartments/{apartment_id} instead.
+
+    **Migration Guide:**
+    - New endpoint: PUT /api/apartments-v2/apartments/{apartment_id}
+    - Enhanced validation and additional fields
+    - Full documentation at /api/docs#/Apartments%20V2
+
     Actualizar un apartamento existente.
 
     Requiere autenticación.
     """
+    logger.warning(
+        f"DEPRECATED API V1 called: PUT /api/apartments/{apartment_id} - "
+        f"Please migrate to /api/apartments-v2/apartments/{apartment_id} (will be removed 2025-12-31)"
+    )
+
     # Get existing apartment
     db_apartment = db.query(Apartment).filter(Apartment.id == apartment_id).first()
     if not db_apartment:
@@ -329,11 +405,25 @@ async def delete_apartment(
     current_user: User = Depends(auth_service.get_current_active_user)
 ):
     """
+    DEPRECATED: This API will be removed on 2025-12-31.
+
+    Use DELETE /api/apartments-v2/apartments/{apartment_id} instead.
+
+    **Migration Guide:**
+    - New endpoint: DELETE /api/apartments-v2/apartments/{apartment_id}
+    - Enhanced soft-delete with better validation
+    - Full documentation at /api/docs#/Apartments%20V2
+
     Eliminar un apartamento.
 
     Solo se puede eliminar si no tiene empleados asignados.
     Requiere autenticación.
     """
+    logger.warning(
+        f"DEPRECATED API V1 called: DELETE /api/apartments/{apartment_id} - "
+        f"Please migrate to /api/apartments-v2/apartments/{apartment_id} (will be removed 2025-12-31)"
+    )
+
     # Get apartment
     db_apartment = db.query(Apartment).filter(Apartment.id == apartment_id).first()
     if not db_apartment:
@@ -366,11 +456,26 @@ async def assign_employee_to_apartment(
     current_user: User = Depends(auth_service.get_current_active_user)
 ):
     """
+    DEPRECATED: This API will be removed on 2025-12-31.
+
+    Use POST /api/apartments-v2/assignments instead.
+
+    **Migration Guide:**
+    - New endpoint: POST /api/apartments-v2/assignments
+    - Enhanced assignment with prorated rent calculations
+    - Automatic deduction generation
+    - Full documentation at /api/docs#/Apartments%20V2
+
     Asignar un empleado a un apartamento.
 
     Verifica capacidad antes de asignar.
     Requiere autenticación.
     """
+    logger.warning(
+        f"DEPRECATED API V1 called: POST /api/apartments/{apartment_id}/assign - "
+        "Please migrate to /api/apartments-v2/assignments (will be removed 2025-12-31)"
+    )
+
     # Get apartment
     apartment = db.query(Apartment).filter(Apartment.id == apartment_id).first()
     if not apartment:
@@ -422,10 +527,24 @@ async def remove_employee_from_apartment(
     current_user: User = Depends(auth_service.get_current_active_user)
 ):
     """
+    DEPRECATED: This API will be removed on 2025-12-31.
+
+    Use PUT /api/apartments-v2/assignments/{assignment_id}/end instead.
+
+    **Migration Guide:**
+    - New endpoint: PUT /api/apartments-v2/assignments/{assignment_id}/end
+    - Enhanced with prorated rent, cleaning fees, and final deduction calculation
+    - Full documentation at /api/docs#/Apartments%20V2
+
     Remover un empleado de un apartamento.
 
     Requiere autenticación.
     """
+    logger.warning(
+        f"DEPRECATED API V1 called: POST /api/apartments/{apartment_id}/remove - "
+        "Please migrate to /api/apartments-v2/assignments/{{id}}/end (will be removed 2025-12-31)"
+    )
+
     # Get employee
     employee = db.query(Employee).filter(Employee.id == assignment.employee_id).first()
     if not employee:
@@ -458,10 +577,24 @@ async def get_apartment_employees(
     current_user: User = Depends(auth_service.get_current_active_user)
 ):
     """
+    DEPRECATED: This API will be removed on 2025-12-31.
+
+    Use GET /api/apartments-v2/assignments/apartment/{apartment_id}/active instead.
+
+    **Migration Guide:**
+    - New endpoint: GET /api/apartments-v2/assignments/apartment/{apartment_id}/active
+    - Enhanced with assignment details and rent information
+    - Full documentation at /api/docs#/Apartments%20V2
+
     Obtener lista de empleados asignados a un apartamento.
 
     Requiere autenticación.
     """
+    logger.warning(
+        f"DEPRECATED API V1 called: GET /api/apartments/{apartment_id}/employees - "
+        f"Please migrate to /api/apartments-v2/assignments/apartment/{apartment_id}/active (will be removed 2025-12-31)"
+    )
+
     # Verify apartment exists
     apartment = db.query(Apartment).filter(Apartment.id == apartment_id).first()
     if not apartment:

@@ -22,7 +22,10 @@ from calendar import monthrange
 
 from app.core.database import get_db
 from app.api.deps import get_current_user
-from app.models.models import User
+from app.models.models import User, UserRole
+import logging
+
+logger = logging.getLogger(__name__)
 from app.schemas.apartment_v2 import (
     # Apartment schemas
     ApartmentCreate,
@@ -1115,17 +1118,48 @@ async def get_occupancy_report(
 
 @router.get(
     "/reports/arrears",
-    response_model=ArrearsReport,
+    response_model=dict,
     summary="Reporte de pagos pendientes",
     description="Obtener reporte de deducciones y pagos pendientes"
 )
 async def get_arrears_report(
-    year: int,
-    month: int,
+    year: int = Query(..., ge=2020, le=2100, description="Año del reporte"),
+    month: int = Query(..., ge=1, le=12, description="Mes (1-12)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> dict:
     """
+    Obtener reporte de pagos pendientes por mes
+
+    Muestra:
+    - Total esperado, pagado, pendiente
+    - Tasa de cobranza
+    - Tendencias mensuales (últimos 6 meses)
+    - Top deudores
+    - Desglose por apartamento
+
+    **Roles requeridos:** ADMIN, COORDINATOR
+
+    **Parámetros:**
+    - year: Año del reporte (ej: 2025)
+    - month: Mes del reporte (1-12)
+
+    **Respuesta:**
+    ```json
+    {
+      "summary": {
+        "total_expected": 1200000,
+        "total_paid": 800000,
+        "total_pending": 400000,
+        "collection_rate": 66.67
+      },
+      "monthly_trends": [...],
+      "by_status": [...],
+      "top_debtors": [...],
+      "by_apartment": [...]
+    }
+    ```
+
     **Métricas incluidas:**
     - Total a cobrar en el mes
     - Total cobrado
@@ -1144,21 +1178,68 @@ async def get_arrears_report(
     - Identificar empleados con problemas de pago
     - Reportes para contabilidad
     """
+    # Validar rol
+    if current_user.role not in [UserRole.ADMIN, UserRole.COORDINATOR]:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Validar año/mes
+    if year < 2020 or year > 2100:
+        raise HTTPException(status_code=400, detail="Year must be between 2020-2100")
+    if month < 1 or month > 12:
+        raise HTTPException(status_code=400, detail="Month must be between 1-12")
+
+    # Obtener reporte
     service = ReportService(db)
-    return await service.get_arrears_report(year, month)
+    report = service.get_arrears_report(year, month)
+
+    logger.info(f"Arrears report generated for {year}-{month:02d} by user {current_user.id}")
+
+    return report
 
 
 @router.get(
     "/reports/maintenance",
-    response_model=MaintenanceReport,
+    response_model=dict,
     summary="Reporte de mantenimiento",
     description="Obtener estado de mantenimiento de apartamentos"
 )
 async def get_maintenance_report(
+    period: str = Query("6months", description="Período: 3months, 6months, 1year"),
+    charge_type: Optional[str] = Query(None, description="Filtrar por tipo: cleaning, repair, deposit, penalty, other"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
-):
+) -> dict:
     """
+    Obtener reporte de mantenimiento e incidentes
+
+    Muestra:
+    - Total de cargos, costo total, promedio por apartamento
+    - Distribución por tipo (limpieza, reparación, etc.)
+    - Tendencia mensual de costos
+    - Top 10 apartamentos con más problemas
+    - Incidentes recientes
+
+    **Roles requeridos:** ADMIN, COORDINATOR
+
+    **Parámetros:**
+    - period: Rango de tiempo (3months, 6months, 1year)
+    - charge_type: Filtrar por tipo de cargo (opcional)
+
+    **Respuesta:**
+    ```json
+    {
+      "summary": {
+        "total_charges": 45,
+        "total_cost": 850000,
+        "average_cost_per_apartment": 35416
+      },
+      "by_charge_type": [...],
+      "monthly_trends": [...],
+      "top_apartments": [...],
+      "recent_incidents": [...]
+    }
+    ```
+
     **Métricas incluidas:**
     - Total de cargos de mantenimiento
     - Desglose por tipo (limpieza, reparación, otros)
@@ -1176,8 +1257,42 @@ async def get_maintenance_report(
     - Identificar apartamentos problemáticos
     - Planificar presupuesto
     """
+    # Validar rol
+    if current_user.role not in [UserRole.ADMIN, UserRole.COORDINATOR]:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Validar período
+    valid_periods = ["3months", "6months", "1year"]
+    if period not in valid_periods:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Period must be one of: {', '.join(valid_periods)}"
+        )
+
+    # Validar charge_type si se proporciona
+    if charge_type:
+        valid_types = ["cleaning", "repair", "deposit", "penalty", "key_replacement", "other"]
+        if charge_type not in valid_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Charge type must be one of: {', '.join(valid_types)}"
+            )
+
+    # Obtener reporte
     service = ReportService(db)
-    return await service.get_maintenance_report()
+    report = service.get_maintenance_report()
+
+    # Si se especificó charge_type, filtrar resultados
+    if charge_type:
+        # Filtrar by_charge_type para mostrar solo el solicitado
+        if "by_charge_type" in report and isinstance(report["by_charge_type"], dict):
+            # Si es un diccionario, filtrar por clave
+            filtered_by_type = {k: v for k, v in report["by_charge_type"].items() if k == charge_type}
+            report["by_charge_type"] = filtered_by_type
+
+    logger.info(f"Maintenance report generated (period={period}, charge_type={charge_type}) by user {current_user.id}")
+
+    return report
 
 
 @router.get(

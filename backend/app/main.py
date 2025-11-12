@@ -264,7 +264,15 @@ from app.api import (
 
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(admin.router, tags=["Admin Panel"])
-app.include_router(apartments.router, prefix="/api/apartments", tags=["Apartments"])
+
+# DEPRECATED: Apartments API V1 will be removed on 2025-12-31
+# Clients should migrate to /api/apartments-v2
+app.include_router(apartments.router, prefix="/api/apartments", tags=["Apartments (V1 - DEPRECATED)"])
+app_logger.warning(
+    "DEPRECATION WARNING: Apartments API V1 (/api/apartments) is deprecated and will be removed on 2025-12-31. "
+    "Please migrate all clients to /api/apartments-v2. See /api/docs for migration guide."
+)
+
 app.include_router(apartments_v2.router, prefix="/api/apartments-v2", tags=["Apartments V2"])
 app.include_router(candidates.router, prefix="/api/candidates", tags=["Candidates"])
 app.include_router(database.router, prefix="/api/database", tags=["Database"])

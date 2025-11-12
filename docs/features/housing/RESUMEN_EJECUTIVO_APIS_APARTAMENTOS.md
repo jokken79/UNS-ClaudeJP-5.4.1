@@ -1,9 +1,32 @@
 # RESUMEN EJECUTIVO - DISEÑO DE APIs SISTEMA APARTAMENTOS V2.0
 
-**Fecha:** 2025-11-10
+**Fecha:** 2025-11-10 | **Actualizado:** 2025-11-12
 **Proyecto:** UNS-ClaudeJP 5.4
 **Módulo:** Sistema de Apartamentos Corporativos (社宅)
-**Estado:** ✅ Diseño Completo
+**Estado:** ✅ Diseño Completo + API V1 DEPRECATED
+
+---
+
+## ⚠️ DEPRECATION NOTICE - API V1
+
+**IMPORTANTE:** La API V1 de apartamentos (`/api/apartments`) ha sido marcada como DEPRECATED el 2025-11-12.
+
+- **Estado Actual:** DEPRECATED (funcional con warnings)
+- **Fecha de Eliminación:** 2025-12-31
+- **Acción Requerida:** Migrar a API V2 (`/api/apartments-v2`)
+- **Guía de Migración:** Ver `/docs/MIGRATION_API_V1_TO_V2.md`
+
+**Todas las nuevas integraciones DEBEN usar API V2.**
+
+**Diferencias Clave:**
+- ✅ V2: Paginación avanzada, cálculos automáticos, reportes completos
+- ❌ V1: Funcionalidad básica limitada, sin soporte para deducciones ni cargos adicionales
+- ✅ V2: 30+ endpoints vs 10 endpoints de V1
+- ✅ V2: Schemas completos con validación Pydantic
+- ❌ V1: Será completamente removida el 31 de diciembre de 2025
+
+**Migración:**
+Consultar `/docs/MIGRATION_API_V1_TO_V2.md` para una guía paso a paso con ejemplos de código.
 
 ---
 
