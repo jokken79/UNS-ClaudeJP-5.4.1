@@ -1113,7 +1113,7 @@ async def get_occupancy_report(
     ```
     """
     service = ReportService(db)
-    return await service.get_occupancy_report(prefecture, building_name)
+    return service.get_occupancy_report(prefecture, building_name)
 
 
 @router.get(
@@ -1341,4 +1341,4 @@ async def get_cost_analysis_report(
     - ADMIN+ (información financiera)
     """
     service = ReportService(db)
-    return await service.get_cost_analysis_report(year, month)
+    return service.get_cost_analysis_report(year, month)

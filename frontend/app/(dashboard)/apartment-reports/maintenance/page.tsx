@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
+import { apartmentsV2Service } from '@/lib/api';
 import {
   ArrowLeftIcon,
   WrenchScrewdriverIcon,
@@ -80,12 +80,7 @@ export default function MaintenanceReportPage() {
   const { data: report, isLoading } = useQuery({
     queryKey: ['apartment-maintenance-report', selectedPeriod, selectedChargeType],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      params.append('period', selectedPeriod);
-      if (selectedChargeType) params.append('charge_type', selectedChargeType);
-
-      const response = await api.get(`/apartments-v2/reports/maintenance?${params.toString()}`);
-      return response.data as MaintenanceReport;
+      return await apartmentsV2Service.getMaintenanceReport(selectedPeriod, selectedChargeType);
     },
   });
 

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
+import { apartmentsV2Service } from '@/lib/api';
 import {
   ArrowLeftIcon,
   UserGroupIcon,
@@ -52,14 +52,9 @@ export default function OccupancyReportPage() {
 
   // Fetch occupancy data
   const { data: report, isLoading } = useQuery({
-    queryKey: ['apartment-occupancy-report', selectedPeriod],
+    queryKey: ['apartment-occupancy-report', selectedPeriod, selectedStatus],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      params.append('period', selectedPeriod);
-      if (selectedStatus) params.append('status', selectedStatus);
-
-      const response = await api.get(`/apartment-reports/occupancy?${params.toString()}`);
-      return response.data as OccupancyData;
+      return await apartmentsV2Service.getOccupancyReport();
     },
   });
 

@@ -47,6 +47,10 @@ import type {
   DeductionListParams,
   ProratedCalculationRequest,
   ProratedCalculationResponse,
+  OccupancyReport,
+  ArrearsReport,
+  MaintenanceReport,
+  CostAnalysisReport,
 } from '@/types/apartments-v2';
 
 // Normalize base URL to ensure it includes `/api` and no trailing slash
@@ -610,6 +614,84 @@ export const apartmentsV2Service = {
     breakdown: Record<string, any>;
   }> => {
     const response = await api.post('/apartments-v2/calculate/transfer', data);
+    return response.data;
+  },
+
+  // -----------------------------------------------------------------------------
+  // REPORTS
+  // -----------------------------------------------------------------------------
+
+  /**
+   * Get occupancy report
+   *
+   * @param prefecture - Optional filter by prefecture
+   * @param building_name - Optional filter by building name
+   * @returns Occupancy report with summary, trends, and apartment details
+   */
+  getOccupancyReport: async (
+    prefecture?: string,
+    building_name?: string
+  ): Promise<OccupancyReport> => {
+    const response = await api.get<OccupancyReport>('/apartments-v2/reports/occupancy', {
+      params: {
+        prefecture,
+        building_name,
+      },
+    });
+    return response.data;
+  },
+
+  /**
+   * Get arrears (pending payments) report
+   *
+   * @param year - Year for the report
+   * @param month - Month for the report (1-12)
+   * @returns Arrears report with payment status and debtor details
+   */
+  getArrearsReport: async (
+    year: number,
+    month: number
+  ): Promise<ArrearsReport> => {
+    const response = await api.get<ArrearsReport>('/apartments-v2/reports/arrears', {
+      params: { year, month },
+    });
+    return response.data;
+  },
+
+  /**
+   * Get maintenance and charges report
+   *
+   * @param period - Time period (e.g., '1month', '3months', '6months', '1year')
+   * @param chargeType - Optional filter by charge type (cleaning, repair, etc.)
+   * @returns Maintenance report with costs and incident details
+   */
+  getMaintenanceReport: async (
+    period?: string,
+    chargeType?: string
+  ): Promise<MaintenanceReport> => {
+    const response = await api.get<MaintenanceReport>('/apartments-v2/reports/maintenance', {
+      params: {
+        period,
+        charge_type: chargeType,
+      },
+    });
+    return response.data;
+  },
+
+  /**
+   * Get cost analysis and profitability report
+   *
+   * @param year - Year for the report
+   * @param month - Month for the report (1-12)
+   * @returns Cost analysis report with revenue, expenses, and profit details
+   */
+  getCostAnalysisReport: async (
+    year: number,
+    month: number
+  ): Promise<CostAnalysisReport> => {
+    const response = await api.get<CostAnalysisReport>('/apartments-v2/reports/costs', {
+      params: { year, month },
+    });
     return response.data;
   },
 };

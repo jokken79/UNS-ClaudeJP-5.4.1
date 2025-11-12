@@ -2685,3 +2685,339 @@ export interface DeductionListParams {
    */
   sort_order?: 'asc' | 'desc';
 }
+
+// =============================================================================
+// REPORT TYPES
+// =============================================================================
+
+/**
+ * Reporte de ocupación de apartamentos
+ *
+ * Proporciona análisis completo de ocupación incluyendo tasas, tendencias,
+ * y detalles por apartamento y estado. Se utiliza en el dashboard de reportes
+ * para visualizar disponibilidad y tasas de ocupación en tiempo real.
+ *
+ * @interface OccupancyReport
+ *
+ * @example
+ * ```typescript
+ * const report: OccupancyReport = await apartmentsV2Service.getOccupancyReport('Tokyo')
+ * console.log(`Tasa de ocupación: ${report.summary.occupancy_rate}%`)
+ * console.log(`Apartamentos ocupados: ${report.summary.occupied_apartments}/${report.summary.total_apartments}`)
+ * ```
+ *
+ * @see {@link ApartmentWithStats} - Estadísticas individuales de apartamentos
+ * @see {@link ApartmentResponse} - Estructura base de apartamentos
+ * @see {@link AssignmentResponse} - Detalles de asignaciones activas
+ */
+export interface OccupancyReport {
+  /**
+   * Resumen general de ocupación
+   */
+  summary: {
+    /** Total de apartamentos */
+    total_apartments: number;
+    /** Capacidad total (personas) */
+    total_capacity: number;
+    /** Total de personas ocupando */
+    total_occupied: number;
+    /** Espacios disponibles */
+    available_spaces: number;
+    /** Tasa de ocupación actual (%) */
+    occupancy_rate: number;
+    /** Tasa del periodo anterior (%) */
+    previous_period_rate: number;
+  };
+
+  /**
+   * Detalle por apartamento
+   */
+  by_apartment: {
+    id: number;
+    apartment_code: string;
+    address: string;
+    capacity: number;
+    occupied: number;
+    occupancy_rate: number;
+    status: string;
+    monthly_rent: number;
+  }[];
+
+  /**
+   * Tendencias de ocupación en el tiempo
+   */
+  trends: {
+    date: string;
+    occupancy_rate: number;
+    occupied_units: number;
+    available_units: number;
+  }[];
+
+  /**
+   * Ocupación agrupada por estado
+   */
+  by_status: {
+    status: string;
+    count: number;
+    capacity: number;
+    occupied: number;
+  }[];
+}
+
+/**
+ * Reporte de pagos pendientes (atrasos)
+ *
+ * Análisis de deducciones pendientes, tasas de cobranza,
+ * y listado de deudores principales. Utilizado para monitorear
+ * la salud financiera del sistema de apartamentos y detectar
+ * empleados con pagos atrasados.
+ *
+ * @interface ArrearsReport
+ *
+ * @example
+ * ```typescript
+ * const report: ArrearsReport = await apartmentsV2Service.getArrearsReport(2025, 1)
+ * console.log(`Tasa de cobranza: ${report.summary.collection_rate}%`)
+ * console.log(`Total pendiente: ¥${report.summary.total_pending.toLocaleString()}`)
+ * console.log(`Deudores: ${report.summary.total_debtors}`)
+ * ```
+ *
+ * @see {@link DeductionResponse} - Estructura de deducciones individuales
+ * @see {@link AssignmentResponse} - Asignaciones relacionadas con deudas
+ * @see {@link DeductionListParams} - Parámetros para filtrar deducciones
+ */
+export interface ArrearsReport {
+  /**
+   * Resumen de pagos
+   */
+  summary: {
+    /** Total esperado a cobrar */
+    total_expected: number;
+    /** Total ya pagado */
+    total_paid: number;
+    /** Total pendiente */
+    total_pending: number;
+    /** Tasa de cobranza (%) */
+    collection_rate: number;
+    /** Número de deudores */
+    total_debtors: number;
+    /** Promedio de deuda por deudor */
+    average_debt: number;
+  };
+
+  /**
+   * Tendencias mensuales de cobranza
+   */
+  monthly_trends: {
+    month: string;
+    expected: number;
+    paid: number;
+    pending: number;
+    collection_rate: number;
+  }[];
+
+  /**
+   * Distribución por estado de pago
+   */
+  by_status: {
+    status: string;
+    count: number;
+    total_amount: number;
+  }[];
+
+  /**
+   * Top deudores
+   */
+  top_debtors: {
+    employee_id: number;
+    employee_name: string;
+    apartment_name: string;
+    total_pending: number;
+    oldest_pending_date: string;
+    pending_months: number;
+  }[];
+
+  /**
+   * Pendientes agrupados por apartamento
+   */
+  by_apartment: {
+    apartment_id: number;
+    apartment_name: string;
+    total_pending: number;
+    pending_deductions: number;
+    latest_payment_date: string;
+  }[];
+}
+
+/**
+ * Reporte de mantenimiento y cargos adicionales
+ *
+ * Análisis de costos de mantenimiento, distribución por tipo de cargo,
+ * y apartamentos con más incidentes. Utilizado para monitorear gastos
+ * operativos, identificar patrones de daños, y gestionar presupuestos
+ * de mantenimiento preventivo y correctivo.
+ *
+ * @interface MaintenanceReport
+ *
+ * @example
+ * ```typescript
+ * const report: MaintenanceReport = await apartmentsV2Service.getMaintenanceReport('6months', 'repair')
+ * console.log(`Costo total: ¥${report.summary.total_cost.toLocaleString()}`)
+ * console.log(`Promedio por apto: ¥${report.summary.average_cost_per_apartment.toLocaleString()}`)
+ * console.log(`Tipo más común: ${report.summary.most_common_type}`)
+ * ```
+ *
+ * @see {@link AdditionalChargeResponse} - Estructura de cargos individuales
+ * @see {@link ApartmentResponse} - Apartamentos relacionados con incidentes
+ * @see {@link ChargeListParams} - Parámetros para filtrar cargos
+ */
+export interface MaintenanceReport {
+  /**
+   * Resumen de mantenimiento
+   */
+  summary: {
+    /** Total de cargos registrados */
+    total_charges: number;
+    /** Costo total en yenes */
+    total_cost: number;
+    /** Costo promedio por apartamento */
+    average_cost_per_apartment: number;
+    /** Tipo de cargo más común */
+    most_common_type: string;
+    /** Apartamentos con incidentes */
+    apartments_with_issues: number;
+  };
+
+  /**
+   * Distribución por tipo de cargo
+   */
+  by_charge_type: {
+    charge_type: string;
+    count: number;
+    total_cost: number;
+    average_cost: number;
+    percentage: number;
+  }[];
+
+  /**
+   * Tendencias mensuales de costos
+   */
+  monthly_trends: {
+    month: string;
+    total_charges: number;
+    total_cost: number;
+    cleaning: number;
+    repair: number;
+    other: number;
+  }[];
+
+  /**
+   * Top apartamentos con más problemas
+   */
+  top_apartments: {
+    apartment_id: number;
+    apartment_name: string;
+    total_charges: number;
+    total_cost: number;
+    most_common_type: string;
+    latest_charge_date: string;
+  }[];
+
+  /**
+   * Incidentes recientes
+   */
+  recent_incidents: {
+    id: number;
+    apartment_name: string;
+    employee_name: string;
+    charge_type: string;
+    description: string;
+    amount: number;
+    charge_date: string;
+    status: string;
+  }[];
+}
+
+/**
+ * Reporte de análisis de costos y rentabilidad
+ *
+ * Análisis financiero completo incluyendo ingresos, gastos, ganancias,
+ * y rentabilidad por apartamento. Proporciona métricas clave para evaluar
+ * el desempeño financiero del sistema de apartamentos y tomar decisiones
+ * estratégicas sobre inversiones y expansión.
+ *
+ * @interface CostAnalysisReport
+ *
+ * @example
+ * ```typescript
+ * const report: CostAnalysisReport = await apartmentsV2Service.getCostAnalysisReport(2025, 1)
+ * console.log(`Margen de ganancia: ${report.summary.profit_margin}%`)
+ * console.log(`Ganancia neta: ¥${report.summary.net_profit.toLocaleString()}`)
+ * console.log(`Ingresos: ¥${report.summary.total_revenue.toLocaleString()}`)
+ * console.log(`Gastos: ¥${report.summary.total_expenses.toLocaleString()}`)
+ * ```
+ *
+ * @see {@link ApartmentWithStats} - Estadísticas financieras por apartamento
+ * @see {@link DeductionResponse} - Deducciones que generan ingresos
+ * @see {@link AdditionalChargeResponse} - Cargos que generan gastos
+ */
+export interface CostAnalysisReport {
+  /**
+   * Resumen financiero
+   */
+  summary: {
+    /** Ingresos totales */
+    total_revenue: number;
+    /** Gastos totales */
+    total_expenses: number;
+    /** Ganancia neta */
+    net_profit: number;
+    /** Margen de ganancia (%) */
+    profit_margin: number;
+    /** Renta promedio */
+    average_rent: number;
+    /** Ganancia del periodo anterior */
+    previous_period_profit: number;
+  };
+
+  /**
+   * Desglose de ingresos
+   */
+  revenue_breakdown: {
+    category: string;
+    amount: number;
+    percentage: number;
+  }[];
+
+  /**
+   * Desglose de gastos
+   */
+  expense_breakdown: {
+    category: string;
+    amount: number;
+    percentage: number;
+  }[];
+
+  /**
+   * Rentabilidad por apartamento
+   */
+  by_apartment: {
+    id: number;
+    apartment_code: string;
+    address: string;
+    revenue: number;
+    expenses: number;
+    profit: number;
+    profit_margin: number;
+  }[];
+
+  /**
+   * Tendencias financieras mensuales
+   */
+  monthly_trends: {
+    month: string;
+    revenue: number;
+    expenses: number;
+    profit: number;
+  }[];
+}

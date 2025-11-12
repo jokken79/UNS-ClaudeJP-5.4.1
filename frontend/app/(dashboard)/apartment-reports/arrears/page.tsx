@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
+import { apartmentsV2Service } from '@/lib/api';
 import {
   ArrowLeftIcon,
   CurrencyYenIcon,
@@ -59,10 +59,7 @@ export default function ArrearsReportPage() {
   const { data: report, isLoading } = useQuery({
     queryKey: ['apartment-arrears-report', selectedYear, selectedMonth],
     queryFn: async () => {
-      const response = await api.get(
-        `/apartments-v2/reports/arrears?year=${selectedYear}&month=${selectedMonth}`
-      );
-      return response.data as ArrearsReport;
+      return await apartmentsV2Service.getArrearsReport(selectedYear, selectedMonth);
     },
   });
 

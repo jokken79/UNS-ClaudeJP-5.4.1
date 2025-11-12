@@ -6,8 +6,10 @@ Tests for all apartment-related services:
 1. ApartmentService (15 tests)
 2. AdditionalChargeService (12 tests)
 3. DeductionService (10 tests)
+4. ReportService (5 tests)
+5. ReportEndpoints (4 tests)
 
-Total: 37+ tests covering service layer business logic
+Total: 46+ tests covering service layer business logic and API endpoints
 
 Author: UNS-ClaudeJP System
 """
@@ -995,6 +997,312 @@ class TestDeductionService:
 
         assert result.status == DeductionStatus.PAID
         assert result.paid_date is not None
+
+
+# =============================================================================
+# 4. REPORT SERVICE TESTS (5 tests)
+# =============================================================================
+
+class TestReportService:
+    """Tests para ReportService business logic."""
+
+    def test_get_occupancy_report_complete(self, db_session, sample_apartment, second_apartment, active_assignment):
+        """Test getting complete occupancy report."""
+        from app.services.report_service import ReportService
+
+        service = ReportService()
+        report = service.get_occupancy_report()
+
+        # Verificar estructura del reporte
+        assert report is not None
+        assert 'total_apartments' in report
+        assert 'occupied_apartments' in report
+        assert 'vacant_apartments' in report
+        assert 'occupancy_rate' in report
+        assert 'total_capacity' in report
+        assert 'current_occupancy' in report
+
+        # Verificar métricas básicas
+        assert report['total_apartments'] >= 2  # Al menos sample_apartment y second_apartment
+        assert report['occupied_apartments'] >= 1  # active_assignment
+        assert report['occupancy_rate'] >= 0.0
+        assert report['occupancy_rate'] <= 100.0
+
+        # Verificar desgloses
+        assert 'by_prefecture' in report
+        assert isinstance(report['by_prefecture'], list)
+        assert 'by_room_type' in report
+        assert isinstance(report['by_room_type'], list)
+
+    def test_get_occupancy_report_with_filters(self, db_session, sample_apartment):
+        """Test occupancy report with prefecture filter."""
+        from app.services.report_service import ReportService
+
+        service = ReportService()
+        report = service.get_occupancy_report(prefecture="東京都")
+
+        assert report is not None
+        assert report['total_apartments'] >= 1
+
+        # Verificar que solo incluye apartamentos de Tokio
+        if report['by_prefecture']:
+            tokyo_data = [p for p in report['by_prefecture'] if p['prefecture'] == '東京都']
+            assert len(tokyo_data) > 0
+
+    def test_get_arrears_report(self, db_session, active_assignment, admin_user):
+        """Test arrears report with deductions."""
+        from app.services.report_service import ReportService
+        from app.models.models import RentDeduction, DeductionStatus
+
+        # Crear deducción PENDING
+        deduction_pending = RentDeduction(
+            assignment_id=active_assignment.id,
+            employee_id=active_assignment.employee_id,
+            apartment_id=active_assignment.apartment_id,
+            year=2025,
+            month=11,
+            base_rent=50000,
+            additional_charges=0,
+            total_deduction=50000,
+            status=DeductionStatus.PENDING,
+            created_at=datetime.now()
+        )
+        db_session.add(deduction_pending)
+
+        # Crear deducción PAID
+        deduction_paid = RentDeduction(
+            assignment_id=active_assignment.id,
+            employee_id=active_assignment.employee_id,
+            apartment_id=active_assignment.apartment_id,
+            year=2025,
+            month=11,
+            base_rent=30000,
+            additional_charges=0,
+            total_deduction=30000,
+            status=DeductionStatus.PAID,
+            created_at=datetime.now()
+        )
+        db_session.add(deduction_paid)
+        db_session.commit()
+
+        service = ReportService()
+        report = service.get_arrears_report(year=2025, month=11)
+
+        # Verificar estructura
+        assert report is not None
+        assert 'total_to_collect' in report
+        assert 'total_paid' in report
+        assert 'total_pending' in report
+        assert 'collection_rate' in report
+        assert 'employees_with_debt' in report
+        assert 'top_debtors' in report
+
+        # Verificar cálculos
+        assert report['total_to_collect'] == 80000  # 50000 + 30000
+        assert report['total_paid'] == 30000
+        assert report['total_pending'] == 50000
+        assert report['collection_rate'] == 37.5  # (30000 / 80000) * 100
+
+    def test_get_maintenance_report(self, db_session, active_assignment, admin_user):
+        """Test maintenance report with different charge types."""
+        from app.services.report_service import ReportService
+        from app.models.models import AdditionalCharge, DeductionStatus
+
+        # Crear 5 cargos de diferentes tipos
+        charge_types = ["cleaning", "repair", "damage", "other", "cleaning"]
+        amounts = [20000, 15000, 30000, 5000, 20000]
+
+        for charge_type, amount in zip(charge_types, amounts):
+            charge = AdditionalCharge(
+                assignment_id=active_assignment.id,
+                employee_id=active_assignment.employee_id,
+                apartment_id=active_assignment.apartment_id,
+                charge_type=charge_type,
+                description=f"Test {charge_type}",
+                amount=amount,
+                charge_date=date.today(),
+                status=DeductionStatus.PENDING,
+                created_at=datetime.now()
+            )
+            db_session.add(charge)
+
+        db_session.commit()
+
+        service = ReportService()
+        report = service.get_maintenance_report()
+
+        # Verificar estructura
+        assert report is not None
+        assert 'total_charges' in report
+        assert 'by_charge_type' in report
+        assert 'monthly_trends' in report
+        assert 'apartments_with_most_incidents' in report
+
+        # Verificar conteo
+        assert report['total_charges'] >= 5
+
+        # Verificar agrupación por tipo
+        assert isinstance(report['by_charge_type'], dict)
+        assert 'cleaning' in report['by_charge_type']
+        assert report['by_charge_type']['cleaning']['count'] == 2
+        assert report['by_charge_type']['cleaning']['total_amount'] == 40000
+
+    def test_get_cost_analysis_report(self, db_session, sample_apartment, active_assignment, admin_user):
+        """Test cost analysis report."""
+        from app.services.report_service import ReportService
+        from app.models.models import RentDeduction, DeductionStatus
+
+        # Crear deducciones para el análisis
+        deduction = RentDeduction(
+            assignment_id=active_assignment.id,
+            employee_id=active_assignment.employee_id,
+            apartment_id=active_assignment.apartment_id,
+            year=2025,
+            month=11,
+            base_rent=50000,
+            additional_charges=5000,
+            total_deduction=55000,
+            status=DeductionStatus.PAID,
+            created_at=datetime.now()
+        )
+        db_session.add(deduction)
+        db_session.commit()
+
+        service = ReportService()
+        report = service.get_cost_analysis_report(year=2025, month=11)
+
+        # Verificar estructura
+        assert report is not None
+        assert 'total_costs' in report
+        assert 'total_deductions' in report
+        assert 'profit_margin' in report
+        assert 'average_per_apartment' in report
+        assert 'cost_trends' in report
+
+        # Verificar que calcula deducciones correctamente
+        assert report['total_deductions'] >= 55000
+
+        # Verificar que profit_margin es un número
+        assert isinstance(report['profit_margin'], (int, float))
+
+        # Verificar cost_trends (últimos 6 meses)
+        assert isinstance(report['cost_trends'], list)
+        assert len(report['cost_trends']) == 6
+
+
+# =============================================================================
+# 5. REPORT ENDPOINTS TESTS (3 tests)
+# =============================================================================
+
+class TestReportEndpoints:
+    """Tests para endpoints de reportes con autenticación."""
+
+    @pytest.fixture
+    def employee_user(self, db_session):
+        """Create employee user for testing role restrictions."""
+        from app.services.auth_service import auth_service
+
+        user = User(
+            username="employee_test",
+            email="employee@test.com",
+            password_hash=auth_service.get_password_hash("password123"),
+            full_name="Employee Test",
+            role="EMPLOYEE",
+            is_active=True
+        )
+        db_session.add(user)
+        db_session.commit()
+        db_session.refresh(user)
+        return user
+
+    @pytest.fixture
+    def admin_token(self, client, admin_user):
+        """Get JWT token for admin user."""
+        response = client.post(
+            "/api/auth/login",
+            json={
+                "username": "admin_test",
+                "password": "password123"
+            }
+        )
+        assert response.status_code == 200
+        return response.json()["access_token"]
+
+    @pytest.fixture
+    def employee_token(self, client, employee_user):
+        """Get JWT token for employee user."""
+        response = client.post(
+            "/api/auth/login",
+            json={
+                "username": "employee_test",
+                "password": "password123"
+            }
+        )
+        assert response.status_code == 200
+        return response.json()["access_token"]
+
+    def test_get_occupancy_report_endpoint(self, client, admin_token, sample_apartment):
+        """Test occupancy report endpoint with admin token."""
+        response = client.get(
+            '/api/apartments-v2/reports/occupancy',
+            headers={'Authorization': f'Bearer {admin_token}'}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert 'total_apartments' in data
+        assert 'occupancy_rate' in data
+
+    def test_arrears_endpoint_requires_admin(self, client, employee_token):
+        """Test arrears endpoint requires ADMIN/COORDINATOR role."""
+        response = client.get(
+            '/api/apartments-v2/reports/arrears?year=2025&month=11',
+            headers={'Authorization': f'Bearer {employee_token}'}
+        )
+
+        # Should return 403 Forbidden for EMPLOYEE role
+        assert response.status_code == 403
+        assert 'Access denied' in response.json()['detail']
+
+    def test_maintenance_endpoint_requires_admin(self, client, employee_token):
+        """Test maintenance endpoint requires ADMIN/COORDINATOR role."""
+        response = client.get(
+            '/api/apartments-v2/reports/maintenance',
+            headers={'Authorization': f'Bearer {employee_token}'}
+        )
+
+        # Should return 403 Forbidden for EMPLOYEE role
+        assert response.status_code == 403
+
+    def test_endpoints_with_invalid_params(self, client, admin_token):
+        """Test report endpoints with invalid parameters."""
+        # Test arrears with invalid year
+        response = client.get(
+            '/api/apartments-v2/reports/arrears?year=2050&month=13',
+            headers={'Authorization': f'Bearer {admin_token}'}
+        )
+        assert response.status_code == 400
+
+        # Test arrears with missing month
+        response = client.get(
+            '/api/apartments-v2/reports/arrears?year=2025',
+            headers={'Authorization': f'Bearer {admin_token}'}
+        )
+        assert response.status_code == 422  # Unprocessable Entity (missing required param)
+
+        # Test maintenance with invalid period
+        response = client.get(
+            '/api/apartments-v2/reports/maintenance?period=invalid',
+            headers={'Authorization': f'Bearer {admin_token}'}
+        )
+        assert response.status_code == 400
+
+        # Test maintenance with invalid charge_type
+        response = client.get(
+            '/api/apartments-v2/reports/maintenance?charge_type=invalid_type',
+            headers={'Authorization': f'Bearer {admin_token}'}
+        )
+        assert response.status_code == 400
 
 
 # =============================================================================
