@@ -12,6 +12,7 @@ import {
   UserGroupIcon,
   DocumentArrowDownIcon,
 } from '@heroicons/react/24/outline';
+import { DevModeAlert } from '@/components/dev-mode-alert';
 
 interface ArrearsReport {
   summary: {
@@ -102,6 +103,12 @@ export default function ArrearsReportPage() {
           Exportar PDF
         </button>
       </div>
+
+      {/* Development Alert */}
+      <DevModeAlert
+        pageName="Arrears Report"
+        message="PDF export functionality is currently under development. All other features are fully functional."
+      />
 
       {/* Filters */}
       <div className="bg-card border rounded-lg p-4">

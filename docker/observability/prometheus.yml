@@ -3,18 +3,21 @@ global:
   evaluation_interval: 15s
 
 rule_files:
-  # - "first_rules.yml"
-  # - "second_rules.yml"
+  - "/etc/prometheus/prometheus-alerts.yml"
 
 scrape_configs:
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
 
-  - job_name: 'otel-collector'
+  # FIX [C7]: Cambiar scrape del backend (no del otel-collector que no expone métricas en 8888)
+  - job_name: 'backend-metrics'
     static_configs:
-      - targets: ['otel-collector:8888']
+      - targets: ['backend:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
 
+  # FIX [C7]: Mantener scrape de Tempo para health monitoring
   - job_name: 'tempo'
     static_configs:
       - targets: ['tempo:3200']

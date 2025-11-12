@@ -25,6 +25,8 @@ import {
   Work_Sans,
 } from "next/font/google";
 import "./globals.css";
+import "@/lib/compact-mode.css";
+import "@/lib/animations.css";
 import { Providers } from "@/components/providers";
 import { ErrorBoundaryWrapper } from "@/components/error-boundary-wrapper";
 import { ChunkErrorHandler } from "@/components/global-error-handler";
@@ -181,6 +183,7 @@ export const metadata: Metadata = {
     shortcut: "/favicon-16x16.png",
     apple: "/apple-touch-icon.png",
   },
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({

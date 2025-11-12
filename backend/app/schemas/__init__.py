@@ -211,6 +211,121 @@ from app.schemas.yukyu import (
     EmployeeByFactoryResponse,
 )
 
+# NEW in v5.4.1 - Missing Model Schemas (13 models)
+# Document schemas
+from app.schemas.document import (
+    DocumentBase,
+    DocumentCreate,
+    DocumentUpdate,
+    DocumentResponse,
+)
+
+# ContractWorker schemas
+from app.schemas.contract_worker import (
+    ContractWorkerBase,
+    ContractWorkerCreate,
+    ContractWorkerUpdate,
+    ContractWorkerResponse,
+)
+
+# Staff schemas
+from app.schemas.staff import (
+    StaffBase,
+    StaffCreate,
+    StaffUpdate,
+    StaffResponse,
+)
+
+# ApartmentFactory schemas
+from app.schemas.apartment_factory import (
+    ApartmentFactoryBase,
+    ApartmentFactoryCreate,
+    ApartmentFactoryUpdate,
+    ApartmentFactoryResponse,
+)
+
+# Workplace schemas
+from app.schemas.workplace import (
+    WorkplaceBase,
+    WorkplaceCreate,
+    WorkplaceUpdate,
+    WorkplaceResponse,
+)
+
+# Region schemas
+from app.schemas.region import (
+    RegionBase,
+    RegionCreate,
+    RegionUpdate,
+    RegionResponse,
+)
+
+# Department schemas
+from app.schemas.department import (
+    DepartmentBase,
+    DepartmentCreate,
+    DepartmentUpdate,
+    DepartmentResponse,
+)
+
+# ResidenceType schemas
+from app.schemas.residence_type import (
+    ResidenceTypeBase,
+    ResidenceTypeCreate,
+    ResidenceTypeUpdate,
+    ResidenceTypeResponse,
+)
+
+# ResidenceStatus schemas
+from app.schemas.residence_status import (
+    ResidenceStatusBase,
+    ResidenceStatusCreate,
+    ResidenceStatusUpdate,
+    ResidenceStatusResponse,
+)
+
+# SocialInsuranceRate schemas
+from app.schemas.social_insurance_rate import (
+    SocialInsuranceRateBase,
+    SocialInsuranceRateCreate,
+    SocialInsuranceRateUpdate,
+    SocialInsuranceRateResponse,
+)
+
+# AuditLog schemas
+from app.schemas.audit_log import (
+    AuditLogBase,
+    AuditLogCreate,
+    AuditLogResponse,
+)
+
+# PageVisibility schemas
+from app.schemas.page_visibility import (
+    PageVisibilityBase,
+    PageVisibilityCreate,
+    PageVisibilityUpdate,
+    PageVisibilityResponse,
+)
+
+# RolePagePermission schemas
+from app.schemas.role_page_permission import (
+    RolePagePermissionBase,
+    RolePagePermissionCreate,
+    RolePagePermissionUpdate,
+    RolePagePermissionResponse,
+)
+
+# Apartment V2 Complete schemas (with all 35 fields)
+from app.schemas.apartment_v2_complete import (
+    RoomType,
+    ApartmentStatus,
+    ApartmentBaseV2Complete,
+    ApartmentCreateV2Complete,
+    ApartmentUpdateV2Complete,
+    ApartmentResponseV2Complete,
+    ApartmentWithEmployeesV2Complete,
+)
+
 __all__ = [
     # Authentication
     "UserLogin",
@@ -354,4 +469,91 @@ __all__ = [
     "YukyuReport",
     "YukyuAlert",
     "EmployeeByFactoryResponse",
+
+    # NEW in v5.4.1 - Missing Model Schemas
+    # Documents
+    "DocumentBase",
+    "DocumentCreate",
+    "DocumentUpdate",
+    "DocumentResponse",
+
+    # ContractWorker
+    "ContractWorkerBase",
+    "ContractWorkerCreate",
+    "ContractWorkerUpdate",
+    "ContractWorkerResponse",
+
+    # Staff
+    "StaffBase",
+    "StaffCreate",
+    "StaffUpdate",
+    "StaffResponse",
+
+    # ApartmentFactory
+    "ApartmentFactoryBase",
+    "ApartmentFactoryCreate",
+    "ApartmentFactoryUpdate",
+    "ApartmentFactoryResponse",
+
+    # Workplace
+    "WorkplaceBase",
+    "WorkplaceCreate",
+    "WorkplaceUpdate",
+    "WorkplaceResponse",
+
+    # Region
+    "RegionBase",
+    "RegionCreate",
+    "RegionUpdate",
+    "RegionResponse",
+
+    # Department
+    "DepartmentBase",
+    "DepartmentCreate",
+    "DepartmentUpdate",
+    "DepartmentResponse",
+
+    # ResidenceType
+    "ResidenceTypeBase",
+    "ResidenceTypeCreate",
+    "ResidenceTypeUpdate",
+    "ResidenceTypeResponse",
+
+    # ResidenceStatus
+    "ResidenceStatusBase",
+    "ResidenceStatusCreate",
+    "ResidenceStatusUpdate",
+    "ResidenceStatusResponse",
+
+    # SocialInsuranceRate
+    "SocialInsuranceRateBase",
+    "SocialInsuranceRateCreate",
+    "SocialInsuranceRateUpdate",
+    "SocialInsuranceRateResponse",
+
+    # AuditLog
+    "AuditLogBase",
+    "AuditLogCreate",
+    "AuditLogResponse",
+
+    # PageVisibility
+    "PageVisibilityBase",
+    "PageVisibilityCreate",
+    "PageVisibilityUpdate",
+    "PageVisibilityResponse",
+
+    # RolePagePermission
+    "RolePagePermissionBase",
+    "RolePagePermissionCreate",
+    "RolePagePermissionUpdate",
+    "RolePagePermissionResponse",
+
+    # Apartment V2 Complete (all 35 fields)
+    "RoomType",
+    "ApartmentStatus",
+    "ApartmentBaseV2Complete",
+    "ApartmentCreateV2Complete",
+    "ApartmentUpdateV2Complete",
+    "ApartmentResponseV2Complete",
+    "ApartmentWithEmployeesV2Complete",
 ]

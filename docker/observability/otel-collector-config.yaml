@@ -13,6 +13,18 @@ exporters:
   logging:
     loglevel: info
 
+  # FIX [C6]: Exporter for Tempo (distributed tracing)
+  otlp:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+  # FIX [C6]: Exporter for Prometheus (metrics)
+  prometheusremotewrite:
+    endpoint: "http://prometheus:9090/api/v1/write"
+    headers:
+      Content-Type: application/x-protobuf
+
 extensions:
   health_check:
     endpoint: 0.0.0.0:13133
@@ -23,4 +35,9 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [logging]
+      exporters: [logging, otlp]  # FIX [C6]: Export traces to Tempo
+
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [logging, prometheusremotewrite]  # FIX [C6]: Export metrics to Prometheus

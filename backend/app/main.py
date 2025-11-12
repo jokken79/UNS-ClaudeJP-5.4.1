@@ -239,8 +239,7 @@ async def internal_error_handler(request: Request, exc: Exception) -> JSONRespon
 from app.api import (
     azure_ocr,  # noqa: E402  pylint: disable=wrong-import-position
     admin,
-    apartments,
-    apartments_v2,
+    apartments_v2,  # Official Apartments API (V1 removed 2025-11-12)
     auth,
     candidates,
     dashboard,
@@ -265,15 +264,8 @@ from app.api import (
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(admin.router, tags=["Admin Panel"])
 
-# DEPRECATED: Apartments API V1 will be removed on 2025-12-31
-# Clients should migrate to /api/apartments-v2
-app.include_router(apartments.router, prefix="/api/apartments", tags=["Apartments (V1 - DEPRECATED)"])
-app_logger.warning(
-    "DEPRECATION WARNING: Apartments API V1 (/api/apartments) is deprecated and will be removed on 2025-12-31. "
-    "Please migrate all clients to /api/apartments-v2. See /api/docs for migration guide."
-)
-
-app.include_router(apartments_v2.router, prefix="/api/apartments-v2", tags=["Apartments V2"])
+# Apartments API (consolidated from V2, V1 removed 2025-11-12)
+app.include_router(apartments_v2.router, prefix="/api/apartments", tags=["Apartments"])
 app.include_router(candidates.router, prefix="/api/candidates", tags=["Candidates"])
 app.include_router(database.router, prefix="/api/database", tags=["Database"])
 app.include_router(azure_ocr.router, prefix="/api/azure-ocr", tags=["Azure OCR"])

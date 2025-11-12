@@ -143,8 +143,10 @@ class SalaryService:
             if timer_records is None:
                 timer_records = await self._get_timer_cards(employee_id, month, year)
 
-            if not timer_records:
-                raise ValueError(f"No approved timer cards found for employee {employee_id} in {year}-{month:02d}")
+            # 2a. Validate timer cards exist and have required data
+            validation_result = self._validate_timer_cards(timer_records, employee_id, month, year)
+            if not validation_result['valid']:
+                raise ValueError(validation_result['error'])
 
             # 3. Get payroll settings from database
             payroll_settings = await self._get_payroll_settings()
@@ -670,6 +672,116 @@ class SalaryService:
 
         result = await self.db.execute(stmt)
         return result.scalars().all()
+
+    def _validate_timer_cards(
+        self,
+        timer_records: List[TimerCard],
+        employee_id: int,
+        month: int,
+        year: int
+    ) -> Dict[str, Any]:
+        """
+        Validate timer cards before salary calculation.
+
+        Performs comprehensive validation to ensure timer cards have all required
+        data for accurate salary calculation.
+
+        Args:
+            timer_records: List of timer card records
+            employee_id: Employee ID for error messages
+            month: Month being calculated
+            year: Year being calculated
+
+        Returns:
+            Dict with keys:
+                - 'valid' (bool): True if validation passed
+                - 'error' (str): Error message if validation failed
+                - 'warnings' (List[str]): Non-critical warnings
+
+        Validation checks:
+            1. Timer cards list is not empty
+            2. All timer cards have required fields (work_date, hours)
+            3. All timer cards are approved
+            4. Timer cards cover reasonable date range
+            5. Hours are within valid ranges
+        """
+        warnings = []
+
+        # Check 1: Timer cards exist
+        if not timer_records:
+            return {
+                'valid': False,
+                'error': f"No approved timer cards found for employee {employee_id} in {year}-{month:02d}. "
+                        f"Cannot calculate salary without attendance records.",
+                'warnings': []
+            }
+
+        # Check 2: All timer cards have required fields
+        for idx, tc in enumerate(timer_records):
+            if not tc.work_date:
+                return {
+                    'valid': False,
+                    'error': f"Timer card #{idx+1} for employee {employee_id} is missing work_date",
+                    'warnings': warnings
+                }
+
+            if tc.total_hours is None or tc.total_hours < 0:
+                return {
+                    'valid': False,
+                    'error': f"Timer card for {tc.work_date} has invalid total_hours: {tc.total_hours}",
+                    'warnings': warnings
+                }
+
+        # Check 3: All timer cards are approved
+        unapproved = [tc for tc in timer_records if not tc.is_approved]
+        if unapproved:
+            return {
+                'valid': False,
+                'error': f"Found {len(unapproved)} unapproved timer cards for employee {employee_id}. "
+                        f"All timer cards must be approved before salary calculation.",
+                'warnings': warnings
+            }
+
+        # Check 4: Timer cards are in the correct month/year
+        wrong_period = []
+        for tc in timer_records:
+            if tc.work_date.month != month or tc.work_date.year != year:
+                wrong_period.append(tc.work_date)
+
+        if wrong_period:
+            return {
+                'valid': False,
+                'error': f"Found timer cards from wrong period: {wrong_period}. "
+                        f"Expected {year}-{month:02d}",
+                'warnings': warnings
+            }
+
+        # Check 5: Hours are within reasonable ranges (warning only)
+        for tc in timer_records:
+            if tc.total_hours and tc.total_hours > 24:
+                warnings.append(
+                    f"Timer card for {tc.work_date} has unusually high hours: {tc.total_hours}. "
+                    f"Please verify this is correct."
+                )
+
+        # Check 6: Minimum attendance coverage (warning only)
+        if len(timer_records) < 20:
+            warnings.append(
+                f"Only {len(timer_records)} days of attendance recorded for {year}-{month:02d}. "
+                f"This may result in lower than expected salary."
+            )
+
+        # All validations passed
+        logger.info(
+            f"Timer cards validated for employee {employee_id} ({year}-{month:02d}): "
+            f"{len(timer_records)} records, {len(warnings)} warnings"
+        )
+
+        return {
+            'valid': True,
+            'error': None,
+            'warnings': warnings
+        }
 
     async def _get_payroll_settings(self) -> Optional[PayrollSettings]:
         """

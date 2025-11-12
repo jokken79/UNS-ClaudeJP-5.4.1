@@ -67,7 +67,7 @@ async def register(
 
 
 @router.post("/login", response_model=Token)
-@limiter.limit("5/minute")  # Limit to 5 login attempts per minute
+@limiter.limit("10/minute")  # Limit to 10 login attempts per minute
 async def login(
     request: Request,
     response: Response,
@@ -80,7 +80,7 @@ async def login(
     Returns both access_token and refresh_token.
     Tokens are also set as HttpOnly cookies for browser security.
 
-    Rate Limited: 5 attempts per minute per IP address
+    Rate Limited: 10 attempts per minute per IP address
     """
     user = auth_service.authenticate_user(db, form_data.username, form_data.password)
 

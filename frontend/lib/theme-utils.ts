@@ -1,6 +1,56 @@
+/**
+ * Validate WCAG contrast ratio between two HSL colors
+ * @param hslColor1 HSL color string in format "h s% l%" or "h s l"
+ * @param hslColor2 HSL color string in format "h s% l%" or "h s l"
+ * @param level WCAG level to validate against ('AA' or 'AAA')
+ * @param isLargeText Whether the text is considered large (18pt+ or 14pt+ bold)
+ * @returns true if contrast meets WCAG requirements, false otherwise
+ */
+export function validateContrast(
+  hslColor1: string,
+  hslColor2: string,
+  level: 'AA' | 'AAA' = 'AA',
+  isLargeText: boolean = false
+): boolean {
+  // Parse HSL strings
+  const hsl1 = parseHslString(hslColor1);
+  const hsl2 = parseHslString(hslColor2);
+
+  if (!hsl1 || !hsl2) {
+    console.warn('Invalid HSL color format for contrast validation');
+    return false;
+  }
+
+  // Convert to RGB
+  const rgb1 = hslToRgb(...hsl1);
+  const rgb2 = hslToRgb(...hsl2);
+
+  // Calculate contrast ratio
+  const ratio = getContrastRatio(rgb1, rgb2);
+
+  // WCAG 2.1 requirements:
+  // Level AA: 4.5:1 for normal text, 3:1 for large text
+  // Level AAA: 7:1 for normal text, 4.5:1 for large text
+  const requiredRatio = level === 'AAA'
+    ? (isLargeText ? 4.5 : 7)
+    : (isLargeText ? 3 : 4.5);
+
+  return ratio >= requiredRatio;
+}
+
+/**
+ * Generate a color palette from a base color (placeholder implementation)
+ * @param baseColor Base HSL color string
+ * @returns Object with generated palette colors
+ */
+export function generatePalette(baseColor: string): Record<string, string> {
+  // Placeholder implementation - to be enhanced in future iterations
+  return { primary: baseColor };
+}
+
 export const themeUtils = {
-  validateContrast: (color1: string, color2: string) => true,
-  generatePalette: (baseColor: string) => ({ primary: baseColor }),
+  validateContrast,
+  generatePalette,
 };
 
 /**

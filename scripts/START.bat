@@ -293,11 +293,12 @@ echo ┌────────────────────────
 echo │ ⏳ [3/5] ESPERAR ESTABILIZACIÓN DE SERVICIOS                      │
 echo └────────────────────────────────────────────────────────────────────┘
 echo.
-echo   ▶ Esperando a que los servicios se estabilicen (30 segundos)...
+echo   ▶ Esperando a que los servicios se estabilicen (90 segundos)...
 echo   ℹ PostgreSQL, Backend y Frontend necesitan tiempo para inicializar
-for /l %%i in (1,5,6) do (
+echo   ℹ Timeout aumentado para máquinas lentas y primera inicialización
+for /l %%i in (1,5,18) do (
     set /a "PROGRESS=%%i*5"
-    set /a "BARS=!PROGRESS!/5"
+    set /a "BARS=!PROGRESS!/9"
     set "BAR="
     for /l %%j in (1,1,!BARS!) do set "BAR=!BAR!█"
     for /l %%j in (!BARS!,1,10) do set "BAR=!BAR!░"

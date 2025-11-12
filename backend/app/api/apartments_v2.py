@@ -74,7 +74,9 @@ from app.services.additional_charge_service import AdditionalChargeService
 from app.services.deduction_service import DeductionService
 from app.services.report_service import ReportService
 
-router = APIRouter(prefix="/apartments", tags=["apartments-v2"])
+# NOTE: Prefix is now empty because this router will be registered at /api/apartments in main.py
+# This is the official Apartments API (formerly V2, now the only version)
+router = APIRouter(prefix="", tags=["apartments"])
 
 
 # =============================================================================
