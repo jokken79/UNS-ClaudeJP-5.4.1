@@ -217,10 +217,11 @@ echo.
 echo   ▶ Esperando que PostgreSQL esté lista (health check - máx 90s)...
 set "WAIT_COUNT=0"
 :wait_db_loop
-docker inspect --format="{{.State.Health.Status}}" uns-claudejp-db 2>nul | findstr "healthy" >nul
-if !errorlevel! EQU 0 goto :db_ready
+for /f "tokens=*" %%A in ('docker inspect --format="{{.State.Health.Status}}" uns-claudejp-db 2^>nul') do set "DB_STATUS=%%A"
+if /i "%DB_STATUS%"=="healthy" goto :db_ready
 set /a WAIT_COUNT+=1
-echo   ⏳ Esperando... (!WAIT_COUNT!0 segundos)
+set /a WAIT_SECONDS=!WAIT_COUNT!*10
+echo   ⏳ Esperando... !WAIT_SECONDS! segundos
 if !WAIT_COUNT! GEQ 9 (
     echo   [X] TIMEOUT: PostgreSQL no respondió en 90 segundos
     echo   i Verifica los logs: docker logs uns-claudejp-db
@@ -255,7 +256,10 @@ echo   [OK] Servicio backend iniciado
 
 echo.
 echo   ▶ Esperando que backend esté listo (20 segundos)...
-timeout /t 20 /nobreak >nul
+for /l %%N in (1,1,4) do (
+    echo   ⏳ Inicializando servicios... %%N/4
+    timeout /t 5 /nobreak >nul
+)
 echo   [OK] Backend listo
 
 echo.
@@ -326,8 +330,11 @@ echo   i Frontend: http://localhost:3000
 echo   i Adminer:  http://localhost:8080
 echo.
 
-echo   ▶ Esperando compilación del frontend (60s)...
-timeout /t 60 /nobreak >nul
+echo   ▶ Esperando compilación del frontend (60 segundos)...
+for /l %%N in (1,1,6) do (
+    echo   ⏳ Compilando Next.js... %%N/6 ^(~10s cada uno^)
+    timeout /t 10 /nobreak >nul
+)
 echo   [OK] Compilación completada
 echo.
 
@@ -360,13 +367,25 @@ echo ╔════════════════════════
 echo ║      [PASO FINAL] LIMPIEZA AUTOMÁTICA DE FOTOS OLE                 ║
 echo ╚══════════════════════════════════════════════════════════════════════╝
 echo.
-echo [INFO] Ejecutando LIMPIAR_FOTOS_OLE.bat automáticamente...
-echo.
-call "%~dp0LIMPIAR_FOTOS_OLE.bat"
+if exist "%~dp0LIMPIAR_FOTOS_OLE.bat" (
+    echo   ▶ Ejecutando LIMPIAR_FOTOS_OLE.bat automáticamente...
+    call "%~dp0LIMPIAR_FOTOS_OLE.bat"
+    if !errorlevel! NEQ 0 (
+        echo   ! Warning: LIMPIAR_FOTOS_OLE.bat completó con warnings
+    ) else (
+        echo   [OK] Limpieza de fotos completada
+    )
+) else (
+    echo   ! Warning: LIMPIAR_FOTOS_OLE.bat no encontrado
+    echo   i Saltando este paso (opcional)
+)
 echo.
 echo ╔══════════════════════════════════════════════════════════════════════╗
 echo ║         REINSTALACIÓN + LIMPIEZA COMPLETADA AL 100%%                ║
 echo ╚══════════════════════════════════════════════════════════════════════╝
 echo.
-
+echo ════════════════════════════════════════════════════════════════════
+echo  ✓ TODO LISTO - PRESIONA CUALQUIER TECLA PARA CERRAR
+echo ════════════════════════════════════════════════════════════════════
+echo.
 pause >nul
