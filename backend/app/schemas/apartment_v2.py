@@ -607,6 +607,27 @@ class CostAnalysisReport(BaseModel):
 
 
 # =============================================================================
+# ESTADÍSTICAS
+# =============================================================================
+
+class AssignmentStatisticsResponse(BaseModel):
+    """Estadísticas de asignaciones"""
+    total_assignments: int = Field(default=0, description="Total de asignaciones")
+    active_assignments: int = Field(default=0, description="Asignaciones activas")
+    completed_assignments: int = Field(default=0, description="Asignaciones completadas")
+    cancelled_assignments: int = Field(default=0, description="Asignaciones canceladas")
+    transferred_assignments: int = Field(default=0, description="Asignaciones transferidas")
+
+    total_rent_collected: int = Field(default=0, description="Total de renta cobrada (¥)")
+    average_rent: float = Field(default=0.0, description="Renta promedio (¥)")
+    average_occupancy_days: float = Field(default=0.0, description="Promedio de días de ocupación")
+
+    # Breakdown por período (opcional)
+    period_start: Optional[date] = Field(None, description="Inicio del período")
+    period_end: Optional[date] = Field(None, description="Fin del período")
+
+
+# =============================================================================
 # UTILITARIOS
 # =============================================================================
 

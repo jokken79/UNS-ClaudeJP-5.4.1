@@ -8,6 +8,10 @@ from datetime import datetime
 import pandas as pd
 import re
 import unicodedata
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Add parent directory to path
 sys.path.insert(0, '/app')
@@ -306,7 +310,8 @@ def import_haken_employees(db: Session):
                     if pd.notna(value):
                         try:
                             return pd.to_datetime(value).date()
-                        except:
+                        except (ValueError, TypeError):
+                            # Return None for unparseable dates
                             pass
                     return None
 
@@ -315,7 +320,8 @@ def import_haken_employees(db: Session):
                     if pd.notna(value):
                         try:
                             return int(float(value))
-                        except:
+                        except (ValueError, TypeError):
+                            # Return None for non-numeric values
                             pass
                     return None
 
@@ -620,7 +626,8 @@ def import_ukeoi_employees(db: Session):
                     if pd.notna(value):
                         try:
                             return pd.to_datetime(value).date()
-                        except:
+                        except (ValueError, TypeError):
+                            # Return None for unparseable dates
                             pass
                     return None
 
@@ -628,7 +635,8 @@ def import_ukeoi_employees(db: Session):
                     if pd.notna(value):
                         try:
                             return int(float(value))
-                        except:
+                        except (ValueError, TypeError):
+                            # Return None for non-numeric values
                             pass
                     return None
 
@@ -639,7 +647,8 @@ def import_ukeoi_employees(db: Session):
                         else:
                             val = row.get(index_or_key)
                         return str(val).strip() if pd.notna(val) else None
-                    except:
+                    except (KeyError, AttributeError, TypeError, IndexError):
+                        # Return None if field access or conversion fails
                         return None
 
                 # Get column by index since names might be problematic
@@ -827,7 +836,8 @@ def import_staff_employees(db: Session):
                     if pd.notna(value):
                         try:
                             return pd.to_datetime(value).date()
-                        except:
+                        except (ValueError, TypeError):
+                            # Return None for unparseable dates
                             pass
                     return None
 
@@ -835,7 +845,8 @@ def import_staff_employees(db: Session):
                     if pd.notna(value):
                         try:
                             return int(float(value))
-                        except:
+                        except (ValueError, TypeError):
+                            # Return None for non-numeric values
                             pass
                     return None
 
@@ -846,7 +857,8 @@ def import_staff_employees(db: Session):
                         else:
                             val = row.get(index_or_key)
                         return str(val).strip() if pd.notna(val) else None
-                    except:
+                    except (KeyError, AttributeError, TypeError, IndexError):
+                        # Return None if field access or conversion fails
                         return None
 
                 # Get by index
@@ -1051,7 +1063,8 @@ def import_taisha_employees(db: Session):
                     if pd.notna(row.get('退社日')):
                         try:
                             employee.termination_date = pd.to_datetime(row['退社日']).date()
-                        except:
+                        except (ValueError, TypeError):
+                            # Skip invalid termination dates
                             pass
 
                     db.commit()

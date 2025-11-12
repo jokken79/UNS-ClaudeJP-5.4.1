@@ -26,7 +26,8 @@ def parse_date(date_str):
     try:
         # Try ISO format first
         return datetime.fromisoformat(date_str).date()
-    except:
+    except (ValueError, TypeError, AttributeError):
+        # Not ISO format, try other formats
         pass
 
     try:
@@ -34,9 +35,11 @@ def parse_date(date_str):
         for fmt in ['%Y-%m-%d', '%Y/%m/%d', '%d/%m/%Y']:
             try:
                 return datetime.strptime(date_str, fmt).date()
-            except:
+            except (ValueError, TypeError):
+                # Try next format
                 continue
-    except:
+    except (ValueError, TypeError, AttributeError):
+        # All formats failed, return None
         pass
 
     return None
@@ -47,7 +50,8 @@ def parse_int(value):
         return None
     try:
         return int(float(value))
-    except:
+    except (ValueError, TypeError):
+        # Return None for non-numeric values
         return None
 
 def parse_float(value):
@@ -56,7 +60,8 @@ def parse_float(value):
         return None
     try:
         return float(value)
-    except:
+    except (ValueError, TypeError):
+        # Return None for non-numeric values
         return None
 
 def parse_bool(value):
@@ -83,7 +88,8 @@ def normalize_percentage(value):
             return '0%'
         else:
             return f'{int(num)}%'
-    except:
+    except (ValueError, TypeError):
+        # Return original string if not parseable as percentage
         return value_str
 
 def import_candidate(db: Session, data: dict, stats: dict, photo_mappings: dict = None):

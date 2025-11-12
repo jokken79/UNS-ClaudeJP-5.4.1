@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 import api from '@/lib/api';
 import {
   ArrowLeftIcon,
@@ -352,8 +353,38 @@ export default function ProratedCalculationPage() {
           <div className="flex justify-end">
             <button
               onClick={() => {
-                // TODO: Save calculation
-                alert('Funcionalidad de guardar en desarrollo');
+                try {
+                  const calculationRecord = {
+                    id: Date.now(),
+                    timestamp: new Date().toISOString(),
+                    type: 'prorated',
+                    form: {
+                      apartment_id: form.apartment_id,
+                      start_date: form.start_date,
+                      end_date: form.end_date,
+                      daily_rate: form.daily_rate,
+                    },
+                    result: {
+                      apartment: result.apartment,
+                      total_days: result.total_days,
+                      occupied_days: result.occupied_days,
+                      daily_rate: result.daily_rate,
+                      base_amount: result.base_amount,
+                      calculated_amount: result.calculated_amount,
+                      percentage: result.percentage,
+                      breakdown: result.breakdown,
+                    },
+                  };
+
+                  const saved = JSON.parse(localStorage.getItem('apartment_calculations') || '[]');
+                  saved.push(calculationRecord);
+                  localStorage.setItem('apartment_calculations', JSON.stringify(saved));
+
+                  toast.success('計算結果を保存しました');
+                } catch (error) {
+                  console.error('Error saving calculation:', error);
+                  toast.error('保存に失敗しました');
+                }
               }}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
             >

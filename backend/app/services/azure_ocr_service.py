@@ -1174,12 +1174,13 @@ class AzureOCRService:
                 from io import BytesIO
                 from PIL import Image
                 import numpy as np
-                
+
                 image = Image.open(BytesIO(image_data)).convert("RGB")
                 img_array = np.array(image)
                 return self._extract_photo_with_fixed_coordinates(img_array, document_type, image_data)
-            except:
-                # Último fallback - imagen completa
+            except Exception as e:
+                # Last fallback - return full image as base64 if coordinate extraction fails
+                logger.warning(f"Photo extraction with fixed coordinates failed: {e}, using full image")
                 import base64
                 base64_image = base64.b64encode(image_data).decode('utf-8')
                 return f"data:image/jpeg;base64,{base64_image}"

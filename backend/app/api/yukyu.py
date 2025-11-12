@@ -4,6 +4,9 @@ Yukyu (有給休暇 - Paid Vacation) API Endpoints
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
@@ -506,7 +509,9 @@ async def get_payroll_yukyu_summary(
             try:
                 summary = await service.get_employee_yukyu_summary(emp_id)
                 total_available = summary.total_available
-            except:
+            except Exception as e:
+                # Use 0 as default if yukyu calculation fails (employee may not have balance record)
+                logger.debug(f"Could not get yukyu summary for employee {emp_id}: {e}")
                 total_available = 0
 
             employee_data[emp_id] = {

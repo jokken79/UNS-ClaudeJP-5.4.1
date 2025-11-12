@@ -20,8 +20,15 @@ logger = logging.getLogger(__name__)
 class TimerCardOCRService:
     """Servicio para procesar PDFs de timer cards con OCR"""
 
-    def __init__(self):
+    def __init__(self, db_session=None):
+        """
+        Initialize TimerCardOCRService.
+
+        Args:
+            db_session: Optional SQLAlchemy session for employee matching
+        """
         self.ocr_service = hybrid_ocr_service
+        self.db = db_session
 
     def process_pdf(self, pdf_bytes: bytes, factory_id: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -491,10 +498,14 @@ class TimerCardOCRService:
 
     def _match_employee(self, employee_name: str, factory_id: str) -> Optional[Dict]:
         """
-        Buscar empleado por nombre en la fábrica especificada
+        Buscar empleado por nombre en la fábrica especificada usando fuzzy matching.
+
+        Args:
+            employee_name: Nombre extraído del OCR
+            factory_id: ID de la fábrica para filtrar empleados
 
         Returns:
-            Dict con hakenmoto_id, full_name_kanji, confidence
+            Dict con hakenmoto_id, full_name_kanji, confidence, o None si no hay DB
         """
         # Si no hay factory_id, no se puede hacer matching
         if not factory_id:
@@ -503,23 +514,95 @@ class TimerCardOCRService:
         # Normalizar factory_id para matching correcto
         normalized_factory_id = self._normalize_factory_id(factory_id)
 
-        # TODO: Implementar fuzzy matching real con EmployeeMatchingService
-        # Por ahora, retornar placeholder con información de matching
+        # Si no hay sesión de base de datos, retornar placeholder
+        if not self.db:
+            logger.warning("No database session available for employee matching")
+            return {
+                "hakenmoto_id": None,
+                "full_name_kanji": employee_name,
+                "factory_id_original": factory_id,
+                "factory_id_normalized": normalized_factory_id,
+                "confidence": 0.0
+            }
 
-        # Placeholder - implementación completa requiere acceso a DB
-        # En la implementación real:
-        # 1. Usar EmployeeMatchingService para buscar empleados
-        # 2. Aplicar fuzzy matching en nombres
-        # 3. Filtrar por factory_id normalizado
-        # 4. Retornar mejor match con confidence score
+        # Importar difflib para fuzzy matching
+        from difflib import SequenceMatcher
 
-        return {
-            "hakenmoto_id": None,
-            "full_name_kanji": employee_name,
-            "factory_id_original": factory_id,
-            "factory_id_normalized": normalized_factory_id,
-            "confidence": 0.0
-        }
+        try:
+            # Query employees (filter by factory if provided)
+            query = self.db.query(Employee).filter(Employee.deleted_at.is_(None))
+
+            # Filter by normalized factory_id
+            if normalized_factory_id:
+                query = query.filter(Employee.factory_id == normalized_factory_id)
+
+            employees = query.all()
+
+            if not employees:
+                logger.warning(f"No employees found for factory_id: {normalized_factory_id}")
+                return {
+                    "hakenmoto_id": None,
+                    "full_name_kanji": employee_name,
+                    "factory_id_original": factory_id,
+                    "factory_id_normalized": normalized_factory_id,
+                    "confidence": 0.0
+                }
+
+            # Find best match using fuzzy matching
+            best_match = None
+            best_score = 0
+
+            for emp in employees:
+                # Try matching with kanji, kana, and romaji names
+                names_to_try = [
+                    emp.full_name_kanji or "",
+                    emp.full_name_kana or "",
+                    emp.full_name_roman or ""
+                ]
+
+                for name in names_to_try:
+                    if not name:
+                        continue
+
+                    # Calculate similarity ratio (0.0 to 1.0)
+                    ratio = SequenceMatcher(None, employee_name, name).ratio()
+                    score = ratio * 100  # Convert to percentage
+
+                    if score > best_score and score >= 70:  # Minimum 70% confidence
+                        best_score = score
+                        best_match = {
+                            'hakenmoto_id': emp.id,
+                            'full_name_kanji': emp.full_name_kanji,
+                            'full_name_kana': emp.full_name_kana,
+                            'full_name_roman': emp.full_name_roman,
+                            'factory_id_original': factory_id,
+                            'factory_id_normalized': normalized_factory_id,
+                            'confidence': round(score / 100.0, 2)  # Return as 0.0-1.0
+                        }
+
+            if best_match:
+                logger.info(f"Employee matched: {best_match['full_name_kanji']} with confidence {best_match['confidence']}")
+                return best_match
+            else:
+                logger.warning(f"No employee match found for name: {employee_name} in factory: {normalized_factory_id}")
+                return {
+                    "hakenmoto_id": None,
+                    "full_name_kanji": employee_name,
+                    "factory_id_original": factory_id,
+                    "factory_id_normalized": normalized_factory_id,
+                    "confidence": 0.0
+                }
+
+        except Exception as e:
+            logger.error(f"Error matching employee: {e}", exc_info=True)
+            return {
+                "hakenmoto_id": None,
+                "full_name_kanji": employee_name,
+                "factory_id_original": factory_id,
+                "factory_id_normalized": normalized_factory_id,
+                "confidence": 0.0,
+                "error": str(e)
+            }
 
 
 # Instancia singleton

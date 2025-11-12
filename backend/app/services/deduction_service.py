@@ -17,6 +17,9 @@ from sqlalchemy import and_, or_, func, desc
 from typing import List, Optional
 from datetime import datetime, date
 import io
+import logging
+
+logger = logging.getLogger(__name__)
 
 from app.models.models import (
     User,
@@ -497,7 +500,8 @@ class DeductionService:
                 try:
                     if len(str(cell.value)) > max_length:
                         max_length = len(str(cell.value))
-                except:
+                except (TypeError, AttributeError):
+                    # Silently skip cells with None or invalid values (non-critical for column sizing)
                     pass
             adjusted_width = min((max_length + 2) * 1.2, 50)
             ws.column_dimensions[column].width = adjusted_width

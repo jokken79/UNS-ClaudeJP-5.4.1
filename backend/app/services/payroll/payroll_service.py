@@ -219,8 +219,8 @@ class PayrollService:
                 'success': True,
                 'employee_id': employee_data['employee_id'],
                 'payroll_run_id': payroll_run_id,
-                'pay_period_start': self._get_pay_period_start(),
-                'pay_period_end': self._get_pay_period_end(),
+                'pay_period_start': self._get_pay_period_start(payroll_run_id),
+                'pay_period_end': self._get_pay_period_end(payroll_run_id),
                 'hours_breakdown': {
                     'regular_hours': float(hours_breakdown['regular_hours']),
                     'overtime_hours': float(hours_breakdown['overtime_hours']),
@@ -399,17 +399,49 @@ class PayrollService:
             logger.error(f"Error getting payroll settings: {e}")
             return None
 
-    def _get_pay_period_start(self) -> str:
-        """Obtiene fecha de inicio del período actual."""
-        # TODO: Get from payroll_run data
+    def _get_pay_period_start(self, payroll_run_id: Optional[int] = None) -> str:
+        """Obtiene fecha de inicio del período actual.
+
+        Args:
+            payroll_run_id: ID del payroll run (si no se proporciona, usa mes actual)
+
+        Returns:
+            Fecha de inicio en formato 'YYYY-MM-DD'
+        """
+        if payroll_run_id and self.db_session:
+            # Query real payroll_run from DB
+            payroll_run = self.db_session.query(PayrollRun).filter(
+                PayrollRun.id == payroll_run_id
+            ).first()
+
+            if payroll_run and payroll_run.pay_period_start:
+                return payroll_run.pay_period_start.strftime('%Y-%m-%d')
+
+        # Fallback to current month if no payroll_run_id or not found
         return datetime.now().replace(day=1).strftime('%Y-%m-%d')
 
-    def _get_pay_period_end(self) -> str:
-        """Obtiene fecha de fin del período actual."""
-        # TODO: Get from payroll_run data
+    def _get_pay_period_end(self, payroll_run_id: Optional[int] = None) -> str:
+        """Obtiene fecha de fin del período actual.
+
+        Args:
+            payroll_run_id: ID del payroll run (si no se proporciona, usa mes actual)
+
+        Returns:
+            Fecha de fin en formato 'YYYY-MM-DD'
+        """
+        if payroll_run_id and self.db_session:
+            # Query real payroll_run from DB
+            payroll_run = self.db_session.query(PayrollRun).filter(
+                PayrollRun.id == payroll_run_id
+            ).first()
+
+            if payroll_run and payroll_run.pay_period_end:
+                return payroll_run.pay_period_end.strftime('%Y-%m-%d')
+
+        # Fallback to current month end if no payroll_run_id or not found
         now = datetime.now()
         next_month = now.replace(day=28) + timedelta(days=4)
-        return next_month.replace(day=1) - timedelta(days=1)
+        return (next_month.replace(day=1) - timedelta(days=1)).strftime('%Y-%m-%d')
 
     def _save_employee_payroll(
         self,
@@ -444,8 +476,8 @@ class PayrollService:
             employee_payroll = EmployeePayroll(
                 payroll_run_id=payroll_run_id,
                 employee_id=employee_data['employee_id'],
-                pay_period_start=date.fromisoformat(self._get_pay_period_start()),
-                pay_period_end=date.fromisoformat(self._get_pay_period_end()),
+                pay_period_start=date.fromisoformat(self._get_pay_period_start(payroll_run_id)),
+                pay_period_end=date.fromisoformat(self._get_pay_period_end(payroll_run_id)),
                 regular_hours=hours_breakdown['regular_hours'],
                 overtime_hours=hours_breakdown['overtime_hours'],
                 night_shift_hours=hours_breakdown['night_shift_hours'],

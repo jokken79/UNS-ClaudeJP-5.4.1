@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 import api from '@/lib/api';
 import {
   ArrowLeftIcon,
@@ -385,8 +386,41 @@ export default function TotalCalculationPage() {
           <div className="flex gap-3">
             <button
               onClick={() => {
-                // TODO: Save calculation
-                alert('Funcionalidad de guardar en desarrollo');
+                try {
+                  const calculationRecord = {
+                    id: Date.now(),
+                    timestamp: new Date().toISOString(),
+                    type: 'total',
+                    form: {
+                      apartment_id: form.apartment_id,
+                      month: form.month,
+                      year: form.year,
+                      base_rent: form.base_rent,
+                      additional_charges: form.additional_charges,
+                      deductions: form.deductions,
+                      notes: form.notes,
+                    },
+                    result: {
+                      apartment: result.apartment,
+                      month: result.month,
+                      year: result.year,
+                      base_rent: result.base_rent,
+                      additional_charges: result.additional_charges,
+                      deductions: result.deductions,
+                      total_amount: result.total_amount,
+                      breakdown: result.breakdown,
+                    },
+                  };
+
+                  const saved = JSON.parse(localStorage.getItem('apartment_calculations') || '[]');
+                  saved.push(calculationRecord);
+                  localStorage.setItem('apartment_calculations', JSON.stringify(saved));
+
+                  toast.success('計算結果を保存しました');
+                } catch (error) {
+                  console.error('Error saving calculation:', error);
+                  toast.error('保存に失敗しました');
+                }
               }}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
             >

@@ -282,9 +282,14 @@ class YukyuService:
         if balances:
             oldest_expiration = min(b.expires_on for b in balances)
 
-        # Check if needs to use 5 days minimum
-        # TODO: Implement year-based tracking for 5-day minimum
-        needs_5_days = False
+        # Check if needs to use 5 days minimum (current fiscal year)
+        current_fiscal_year = date.today().year
+        if date.today().month < 4:
+            # If we're in Jan-Mar, we're in previous fiscal year
+            current_fiscal_year -= 1
+
+        compliance_check = self.check_minimum_5_days(employee_id, current_fiscal_year)
+        needs_5_days = not compliance_check['is_compliant']
 
         return YukyuBalanceSummary(
             employee_id=employee_id,
@@ -337,6 +342,81 @@ class YukyuService:
             ))
 
         return result
+
+    def check_minimum_5_days(self, employee_id: int, fiscal_year: int) -> Dict:
+        """
+        Verifica cumplimiento de mínimo 5 días de yukyu por año fiscal.
+
+        Japanese labor law requires employees to take minimum 5 days of paid leave
+        per year (年5日の年次有給休暇の取得義務).
+
+        Args:
+            employee_id: ID del empleado
+            fiscal_year: Año fiscal (e.g., 2025 = April 2025 - March 2026)
+
+        Returns:
+            Dict con compliance status y detalles:
+            {
+                'employee_id': int,
+                'fiscal_year': int,
+                'fiscal_start': str,
+                'fiscal_end': str,
+                'total_days_used': float,
+                'minimum_required': int,
+                'is_compliant': bool,
+                'compliance_percentage': float,
+                'days_remaining': float,
+                'warning': Optional[str]
+            }
+
+        Example:
+            >>> yukyu_service = YukyuService(db)
+            >>> result = yukyu_service.check_minimum_5_days(employee_id=123, fiscal_year=2025)
+            >>> print(result['is_compliant'])  # True/False
+            >>> print(result['warning'])  # Warning message if not compliant
+        """
+        from app.models.models import Request
+
+        # Calculate fiscal year dates (April 1 - March 31)
+        fiscal_start = date(fiscal_year, 4, 1)
+        fiscal_end = date(fiscal_year + 1, 3, 31)
+
+        # Query approved yukyu requests in fiscal year
+        yukyu_requests = self.db.query(Request).filter(
+            Request.employee_id == employee_id,
+            Request.request_type == RequestType.YUKYU,
+            Request.approval_status == RequestStatus.APPROVED,
+            Request.start_date >= fiscal_start,
+            Request.end_date <= fiscal_end,
+            Request.deleted_at.is_(None)
+        ).all()
+
+        # Sum days used
+        total_days_used = sum(float(req.days_requested or 0) for req in yukyu_requests)
+
+        # Check compliance
+        minimum_required = 5
+        is_compliant = total_days_used >= minimum_required
+        compliance_percentage = min((total_days_used / minimum_required) * 100, 100) if minimum_required > 0 else 100
+
+        # Generate warning message if not compliant
+        warning = None
+        if not is_compliant:
+            days_short = minimum_required - total_days_used
+            warning = f"警告: 最低{minimum_required}日の有給休暇取得が必要です。現在{total_days_used}日のみ使用。あと{days_short}日必要です。"
+
+        return {
+            'employee_id': employee_id,
+            'fiscal_year': fiscal_year,
+            'fiscal_start': fiscal_start.strftime('%Y-%m-%d'),
+            'fiscal_end': fiscal_end.strftime('%Y-%m-%d'),
+            'total_days_used': total_days_used,
+            'minimum_required': minimum_required,
+            'is_compliant': is_compliant,
+            'compliance_percentage': round(compliance_percentage, 2),
+            'days_remaining': max(minimum_required - total_days_used, 0),
+            'warning': warning
+        }
 
     # -------------------------------------------------------------------------
     # YUKYU REQUESTS (TANTOSHA → KEIRI workflow)

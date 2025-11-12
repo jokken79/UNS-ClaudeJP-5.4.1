@@ -144,7 +144,9 @@ async def import_employees(
         if temp_file and temp_file.exists():
             try:
                 temp_file.unlink()
-            except:
+            except OSError as e:
+                # Silently ignore cleanup errors (file may be locked or already deleted)
+                logger.debug(f"Could not delete temp file {temp_file}: {e}")
                 pass
 
 
@@ -190,7 +192,9 @@ async def import_timer_cards(
         if temp_file and temp_file.exists():
             try:
                 temp_file.unlink()
-            except:
+            except OSError as e:
+                # Silently ignore cleanup errors (file may be locked or already deleted)
+                logger.debug(f"Could not delete temp file {temp_file}: {e}")
                 pass
 
 

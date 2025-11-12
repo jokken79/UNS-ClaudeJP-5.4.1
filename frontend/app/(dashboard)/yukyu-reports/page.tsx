@@ -63,6 +63,35 @@ export default function YukyuReportsPage() {
     }
   });
 
+  // Fetch yukyu requests
+  const { data: requests = [] } = useQuery<any[]>({
+    queryKey: ['yukyu-requests'],
+    queryFn: async () => {
+      const res = await fetch('/api/requests?type=yukyu', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.items || [];
+    }
+  });
+
+  // Fetch yukyu balances
+  const { data: balances = [] } = useQuery<any[]>({
+    queryKey: ['yukyu-balances'],
+    queryFn: async () => {
+      const res = await fetch('/api/yukyu/balances', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
+      if (!res.ok) return [];
+      return await res.json();
+    }
+  });
+
   // Export to Excel function
   const handleExportToExcel = async () => {
     setIsExporting(true);
@@ -102,8 +131,16 @@ export default function YukyuReportsPage() {
 
     const totalEmployees = employees.length;
     const totalAvailable = employees.reduce((sum, e) => sum + (e.yukyu_remaining || 0), 0);
-    const totalUsed = 0; // TODO: Calculate from requests
-    const totalExpired = 0; // TODO: Calculate from balances
+
+    // Calculate totalUsed from requests data
+    const totalUsed = requests.reduce((sum, req) => {
+      return sum + (req.days_used || req.days_requested || 0);
+    }, 0);
+
+    // Calculate totalExpired from balances data
+    const totalExpired = balances.reduce((sum, bal) => {
+      return sum + (bal.expired_days || 0);
+    }, 0);
 
     return {
       totalEmployees,
@@ -113,7 +150,7 @@ export default function YukyuReportsPage() {
       averageAvailable: totalEmployees > 0 ? (totalAvailable / totalEmployees).toFixed(1) : '0.0',
       utilizationRate: totalAvailable > 0 ? ((totalUsed / (totalUsed + totalAvailable)) * 100).toFixed(1) : '0.0',
     };
-  }, [employees]);
+  }, [employees, requests, balances]);
 
   // Group employees by yukyu range
   const yukyuDistribution = React.useMemo(() => {
