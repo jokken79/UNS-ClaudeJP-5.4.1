@@ -84,25 +84,25 @@ export default function ApartmentsPage() {
     let bgColor, textColor, label;
 
     if (apartment.current_occupancy === 0) {
-      bgColor = 'bg-gray-100 dark:bg-gray-800';
-      textColor = 'text-gray-800 dark:text-gray-400';
+      bgColor = 'bg-muted';
+      textColor = 'text-muted-foreground';
       label = 'Vacío';
     } else if (apartment.is_available) {
-      bgColor = 'bg-green-100 dark:bg-green-900/30';
-      textColor = 'text-green-800 dark:text-green-400';
+      bgColor = 'bg-success';
+      textColor = 'text-success-foreground';
       label = 'Disponible';
     } else if (apartment.current_occupancy < apartment.max_occupancy) {
-      bgColor = 'bg-yellow-100 dark:bg-yellow-900/30';
-      textColor = 'text-yellow-800 dark:text-yellow-400';
+      bgColor = 'bg-warning';
+      textColor = 'text-warning-foreground';
       label = 'Parcial';
     } else {
-      bgColor = 'bg-red-100 dark:bg-red-900/30';
-      textColor = 'text-red-800 dark:text-red-400';
+      bgColor = 'bg-destructive';
+      textColor = 'text-destructive-foreground';
       label = 'Lleno';
     }
 
     return (
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${bgColor} ${textColor}`}>
+      <span className={`px-2.5 py-1.5 text-xs font-medium rounded-md ${bgColor} ${textColor}`}>
         {label}
       </span>
     );

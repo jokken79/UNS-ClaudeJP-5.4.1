@@ -38,7 +38,7 @@ interface YukyuUsageDetail {
 interface EmployeeInfo {
   id: number;
   full_name_kanji: string;
-  hakenmoto_id: string;  // 社員№ (Employee Number)
+  hakenmoto_id: number;  // 社員№ (Employee Number) - INTEGER in database
   total_available: number;
   total_used: number;
   total_expired: number;
@@ -93,13 +93,14 @@ export default function YukyuHistoryPage() {
 
     // Search employee by hakenmoto_id (社員№) or system ID
     if (value && employees) {
+      const numericValue = parseInt(value);
       const employee = employees.find((emp: any) =>
-        emp.hakenmoto_id === value || emp.id.toString() === value
+        emp.hakenmoto_id === numericValue || emp.id === numericValue
       );
 
       if (employee) {
         setSelectedEmployeeId(employee.id.toString());
-      } else if (!isNaN(Number(value))) {
+      } else if (!isNaN(numericValue)) {
         // Fallback: if it's a number but not found, assume it's system ID
         setSelectedEmployeeId(value);
       }

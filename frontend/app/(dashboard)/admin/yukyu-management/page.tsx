@@ -30,7 +30,7 @@ import api from '@/lib/api';
 interface Employee {
   id: number;
   full_name_kanji: string;
-  hakenmoto_id: string;  // 社員№ (Employee Number)
+  hakenmoto_id: number;  // 社員№ (Employee Number) - INTEGER in database
   yukyu_remaining?: number;
 }
 
@@ -68,9 +68,12 @@ export default function AdminYukyuManagementPage() {
   const { data: employees } = useQuery<Employee[]>({
     queryKey: ['employees'],
     queryFn: async () => {
-      const res = await api.get('/employees');
+      const res = await api.get('/employees/');  // Added trailing slash to fix 307 redirect
       const data = res.data;
-      return data.items || [];
+      const items = data.items || [];
+      console.log('✅ Employees loaded:', items.length, 'employees');
+      console.log('First 3:', items.slice(0, 3).map((e: Employee) => ({id: e.id, name: e.full_name_kanji, shainNo: e.hakenmoto_id})));
+      return items;
     }
   });
 
@@ -139,12 +142,18 @@ export default function AdminYukyuManagementPage() {
     if (!searchQuery.trim()) return employees;
 
     const query = searchQuery.toLowerCase();
-    return employees.filter((emp: Employee) => {
+    console.log('🔍 Searching for:', query, 'in', employees.length, 'employees');
+    const results = employees.filter((emp: Employee) => {
       const matchId = emp.id.toString().includes(query);
-      const matchShainNumber = emp.hakenmoto_id?.toLowerCase().includes(query);  // 社員№
+      const matchShainNumber = emp.hakenmoto_id?.toString().includes(query);  // 社員№ (convert number to string)
       const matchName = emp.full_name_kanji?.toLowerCase().includes(query);
       return matchId || matchShainNumber || matchName;
     });
+    console.log('Found:', results.length, 'employees');
+    if (results.length > 0) {
+      console.log('Results:', results.map(e => ({id: e.id, shainNo: e.hakenmoto_id, name: e.full_name_kanji})));
+    }
+    return results;
   }, [employees, searchQuery]);
 
   // Calcular estadísticas
