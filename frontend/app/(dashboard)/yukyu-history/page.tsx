@@ -45,6 +45,7 @@ interface EmployeeInfo {
 }
 
 export default function YukyuHistoryPage() {
+  const [employeeIdInput, setEmployeeIdInput] = useState<string>('');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
@@ -86,6 +87,15 @@ export default function YukyuHistoryPage() {
     },
     enabled: false // Only execute when user clicks "Buscar"
   });
+
+  const handleEmployeeIdChange = (value: string) => {
+    setEmployeeIdInput(value);
+
+    // If value is a valid number, auto-select employee
+    if (value && !isNaN(Number(value))) {
+      setSelectedEmployeeId(value);
+    }
+  };
 
   const handleSearch = () => {
     if (!selectedEmployeeId) {
@@ -154,43 +164,74 @@ export default function YukyuHistoryPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div className="md:col-span-2">
-              <Label>Empleado *</Label>
-              <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un empleado..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees?.map((emp: any) => (
-                    <SelectItem key={emp.id} value={emp.id.toString()}>
-                      {emp.full_name_kanji} ({emp.rirekisho_id})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-4">
+            {/* Employee ID Input */}
             <div>
-              <Label>Desde</Label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
+              <Label>ID del Empleado *</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Digita el ID del empleado (ej: 200901)"
+                  value={employeeIdInput}
+                  onChange={(e) => handleEmployeeIdChange(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
-            <div>
-              <Label>Hasta</Label>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </div>
-            <div className="flex items-end">
-              <Button onClick={handleSearch} disabled={!selectedEmployeeId} className="w-full">
-                <Search className="mr-2 h-4 w-4" />
-                Buscar
-              </Button>
+
+            {/* Employee Info Display (Auto-shown when ID is entered) */}
+            {employeeInfo && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
+                  ✓ Empleado Encontrado
+                </h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">Nombre: </span>
+                    <span className="font-medium">{employeeInfo.employee_name}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">ID: </span>
+                    <span className="font-medium">{selectedEmployeeId}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Date Filters */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <Label>Desde</Label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Hasta</Label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Año Fiscal (opcional)</Label>
+                <Input
+                  type="number"
+                  placeholder="2020"
+                  value={fiscalYear}
+                  onChange={(e) => setFiscalYear(e.target.value)}
+                />
+              </div>
+              <div className="flex items-end">
+                <Button onClick={handleSearch} disabled={!selectedEmployeeId} className="w-full">
+                  <Search className="mr-2 h-4 w-4" />
+                  Buscar Historial
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
