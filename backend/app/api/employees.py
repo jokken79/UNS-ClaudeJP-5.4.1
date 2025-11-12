@@ -383,7 +383,6 @@ async def list_available_for_apartment(
     employee_filters = [
         Employee.deleted_at.is_(None),
         Employee.is_active == True,
-        Employee.contract_type != 'スタッフ',
         Employee.apartment_id.is_(None)
     ]
 
