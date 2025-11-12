@@ -11,26 +11,17 @@ import { useDelayedLoading, useCombinedLoading, getErrorType } from '@/lib/loadi
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import api from '@/lib/api';
 
-// Mock API service (replace with actual API calls)
+// API service for yukyu management
 const yukyuService = {
   async getBalances() {
-    const response = await fetch('/api/yukyu/balances', {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-      },
-    });
-    if (!response.ok) throw new Error('Failed to fetch balances');
-    return response.json();
+    const response = await api.get('/yukyu/balances');
+    return response.data;
   },
   async getRequests() {
-    const response = await fetch('/api/yukyu/requests', {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-      },
-    });
-    if (!response.ok) throw new Error('Failed to fetch requests');
-    return response.json();
+    const response = await api.get('/yukyu/requests');
+    return response.data;
   },
 };
 
@@ -106,32 +97,6 @@ export default function YukyuPage() {
     );
   }
 
-  // Mock data for demo (replace with actual API data)
-  const mockBalance = {
-    total_available: 10,
-    total_used: 5,
-    total_expired: 0,
-  };
-
-  const mockRequests = [
-    {
-      id: 1,
-      start_date: '2025-11-15',
-      end_date: '2025-11-17',
-      days_requested: 3,
-      status: 'pending',
-      request_type: 'yukyu',
-    },
-    {
-      id: 2,
-      start_date: '2025-11-20',
-      end_date: '2025-11-20',
-      days_requested: 1,
-      status: 'approved',
-      request_type: 'yukyu',
-    },
-  ];
-
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -159,7 +124,7 @@ export default function YukyuPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-emerald-600">
-              {mockBalance.total_available}
+              {balances?.total_available ?? 0}
             </div>
             <p className="text-xs text-muted-foreground">
               Días restantes de yukyu
@@ -176,7 +141,7 @@ export default function YukyuPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600">
-              {mockBalance.total_used}
+              {balances?.total_used ?? 0}
             </div>
             <p className="text-xs text-muted-foreground">
               Días tomados este año
@@ -193,7 +158,7 @@ export default function YukyuPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-amber-600">
-              {mockBalance.total_expired}
+              {balances?.total_expired ?? 0}
             </div>
             <p className="text-xs text-muted-foreground">
               Días que vencieron
@@ -212,8 +177,8 @@ export default function YukyuPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {mockRequests.length > 0 ? (
-              mockRequests.map((request) => (
+            {requests && requests.length > 0 ? (
+              requests.map((request) => (
                 <div
                   key={request.id}
                   className="flex items-center justify-between border-b pb-3 last:border-0"

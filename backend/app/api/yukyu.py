@@ -4,13 +4,14 @@ Yukyu (有給休暇 - Paid Vacation) API Endpoints
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from datetime import date, datetime
 import logging
 
 logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
-from app.models.models import User, UserRole
+from app.api.deps import get_current_user
+from app.models.models import User, UserRole, YukyuRequest, RequestStatus
 from app.schemas.yukyu import (
     YukyuBalanceResponse,
     YukyuBalanceSummary,
@@ -70,21 +71,77 @@ async def get_current_user_yukyu_summary(
 
     **Permissions:** Any authenticated user
 
+    **Role-based behavior:**
+    - **ADMIN/SUPER_ADMIN/KEITOSAN**: Returns summary of all employees' yukyu balances
+    - **Regular users**: Returns their personal yukyu balance (matched by email)
+
     **Returns:**
-    - All active yukyu balances for current user's employee record
+    - All active yukyu balances for current user's employee record (or all if admin)
     - Total available, used, and expired days
     """
-    # Find employee record for current user
     from app.models.models import Employee
+
+    # Check if user is admin/keitosan - they see all employees' summary
+    if current_user.role in [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.KEITOSAN]:
+        logger.info(f"Admin user {current_user.username} requesting all yukyu balances summary")
+
+        # Get all employees
+        all_employees = db.query(Employee).filter(Employee.is_active == True).all()
+
+        if not all_employees:
+            raise HTTPException(
+                status_code=404,
+                detail="No active employees found"
+            )
+
+        # Calculate aggregate summary
+        total_available = 0
+        total_used = 0
+        total_expired = 0
+        employee_count = len(all_employees)
+
+        service = YukyuService(db)
+        for emp in all_employees:
+            try:
+                summary = await service.get_employee_yukyu_summary(emp.id)
+                total_available += summary.total_available
+                total_used += summary.total_used
+                total_expired += summary.total_expired
+            except Exception as e:
+                logger.warning(f"Could not get yukyu summary for employee {emp.id}: {e}")
+                continue
+
+        # Return aggregate summary (reusing YukyuBalanceSummary schema)
+        return YukyuBalanceSummary(
+            employee_id=None,  # Multiple employees
+            employee_name=f"全従業員 ({employee_count}名)",
+            total_available=total_available,
+            total_used=total_used,
+            total_expired=total_expired,
+            balances=[],  # Empty for aggregate
+            oldest_expiration_date=None,
+            needs_to_use_minimum_5_days=False
+        )
+
+    # Regular users: Find employee record by matching email
+    # Employee model does NOT have user_id, so we match by email
     employee = db.query(Employee).filter(
-        Employee.user_id == current_user.id
+        Employee.email == current_user.email
     ).first()
+
+    # If no match by email, try matching by username as email
+    if not employee and "@" in current_user.username:
+        employee = db.query(Employee).filter(
+            Employee.email == current_user.username
+        ).first()
 
     if not employee:
         raise HTTPException(
             status_code=404,
-            detail="No employee record found for current user"
+            detail=f"No employee record found for user {current_user.username}. Please contact HR to link your account."
         )
+
+    logger.info(f"Found employee record for user {current_user.username}: {employee.full_name_kanji} (ID: {employee.id})")
 
     service = YukyuService(db)
     return await service.get_employee_yukyu_summary(employee.id)

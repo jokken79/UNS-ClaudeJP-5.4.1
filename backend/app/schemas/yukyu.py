@@ -61,8 +61,8 @@ class YukyuBalanceResponse(YukyuBalanceBase):
 
 
 class YukyuBalanceSummary(BaseModel):
-    """Summary of all yukyu balances for an employee"""
-    employee_id: int
+    """Summary of all yukyu balances for an employee (or aggregate for admins)"""
+    employee_id: Optional[int] = None  # None for admin aggregate view
     employee_name: str
     total_available: int
     total_used: int
