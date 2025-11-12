@@ -790,7 +790,7 @@ class Staff(Base, SoftDeleteMixin):
     # Yukyu (有給休暇)
     yukyu_total = Column(Integer, default=0)
     yukyu_used = Column(Integer, default=0)
-    is_corporate_housing = Column(Boolean, default=False, nullable=False)  # 社宅 (Corporate Housing) - para contabilidad keiri
+    is_corporate_housing = Column(Boolean, default=False, nullable=False)  # 社宅 (Corporate Housing) - para contabilidad (accounting)
     housing_subsidy = Column(Integer, default=0)  # 住宅手当 (Housing Subsidy)
     yukyu_remaining = Column(Integer, default=0)
 
@@ -1204,8 +1204,8 @@ class YukyuRequest(Base):
     有給休暇申請 (Yukyu Request) - Yukyu request by TANTOSHA for employees
 
     Workflow:
-    1. TANTOSHA (担当者) creates request for employee
-    2. KEIRI (経理) approves or rejects
+    1. TANTOSHA (担当者/HR Representative) creates request for employee
+    2. KEITOSAN (経理管理/Finance Manager) approves or rejects
     3. On approval, days are deducted using LIFO (newest first)
     """
     __tablename__ = "yukyu_requests"
@@ -1229,7 +1229,7 @@ class YukyuRequest(Base):
     status = Column(SQLEnum(RequestStatus, name='request_status'), nullable=False, default=RequestStatus.PENDING, index=True)
 
     # Approval/Rejection
-    approved_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # KEIRI who approved/rejected
+    approved_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # KEITOSAN (Finance Manager) who approved/rejected
     approval_date = Column(DateTime(timezone=True), nullable=True)
     rejection_reason = Column(Text, nullable=True)
 

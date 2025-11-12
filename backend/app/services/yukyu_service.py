@@ -8,7 +8,7 @@ Features:
 - Automatic calculation based on employment duration (6mo=10d, 18mo=11d, etc.)
 - LIFO deduction (newest yukyus used first)
 - Automatic expiration after 2 years (時効 - jikou)
-- Request workflow: TANTOSHA creates → KEIRI approves
+- Request workflow: TANTOSHA creates → KEITOSAN approves
 - Support for hannichi (半休 - half day = 0.5)
 - Alerts for 5-day minimum usage requirement
 
@@ -411,7 +411,7 @@ class YukyuService:
         }
 
     # -------------------------------------------------------------------------
-    # YUKYU REQUESTS (TANTOSHA → KEIRI workflow)
+    # YUKYU REQUESTS (TANTOSHA (HR) → KEITOSAN (Finance Manager) workflow)
     # -------------------------------------------------------------------------
 
     async def create_request(
@@ -490,7 +490,7 @@ class YukyuService:
         user_id: int
     ) -> YukyuRequestResponse:
         """
-        Approve yukyu request (by KEIRI).
+        Approve yukyu request (by KEITOSAN).
 
         Workflow:
         1. Get request and validate status is PENDING
@@ -502,7 +502,7 @@ class YukyuService:
         Args:
             request_id: Request ID
             approval_data: Approval data
-            user_id: ID of user approving (KEIRI)
+            user_id: ID of user approving (KEITOSAN)
 
         Returns:
             Approved request
@@ -571,12 +571,12 @@ class YukyuService:
         user_id: int
     ) -> YukyuRequestResponse:
         """
-        Reject yukyu request (by KEIRI).
+        Reject yukyu request (by KEITOSAN).
 
         Args:
             request_id: Request ID
             rejection_data: Rejection data with reason
-            user_id: ID of user rejecting (KEIRI)
+            user_id: ID of user rejecting (KEITOSAN)
 
         Returns:
             Rejected request
@@ -641,7 +641,7 @@ class YukyuService:
         List yukyu requests with filtering based on user role.
 
         TANTOSHA: Can only see requests for their factory
-        KEIRI/ADMIN: Can see all requests
+        KEITOSAN/ADMIN: Can see all requests
 
         Args:
             user: Current user
@@ -669,7 +669,7 @@ class YukyuService:
                 )
             query = query.filter(YukyuRequest.factory_id == factory_id)
         elif factory_id:
-            # KEIRI/ADMIN can optionally filter by factory
+            # KEITOSAN/ADMIN can optionally filter by factory
             query = query.filter(YukyuRequest.factory_id == factory_id)
 
         # Additional filters

@@ -8,7 +8,7 @@ Comprehensive testing of the yukyu (paid vacation) system:
 2. Data import from CSV
 3. Automatic yukyu calculation
 4. Request creation (TANTOSHA)
-5. Request approval (KEIRI) with LIFO deduction
+5. Request approval (KEITOSAN) with LIFO deduction
 6. Expiration logic
 7. Data validation
 
@@ -212,17 +212,17 @@ async def test_create_request(db: Session):
 
 async def test_approve_request_lifo(db: Session, request_id: int):
     """Test approving a request with LIFO deduction."""
-    print_header("TEST 4: Approve Request with LIFO Deduction (KEIRI)")
+    print_header("TEST 4: Approve Request with LIFO Deduction (KEITOSAN)")
 
     service = YukyuService(db)
 
-    # Find KEIRI user
-    keiri = db.query(User).filter(User.role == 'KEITOSAN').first()
-    if not keiri:
-        keiri = db.query(User).first()
+    # Find KEITOSAN user
+    keitosan_user = db.query(User).filter(User.role == 'KEITOSAN').first()
+    if not keitosan_user:
+        keitosan_user = db.query(User).first()
 
     print_info(f"Approving request ID: {request_id}")
-    print_info(f"Approved by: {keiri.username}")
+    print_info(f"Approved by: {keitosan_user.username}")
 
     # Get request details before approval
     request_before = db.query(YukyuRequest).filter(YukyuRequest.id == request_id).first()
@@ -242,7 +242,7 @@ async def test_approve_request_lifo(db: Session, request_id: int):
     approval_data = YukyuRequestApprove(notes="Approved for testing")
 
     try:
-        approved = await service.approve_request(request_id, approval_data, keiri.id)
+        approved = await service.approve_request(request_id, approval_data, keitosan_user.id)
         print_success("Request approved!")
         print(f"   Status: {approved.status}")
         print(f"   Approved by: {approved.approved_by_name}")
