@@ -58,15 +58,25 @@ export default function YukyuDashboardPage() {
   // =========================================================================
 
   useEffect(() => {
-    // Check if user is KEITOSAN (Finance Manager)
+    // Allow access: SUPER_ADMIN, ADMIN, COORDINATOR, KANRININSHA, KEITOSAN, TANTOSHA
+    // Deny access: EMPLOYEE, CONTRACT_WORKER
     if (!user) {
       router.push('/login');
       return;
     }
 
     const userRole = (user as any)?.role?.toUpperCase() || '';
-    if (userRole !== 'KEITOSAN' && userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN') {
+    const deniedRoles = ['EMPLOYEE', 'CONTRACT_WORKER'];
+
+    if (deniedRoles.includes(userRole)) {
+      // Employees and contractors cannot access yukyu management
       router.push('/');
+      return;
+    }
+
+    // Also check that user has a valid role
+    if (!userRole) {
+      router.push('/login');
       return;
     }
   }, [user, router]);
@@ -228,7 +238,7 @@ export default function YukyuDashboardPage() {
         <div>
           <h1 className="text-4xl font-bold tracking-tight">Yukyu Management Dashboard</h1>
           <p className="text-muted-foreground mt-2">
-            Finance Manager (KEITOSAN) - Yukyu approvals and compliance monitoring
+            Yukyu approvals and compliance monitoring (Admin staff only)
           </p>
         </div>
         <Button

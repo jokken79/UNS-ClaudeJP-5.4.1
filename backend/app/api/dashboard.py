@@ -487,16 +487,19 @@ async def get_employee_dashboard(
 @router.get("/yukyu-trends-monthly", response_model=list[YukyuTrendMonth])
 async def get_yukyu_trends_monthly(
     months: int = Query(default=6, ge=1, le=24, description="Number of months to retrieve"),
-    current_user: User = Depends(auth_service.require_role("keitosan")),
+    current_user: User = Depends(auth_service.require_yukyu_access()),
     db: Session = Depends(get_db)
 ):
     """
-    Get monthly yukyu trend data for KEITOSAN dashboard.
+    Get monthly yukyu trend data for yukyu dashboard.
     Shows approved yukyu days and deduction amounts by month.
+
+    Access: All roles EXCEPT EMPLOYEE and CONTRACT_WORKER
+    (SUPER_ADMIN, ADMIN, COORDINATOR, KANRININSHA, KEITOSAN, TANTOSHA)
 
     Args:
         months: Number of previous months to retrieve (1-24)
-        current_user: Current authenticated user (must be KEITOSAN)
+        current_user: Current authenticated user (with yukyu access)
         db: Database session
 
     Returns:
@@ -560,7 +563,7 @@ async def get_yukyu_trends_monthly(
 @router.get("/yukyu-compliance-status", response_model=YukyuComplianceStatus)
 async def get_yukyu_compliance_status(
     period: str = Query(default="current", description="Period: 'current' for current fiscal year or YYYY-MM"),
-    current_user: User = Depends(auth_service.require_role("keitosan")),
+    current_user: User = Depends(auth_service.require_yukyu_access()),
     db: Session = Depends(get_db)
 ):
     """
@@ -568,9 +571,12 @@ async def get_yukyu_compliance_status(
     Checks compliance with Japanese labor law (Article 39).
     Minimum requirement: 5 days yukyu per year.
 
+    Access: All roles EXCEPT EMPLOYEE and CONTRACT_WORKER
+    (SUPER_ADMIN, ADMIN, COORDINATOR, KANRININSHA, KEITOSAN, TANTOSHA)
+
     Args:
         period: Period to check ('current' for FY 2024-2025, or specific month 'YYYY-MM')
-        current_user: Current authenticated user (must be KEITOSAN)
+        current_user: Current authenticated user (with yukyu access)
         db: Database session
 
     Returns:

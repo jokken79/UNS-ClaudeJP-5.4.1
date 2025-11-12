@@ -568,6 +568,49 @@ class AuthService:
 
         return role_checker
 
+    @staticmethod
+    def require_yukyu_access():
+        """Crea un dependency que permite acceso a TODOS EXCEPTO EMPLOYEE y CONTRACT_WORKER.
+
+        Permite acceso para: SUPER_ADMIN, ADMIN, COORDINATOR, KANRININSHA, KEITOSAN, TANTOSHA
+        Rechaza acceso para: EMPLOYEE, CONTRACT_WORKER
+
+        Returns:
+            Callable: Función async que valida el acceso
+
+        Raises:
+            HTTPException: 403 Forbidden si usuario es EMPLOYEE o CONTRACT_WORKER
+
+        Examples:
+            >>> @router.get("/api/yukyu/...")
+            >>> async def yukyu_endpoint(
+            ...     current_user: User = Depends(AuthService.require_yukyu_access())
+            ... ):
+            ...     return {"message": "Yukyu access granted"}
+        """
+        async def yukyu_access_checker(
+            current_user: User = Depends(AuthService.get_current_active_user)
+        ):
+            # Roles permitidos (todos EXCEPTO EMPLOYEE y CONTRACT_WORKER)
+            allowed_roles = [
+                'SUPER_ADMIN',
+                'ADMIN',
+                'COORDINATOR',
+                'KANRININSHA',
+                'KEITOSAN',
+                'TANTOSHA',
+            ]
+
+            if current_user.role.name not in allowed_roles:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Employees and contractors cannot access yukyu management. "
+                    f"Current role: {current_user.role.name}"
+                )
+            return current_user
+
+        return yukyu_access_checker
+
 
 # Global instance
 auth_service = AuthService()
