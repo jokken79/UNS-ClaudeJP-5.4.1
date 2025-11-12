@@ -21,6 +21,7 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import api from '@/lib/api';
 
 interface YukyuSummary {
   employee_id: number;
@@ -52,14 +53,8 @@ export default function YukyuReportsPage() {
   const { data: employees } = useQuery<any[]>({
     queryKey: ['employees'],
     queryFn: async () => {
-      const res = await fetch('/api/employees', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        }
-      });
-      if (!res.ok) throw new Error('Failed to fetch employees');
-      const data = await res.json();
-      return data.items || [];
+      const res = await api.get('/employees');
+      return res.data.items || [];
     }
   });
 
@@ -67,14 +62,12 @@ export default function YukyuReportsPage() {
   const { data: requests = [] } = useQuery<any[]>({
     queryKey: ['yukyu-requests'],
     queryFn: async () => {
-      const res = await fetch('/api/requests?type=yukyu', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        }
-      });
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data.items || [];
+      try {
+        const res = await api.get('/requests?type=yukyu');
+        return res.data.items || [];
+      } catch {
+        return [];
+      }
     }
   });
 
@@ -82,13 +75,12 @@ export default function YukyuReportsPage() {
   const { data: balances = [] } = useQuery<any[]>({
     queryKey: ['yukyu-balances'],
     queryFn: async () => {
-      const res = await fetch('/api/yukyu/balances', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        }
-      });
-      if (!res.ok) return [];
-      return await res.json();
+      try {
+        const res = await api.get('/yukyu/balances');
+        return res.data;
+      } catch {
+        return [];
+      }
     }
   });
 

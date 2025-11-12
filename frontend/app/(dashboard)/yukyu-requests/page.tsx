@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import api from '@/lib/api';
 
 interface YukyuRequest {
   id: number;
@@ -73,13 +74,8 @@ export default function YukyuRequestsPage() {
       if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter);
       if (factoryFilter) params.append('factory_id', factoryFilter);
 
-      const res = await fetch(`/api/yukyu/requests/?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        }
-      });
-      if (!res.ok) throw new Error('Failed to fetch requests');
-      return res.json();
+      const res = await api.get(`/yukyu/requests/?${params}`);
+      return res.data;
     },
     refetchInterval: 30000, // Refresh every 30 seconds
   });
@@ -87,19 +83,8 @@ export default function YukyuRequestsPage() {
   // Approve mutation
   const approveMutation = useMutation({
     mutationFn: async ({ id, notes }: { id: number; notes: string }) => {
-      const res = await fetch(`/api/yukyu/requests/${id}/approve`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        },
-        body: JSON.stringify({ notes })
-      });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.detail || 'Failed to approve request');
-      }
-      return res.json();
+      const res = await api.put(`/yukyu/requests/${id}/approve`, { notes });
+      return res.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['yukyu-requests'] });
@@ -112,19 +97,8 @@ export default function YukyuRequestsPage() {
   // Reject mutation
   const rejectMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: number; reason: string }) => {
-      const res = await fetch(`/api/yukyu/requests/${id}/reject`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        },
-        body: JSON.stringify({ rejection_reason: reason })
-      });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.detail || 'Failed to reject request');
-      }
-      return res.json();
+      const res = await api.put(`/yukyu/requests/${id}/reject`, { rejection_reason: reason });
+      return res.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['yukyu-requests'] });

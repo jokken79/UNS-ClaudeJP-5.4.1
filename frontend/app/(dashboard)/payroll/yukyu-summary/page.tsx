@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import api from '@/lib/api';
 
 export default function PayrollYukyuSummaryPage() {
   const currentYear = new Date().getFullYear();
@@ -29,11 +30,8 @@ export default function PayrollYukyuSummaryPage() {
   const { data: factories } = useQuery({
     queryKey: ['factories'],
     queryFn: async () => {
-      const res = await fetch('/api/factories', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
-      });
-      if (!res.ok) throw new Error('Failed to fetch factories');
-      return res.json();
+      const res = await api.get('/factories');
+      return res.data;
     }
   });
 
@@ -44,11 +42,8 @@ export default function PayrollYukyuSummaryPage() {
       const params = new URLSearchParams({ year: year.toString(), month: month.toString() });
       if (factoryId) params.append('factory_id', factoryId);
 
-      const res = await fetch(`/api/yukyu/payroll/summary?${params}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
-      });
-      if (!res.ok) throw new Error('Failed to fetch summary');
-      return res.json();
+      const res = await api.get(`/yukyu/payroll/summary?${params}`);
+      return res.data;
     },
     enabled: false // Solo ejecutar cuando el usuario haga click
   });
@@ -59,14 +54,11 @@ export default function PayrollYukyuSummaryPage() {
 
   const handleExportExcel = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      const res = await fetch('/api/yukyu/reports/export-excel', {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const res = await api.get('/yukyu/reports/export-excel', {
+        responseType: 'blob'
       });
 
-      if (!res.ok) throw new Error('Failed to export');
-
-      const blob = await res.blob();
+      const blob = res.data;
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
