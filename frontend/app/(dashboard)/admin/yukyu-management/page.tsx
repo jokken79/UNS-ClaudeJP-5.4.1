@@ -30,7 +30,7 @@ import api from '@/lib/api';
 interface Employee {
   id: number;
   full_name_kanji: string;
-  rirekisho_id: string;
+  hakenmoto_id: string;  // 社員№ (Employee Number)
   yukyu_remaining?: number;
 }
 
@@ -141,9 +141,9 @@ export default function AdminYukyuManagementPage() {
     const query = searchQuery.toLowerCase();
     return employees.filter((emp: Employee) => {
       const matchId = emp.id.toString().includes(query);
-      const matchRirekisho = emp.rirekisho_id?.toLowerCase().includes(query);
+      const matchShainNumber = emp.hakenmoto_id?.toLowerCase().includes(query);  // 社員№
       const matchName = emp.full_name_kanji?.toLowerCase().includes(query);
-      return matchId || matchRirekisho || matchName;
+      return matchId || matchShainNumber || matchName;
     });
   }, [employees, searchQuery]);
 
@@ -235,7 +235,7 @@ export default function AdminYukyuManagementPage() {
                 <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
                   type="text"
-                  placeholder="Buscar por ID, nombre o rirekisho..."
+                  placeholder="Buscar por 社員№, ID, o nombre (ej: 200901)..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
@@ -257,7 +257,7 @@ export default function AdminYukyuManagementPage() {
                   {filteredEmployees.length > 0 ? (
                     filteredEmployees.map((emp: Employee) => (
                       <SelectItem key={emp.id} value={emp.id.toString()}>
-                        ID: {emp.id} - {emp.full_name_kanji} ({emp.rirekisho_id})
+                        社員№: {emp.hakenmoto_id || 'N/A'} - {emp.full_name_kanji} (ID: {emp.id})
                       </SelectItem>
                     ))
                   ) : (

@@ -38,7 +38,7 @@ interface YukyuUsageDetail {
 interface EmployeeInfo {
   id: number;
   full_name_kanji: string;
-  rirekisho_id: string;
+  hakenmoto_id: string;  // 社員№ (Employee Number)
   total_available: number;
   total_used: number;
   total_expired: number;
@@ -91,9 +91,18 @@ export default function YukyuHistoryPage() {
   const handleEmployeeIdChange = (value: string) => {
     setEmployeeIdInput(value);
 
-    // If value is a valid number, auto-select employee
-    if (value && !isNaN(Number(value))) {
-      setSelectedEmployeeId(value);
+    // Search employee by hakenmoto_id (社員№) or system ID
+    if (value && employees) {
+      const employee = employees.find((emp: any) =>
+        emp.hakenmoto_id === value || emp.id.toString() === value
+      );
+
+      if (employee) {
+        setSelectedEmployeeId(employee.id.toString());
+      } else if (!isNaN(Number(value))) {
+        // Fallback: if it's a number but not found, assume it's system ID
+        setSelectedEmployeeId(value);
+      }
     }
   };
 
@@ -165,14 +174,14 @@ export default function YukyuHistoryPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {/* Employee ID Input */}
+            {/* Employee Shain Number Input */}
             <div>
-              <Label>ID del Empleado *</Label>
+              <Label>社員№ (Número de Empleado) *</Label>
               <div className="relative">
                 <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
                   type="text"
-                  placeholder="Digita el ID del empleado (ej: 200901)"
+                  placeholder="Digita el 社員№ del empleado (ej: 200901)"
                   value={employeeIdInput}
                   onChange={(e) => handleEmployeeIdChange(e.target.value)}
                   className="pl-10"
@@ -180,19 +189,23 @@ export default function YukyuHistoryPage() {
               </div>
             </div>
 
-            {/* Employee Info Display (Auto-shown when ID is entered) */}
+            {/* Employee Info Display (Auto-shown when shain number is entered) */}
             {employeeInfo && (
               <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
                   ✓ Empleado Encontrado
                 </h4>
-                <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">社員№: </span>
+                    <span className="font-medium">{employeeInfo.hakenmoto_id || 'N/A'}</span>
+                  </div>
                   <div>
                     <span className="text-gray-600 dark:text-gray-400">Nombre: </span>
                     <span className="font-medium">{employeeInfo.employee_name}</span>
                   </div>
                   <div>
-                    <span className="text-gray-600 dark:text-gray-400">ID: </span>
+                    <span className="text-gray-600 dark:text-gray-400">ID Sistema: </span>
                     <span className="font-medium">{selectedEmployeeId}</span>
                   </div>
                 </div>
