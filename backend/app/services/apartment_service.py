@@ -12,14 +12,14 @@ Servicio para la gestión de apartamentos (社宅) con:
 Autor: Sistema UNS-ClaudeJP
 """
 
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func, desc
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_, or_, func, desc, distinct
 from typing import List, Optional, Tuple
 from datetime import datetime
 from decimal import Decimal
 import calendar
 
-from app.models.models import Apartment, User, ApartmentAssignment, AssignmentStatus, RentDeduction
+from app.models.models import Apartment, User, ApartmentAssignment, AssignmentStatus, RentDeduction, ApartmentFactory, Factory
 from app.schemas.apartment_v2 import (
     ApartmentCreate,
     ApartmentUpdate,
@@ -52,7 +52,11 @@ class ApartmentService:
         min_rent: Optional[int] = None,
         max_rent: Optional[int] = None,
         prefecture: Optional[str] = None,
-    ) -> List[ApartmentResponse]:
+        factory_id: Optional[int] = None,
+        region_id: Optional[int] = None,
+        zone: Optional[str] = None,
+        has_factory: Optional[bool] = None,
+    ) -> List[ApartmentWithStats]:
         """
         Listar apartamentos con filtros opcionales
 
@@ -64,11 +68,18 @@ class ApartmentService:
             min_rent: Renta mínima
             max_rent: Renta máxima
             prefecture: Prefecutura
+            factory_id: Filtrar por ID de fábrica
+            region_id: Filtrar por ID de región
+            zone: Filtrar por zona
+            has_factory: Filtrar apartamentos con/sin fábrica asignada
 
         Returns:
             Lista de apartamentos con información básica
         """
-        query = self.db.query(Apartment).filter(
+        # Eager load factory associations para evitar N+1 queries
+        query = self.db.query(Apartment).options(
+            joinedload(Apartment.factory_associations).joinedload(ApartmentFactory.factory)
+        ).filter(
             Apartment.deleted_at.is_(None)
         )
 
@@ -97,20 +108,85 @@ class ApartmentService:
         if prefecture:
             query = query.filter(Apartment.prefecture == prefecture)
 
+        # Filtros de factory
+        if factory_id is not None:
+            # Join con apartment_factory para filtrar por factory_id
+            query = query.join(ApartmentFactory).filter(
+                ApartmentFactory.factory_id == factory_id
+            ).distinct()
+
+        if region_id is not None:
+            # Join con factory a través de apartment_factory para filtrar por region
+            if factory_id is None:  # Solo hacer join si no se hizo antes
+                query = query.join(ApartmentFactory).join(Factory)
+            else:
+                query = query.join(Factory, ApartmentFactory.factory_id == Factory.id)
+            query = query.filter(Factory.region_id == region_id).distinct()
+
+        if zone is not None:
+            # Join con factory a través de apartment_factory para filtrar por zona
+            if factory_id is None and region_id is None:
+                query = query.join(ApartmentFactory).join(Factory)
+            elif factory_id is not None and region_id is None:
+                query = query.join(Factory, ApartmentFactory.factory_id == Factory.id)
+            query = query.filter(Factory.zone == zone).distinct()
+
+        if has_factory is not None:
+            if has_factory:
+                # Apartamentos CON fábrica asignada
+                query = query.join(ApartmentFactory).distinct()
+            else:
+                # Apartamentos SIN fábrica asignada
+                subquery = self.db.query(ApartmentFactory.apartment_id).distinct()
+                query = query.filter(~Apartment.id.in_(subquery))
+
         # Ordenar por nombre
         query = query.order_by(Apartment.name)
 
         # Ejecutar query
         apartments = query.offset(skip).limit(limit).all()
 
-        # Construir respuesta
+        # Construir respuesta con estadísticas
         results = []
         for apt in apartments:
             # Calcular campos adicionales
             full_address = self._build_full_address(apt)
             total_monthly_cost = (apt.base_rent or 0) + (apt.management_fee or 0)
 
-            results.append(ApartmentResponse(
+            # Calcular estadísticas para cada apartamento
+            stats = await self._calculate_apartment_stats(apt.id)
+
+            # Construir factory_associations y primary_factory
+            factory_associations_data = []
+            primary_factory_data = None
+
+            for assoc in apt.factory_associations:
+                factory_assoc = {
+                    "id": assoc.id,
+                    "apartment_id": assoc.apartment_id,
+                    "factory_id": assoc.factory_id,
+                    "is_primary": assoc.is_primary,
+                    "priority": assoc.priority,
+                    "distance_km": float(assoc.distance_km) if assoc.distance_km else None,
+                    "commute_minutes": assoc.commute_minutes,
+                    "effective_from": assoc.effective_from.isoformat() if assoc.effective_from else None,
+                    "effective_until": assoc.effective_until.isoformat() if assoc.effective_until else None,
+                    "notes": assoc.notes,
+                    "factory": {
+                        "id": assoc.factory.id,
+                        "factory_id": assoc.factory.factory_id,
+                        "company_name": assoc.factory.company_name,
+                        "plant_name": assoc.factory.plant_name,
+                        "address": assoc.factory.address,
+                    }
+                }
+                factory_associations_data.append(factory_assoc)
+
+                # Si es primaria, establecer como primary_factory
+                if assoc.is_primary and primary_factory_data is None:
+                    primary_factory_data = factory_assoc["factory"]
+
+            results.append(ApartmentWithStats(
                 id=apt.id,
                 name=apt.name,
                 building_name=apt.building_name,
@@ -140,10 +216,141 @@ class ApartmentService:
                 updated_at=apt.updated_at,
                 full_address=full_address,
                 total_monthly_cost=total_monthly_cost,
-                active_assignments=self._count_active_assignments(apt.id)
+                active_assignments=self._count_active_assignments(apt.id),
+                current_occupancy=stats["current_occupancy"],
+                max_occupancy=stats["max_occupancy"],
+                occupancy_rate=stats["occupancy_rate"],
+                is_available=(apt.status or "active") == "active" and stats["current_occupancy"] < stats["max_occupancy"],
+                last_assignment_date=stats["last_assignment_date"],
+                average_stay_duration=stats["average_stay_duration"],
+                factory_associations=factory_associations_data,
+                primary_factory=primary_factory_data,
             ))
 
         return results
+
+    async def list_apartments_paginated(
+        self,
+        page: int = 1,
+        page_size: int = 12,
+        available_only: bool = False,
+        search: Optional[str] = None,
+        min_rent: Optional[int] = None,
+        max_rent: Optional[int] = None,
+        prefecture: Optional[str] = None,
+        factory_id: Optional[int] = None,
+        region_id: Optional[int] = None,
+        zone: Optional[str] = None,
+        has_factory: Optional[bool] = None,
+    ):
+        """
+        Listar apartamentos con paginación
+
+        Args:
+            page: Número de página (inicia en 1)
+            page_size: Tamaño de página
+            available_only: Filtrar solo disponibles
+            search: Búsqueda por texto
+            min_rent: Renta mínima
+            max_rent: Renta máxima
+            prefecture: Prefecutura
+            factory_id: Filtrar por ID de fábrica
+            region_id: Filtrar por ID de región
+            zone: Filtrar por zona
+            has_factory: Filtrar apartamentos con/sin fábrica asignada
+
+        Returns:
+            Respuesta paginada con items, total, page, page_size, total_pages, has_next, has_previous
+        """
+        from app.schemas.apartment_v2 import PaginatedResponse
+        from math import ceil
+
+        # Calcular skip basado en página
+        skip = (page - 1) * page_size
+
+        # Obtener items de la página actual
+        items = await self.list_apartments(
+            skip=skip,
+            limit=page_size,
+            available_only=available_only,
+            search=search,
+            min_rent=min_rent,
+            max_rent=max_rent,
+            prefecture=prefecture,
+            factory_id=factory_id,
+            region_id=region_id,
+            zone=zone,
+            has_factory=has_factory,
+        )
+
+        # Contar total de registros (aplicando los mismos filtros)
+        query = self.db.query(Apartment).filter(
+            Apartment.deleted_at.is_(None)
+        )
+
+        if available_only:
+            query = query.filter(Apartment.status == "active")
+
+        if search:
+            search_pattern = f"%{search}%"
+            query = query.filter(
+                or_(
+                    Apartment.name.ilike(search_pattern),
+                    Apartment.building_name.ilike(search_pattern),
+                    Apartment.city.ilike(search_pattern),
+                    Apartment.address_line1.ilike(search_pattern),
+                    Apartment.address_line2.ilike(search_pattern),
+                )
+            )
+
+        if min_rent is not None:
+            query = query.filter(Apartment.base_rent >= min_rent)
+
+        if max_rent is not None:
+            query = query.filter(Apartment.base_rent <= max_rent)
+
+        if prefecture:
+            query = query.filter(Apartment.prefecture == prefecture)
+
+        # Aplicar los mismos filtros de factory al count query
+        if factory_id is not None:
+            query = query.join(ApartmentFactory).filter(
+                ApartmentFactory.factory_id == factory_id
+            ).distinct()
+
+        if region_id is not None:
+            if factory_id is None:
+                query = query.join(ApartmentFactory).join(Factory)
+            else:
+                query = query.join(Factory, ApartmentFactory.factory_id == Factory.id)
+            query = query.filter(Factory.region_id == region_id).distinct()
+
+        if zone is not None:
+            if factory_id is None and region_id is None:
+                query = query.join(ApartmentFactory).join(Factory)
+            elif factory_id is not None and region_id is None:
+                query = query.join(Factory, ApartmentFactory.factory_id == Factory.id)
+            query = query.filter(Factory.zone == zone).distinct()
+
+        if has_factory is not None:
+            if has_factory:
+                query = query.join(ApartmentFactory).distinct()
+            else:
+                subquery = self.db.query(ApartmentFactory.apartment_id).distinct()
+                query = query.filter(~Apartment.id.in_(subquery))
+
+        total = query.count()
+        total_pages = ceil(total / page_size) if page_size > 0 else 0
+
+        return PaginatedResponse(
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+            has_next=page < total_pages,
+            has_previous=page > 1,
+        )
 
     async def create_apartment(
         self,
@@ -206,7 +413,9 @@ class ApartmentService:
         Raises:
             HTTPException: Si no se encuentra el apartamento
         """
-        apartment = self.db.query(Apartment).filter(
+        apartment = self.db.query(Apartment).options(
+            joinedload(Apartment.factory_associations).joinedload(ApartmentFactory.factory)
+        ).filter(
             and_(
                 Apartment.id == apartment_id,
                 Apartment.deleted_at.is_(None)
@@ -226,6 +435,36 @@ class ApartmentService:
         # Construir respuesta base
         full_address = self._build_full_address(apartment)
         total_monthly_cost = (apartment.base_rent or 0) + (apartment.management_fee or 0)
+
+        # Construir factory_associations y primary_factory
+        factory_associations_data = []
+        primary_factory_data = None
+
+        for assoc in apartment.factory_associations:
+            factory_assoc = {
+                "id": assoc.id,
+                "apartment_id": assoc.apartment_id,
+                "factory_id": assoc.factory_id,
+                "is_primary": assoc.is_primary,
+                "priority": assoc.priority,
+                "distance_km": float(assoc.distance_km) if assoc.distance_km else None,
+                "commute_minutes": assoc.commute_minutes,
+                "effective_from": assoc.effective_from.isoformat() if assoc.effective_from else None,
+                "effective_until": assoc.effective_until.isoformat() if assoc.effective_until else None,
+                "notes": assoc.notes,
+                "factory": {
+                    "id": assoc.factory.id,
+                    "factory_id": assoc.factory.factory_id,
+                    "company_name": assoc.factory.company_name,
+                    "plant_name": assoc.factory.plant_name,
+                    "address": assoc.factory.address,
+                }
+            }
+            factory_associations_data.append(factory_assoc)
+
+            # Si es primaria, establecer como primary_factory
+            if assoc.is_primary and primary_factory_data is None:
+                primary_factory_data = factory_assoc["factory"]
 
         # Construir respuesta con estadísticas
         return ApartmentWithStats(
@@ -265,6 +504,8 @@ class ApartmentService:
             is_available=(apartment.status or "active") == "active" and stats["current_occupancy"] < stats["max_occupancy"],
             last_assignment_date=stats["last_assignment_date"],
             average_stay_duration=stats["average_stay_duration"],
+            factory_associations=factory_associations_data,
+            primary_factory=primary_factory_data,
         )
 
     async def update_apartment(

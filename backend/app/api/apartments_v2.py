@@ -29,6 +29,7 @@ from app.schemas.apartment_v2 import (
     ApartmentUpdate,
     ApartmentResponse,
     ApartmentWithStats,
+    PaginatedResponse,
 
     # Assignment schemas
     AssignmentCreate,
@@ -79,18 +80,22 @@ router = APIRouter(prefix="/apartments", tags=["apartments-v2"])
 
 @router.get(
     "",
-    response_model=List[ApartmentResponse],
+    response_model=PaginatedResponse,
     summary="Lista de apartamentos",
     description="Obtener lista paginada de apartamentos con filtros opcionales"
 )
 async def list_apartments(
-    skip: int = Query(0, ge=0, description="Número de registros a omitir"),
-    limit: int = Query(100, ge=1, le=500, description="Número máximo de registros"),
+    page: int = Query(1, ge=1, description="Número de página"),
+    page_size: int = Query(12, ge=1, le=100, description="Tamaño de página"),
     available_only: bool = Query(False, description="Filtrar solo apartamentos disponibles"),
     search: Optional[str] = Query(None, description="Búsqueda por nombre, dirección o código"),
     min_rent: Optional[int] = Query(None, ge=0, description="Renta mínima"),
     max_rent: Optional[int] = Query(None, ge=0, description="Renta máxima"),
     prefecture: Optional[str] = Query(None, description="Filtrar por prefectura"),
+    factory_id: Optional[int] = Query(None, description="Filtrar por ID de fábrica"),
+    region_id: Optional[int] = Query(None, description="Filtrar por ID de región"),
+    zone: Optional[str] = Query(None, description="Filtrar por zona"),
+    has_factory: Optional[bool] = Query(None, description="Filtrar apartamentos con/sin fábrica asignada"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -104,18 +109,22 @@ async def list_apartments(
 
     **Ejemplo de uso:**
     ```
-    GET /api/apartments?available_only=true&min_rent=30000&max_rent=70000
+    GET /api/apartments?page=1&page_size=12&available_only=true&min_rent=30000&max_rent=70000
     ```
     """
     service = ApartmentService(db)
-    return await service.list_apartments(
-        skip=skip,
-        limit=limit,
+    return await service.list_apartments_paginated(
+        page=page,
+        page_size=page_size,
         available_only=available_only,
         search=search,
         min_rent=min_rent,
         max_rent=max_rent,
-        prefecture=prefecture
+        prefecture=prefecture,
+        factory_id=factory_id,
+        region_id=region_id,
+        zone=zone,
+        has_factory=has_factory
     )
 
 
