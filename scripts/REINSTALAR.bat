@@ -24,109 +24,89 @@ echo.
 
 :: Verificar Python
 echo   [*] Python................
-python --version >nul 2>&1 && (
+python --version >nul 2>&1
+if !errorlevel! EQU 0 (
     set "PYTHON_CMD=python"
     echo     [OK]
-) || py --version >nul 2>&1 && (
-    set "PYTHON_CMD=py"
-    echo     [OK]
-) || (
-    echo     [X] NO INSTALADO
-    set "ERROR_FLAG=1"
+) else (
+    py --version >nul 2>&1
+    if !errorlevel! EQU 0 (
+        set "PYTHON_CMD=py"
+        echo     [OK]
+    ) else (
+        echo     [X] NO INSTALADO
+        set "ERROR_FLAG=1"
+    )
 )
 
 :: Verificar Docker
 echo   [*] Docker................
-docker --version >nul 2>&1 && (
+docker --version >nul 2>&1
+if !errorlevel! EQU 0 (
     echo     [OK]
-) || (
+) else (
     echo     [X] NO INSTALADO
     set "ERROR_FLAG=1"
 )
 
 :: Verificar Docker running
 echo   [*] Docker Running........
-docker ps >nul 2>&1 && (
+docker ps >nul 2>&1
+if !errorlevel! EQU 0 (
     echo     [OK]
-) || (
+) else (
     echo     [X] NO CORRIENDO
     set "ERROR_FLAG=1"
 )
 
 :: Verificar Docker Compose
 echo   [*] Docker Compose........
-docker compose version >nul 2>&1 && (
+docker compose version >nul 2>&1
+if !errorlevel! EQU 0 (
     set "DOCKER_COMPOSE_CMD=docker compose"
     echo     [OK] ^(V2^)
-) || docker-compose version >nul 2>&1 && (
-    set "DOCKER_COMPOSE_CMD=docker-compose"
-    echo     [OK] ^(V1^)
-) || (
-    echo     [X] NO ENCONTRADO
-    set "ERROR_FLAG=1"
+) else (
+    docker-compose version >nul 2>&1
+    if !errorlevel! EQU 0 (
+        set "DOCKER_COMPOSE_CMD=docker-compose"
+        echo     [OK] ^(V1^)
+    ) else (
+        echo     [X] NO ENCONTRADO
+        set "ERROR_FLAG=1"
+    )
 )
 
 :: Verificar archivos del proyecto
 cd /d "%~dp0\.."
 echo   [*] docker-compose.yml....
-if exist "docker-compose.yml" (echo     [OK]) else (echo     [X] FALTA & set "ERROR_FLAG=1")
+if exist "docker-compose.yml" (
+    echo     [OK]
+) else (
+    echo     [X] FALTA
+    set "ERROR_FLAG=1"
+)
 
 echo   [*] generate_env.py.......
-if exist "scripts\utilities\generate_env.py" (echo     [OK]) else (echo     [X] FALTA & set "ERROR_FLAG=1")
+if exist "scripts\utilities\generate_env.py" (
+    echo     [OK]
+) else (
+    echo     [X] FALTA
+    set "ERROR_FLAG=1"
+)
 
 echo.
 
-:: Verificar resultado del diagnostico
+:: Verificar si hay errores
 if %ERROR_FLAG% EQU 1 (
     echo.
     echo [X] DIAGNOSTICO FALLIDO - Corrige los errores antes de continuar
     echo.
-
-    :: Verificar si el error es solo Docker no corriendo
-    docker ps >nul 2>&1
-    if !errorlevel! NEQ 0 (
-        echo [!] Se detectó que Docker Desktop no está corriendo
-        echo.
-        echo [*] Intentando iniciar Docker Desktop automáticamente...
-        echo.
-
-        :: Llamar al script de iniciar Docker
-        call "%~dp0INICIAR_DOCKER.bat"
-
-        :: Si Docker se inició correctamente, continuar con la reinstalación
-        docker ps >nul 2>&1
-        if !errorlevel! EQU 0 (
-            echo.
-            echo [OK] Docker iniciado correctamente. Continuando con la reinstalación...
-            echo.
-            :: Limpiar flag de error para continuar
-            set "ERROR_FLAG=0"
-            goto :continue_install
-        ) else (
-            echo.
-            echo [X] No se pudo iniciar Docker Desktop automáticamente
-            echo.
-            echo [!] Por favor:
-            echo  1. Abre Docker Desktop manualmente desde el menú de inicio
-            echo  2. Espera a que se inicie completamente (revisa la bandeja de tareas)
-            echo  3. Ejecuta nuevamente: scripts\REINSTALAR.bat
-            echo.
-            echo ============================================================================
-            echo  PRESIONA CUALQUIER TECLA PARA CERRAR
-            echo ============================================================================
-            pause >nul
-            goto :eof
-        )
-    ) else (
-        echo ============================================================================
-        echo  [X] ERROR - PRESIONA CUALQUIER TECLA PARA CERRAR
-        echo ============================================================================
-        pause >nul
-        goto :eof
-    )
+    echo ============================================================================
+    echo  [X] ERROR - PRESIONA CUALQUIER TECLA PARA CERRAR
+    echo ============================================================================
+    pause >nul
+    goto :eof
 )
-
-:continue_install
 
 echo [OK] Diagnostico completado
 echo.
@@ -370,7 +350,7 @@ echo.
 
 echo   [*] Esperando compilacion del frontend (60 segundos)...
 for /l %%N in (1,1,6) do (
-    echo   [...] Compilando Next.js... %%N/6 ^(~10s cada uno^)
+    echo   [...] Compilando Next.js... %%N/6 (~10s cada uno)
     timeout /t 10 /nobreak >nul
 )
 echo   [OK] Compilacion completada
