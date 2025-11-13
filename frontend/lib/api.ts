@@ -759,27 +759,6 @@ export interface RoleStatsResponse {
 // ADMIN CONTROL PANEL SERVICES
 // =============================================================================
 
-export interface AuditLogEntry {
-  id: number;
-  admin_username: string;
-  action_type: 'enable' | 'disable' | 'bulk_enable' | 'bulk_disable' | 'update';
-  target_type: 'page' | 'role_permission' | 'global';
-  target_name: string;
-  role_key?: string;
-  details?: string;
-  timestamp: string;
-  created_at: string;
-}
-
-export interface RoleStatsResponse {
-  role_key: string;
-  role_name: string;
-  total_pages: number;
-  enabled_pages: number;
-  disabled_pages: number;
-  percentage: number;
-}
-
 export interface ImportConfigRequest {
   pages?: Array<{
     page_key: string;
@@ -947,6 +926,7 @@ export interface MaintenanceMode {
 }
 
 export interface AdminStatistics {
+  // Flat fields (for backward compatibility and direct access)
   total_users: number;
   active_users: number;
   total_candidates: number;
@@ -955,6 +935,17 @@ export interface AdminStatistics {
   maintenance_mode: boolean;
   database_size?: string;
   uptime?: string;
+  // Nested fields (from backend response structure)
+  pages?: {
+    total: number;
+    enabled: number;
+    disabled: number;
+    percentage_enabled: number;
+  };
+  system?: {
+    maintenance_mode: boolean;
+    recent_changes_24h: number;
+  };
 }
 
 export const systemSettingsService = {
