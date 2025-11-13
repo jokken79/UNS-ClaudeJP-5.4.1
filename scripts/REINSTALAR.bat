@@ -49,7 +49,7 @@ echo   [*] Docker Running........
 docker ps >nul 2>&1 && (
     echo     [OK]
 ) || (
-    echo     [X] NO CORRIENDO - Abre Docker Desktop
+    echo     [X] NO CORRIENDO
     set "ERROR_FLAG=1"
 )
 
@@ -81,12 +81,52 @@ if %ERROR_FLAG% EQU 1 (
     echo.
     echo [X] DIAGNOSTICO FALLIDO - Corrige los errores antes de continuar
     echo.
-    echo ============================================================================
-    echo  [X] ERROR - PRESIONA CUALQUIER TECLA PARA CERRAR
-    echo ============================================================================
-    pause >nul
-    goto :eof
+
+    :: Verificar si el error es solo Docker no corriendo
+    docker ps >nul 2>&1
+    if !errorlevel! NEQ 0 (
+        echo [!] Se detectó que Docker Desktop no está corriendo
+        echo.
+        echo [*] Intentando iniciar Docker Desktop automáticamente...
+        echo.
+
+        :: Llamar al script de iniciar Docker
+        call "%~dp0INICIAR_DOCKER.bat"
+
+        :: Si Docker se inició correctamente, continuar con la reinstalación
+        docker ps >nul 2>&1
+        if !errorlevel! EQU 0 (
+            echo.
+            echo [OK] Docker iniciado correctamente. Continuando con la reinstalación...
+            echo.
+            :: Limpiar flag de error para continuar
+            set "ERROR_FLAG=0"
+            goto :continue_install
+        ) else (
+            echo.
+            echo [X] No se pudo iniciar Docker Desktop automáticamente
+            echo.
+            echo [!] Por favor:
+            echo  1. Abre Docker Desktop manualmente desde el menú de inicio
+            echo  2. Espera a que se inicie completamente (revisa la bandeja de tareas)
+            echo  3. Ejecuta nuevamente: scripts\REINSTALAR.bat
+            echo.
+            echo ============================================================================
+            echo  PRESIONA CUALQUIER TECLA PARA CERRAR
+            echo ============================================================================
+            pause >nul
+            goto :eof
+        )
+    ) else (
+        echo ============================================================================
+        echo  [X] ERROR - PRESIONA CUALQUIER TECLA PARA CERRAR
+        echo ============================================================================
+        pause >nul
+        goto :eof
+    )
 )
+
+:continue_install
 
 echo [OK] Diagnostico completado
 echo.
