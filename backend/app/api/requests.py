@@ -445,7 +445,7 @@ async def save_employee_data(
         )
 
     # VALIDATION: Check that apartment exists (if provided)
-    if hasattr(employee_data, 'apartment_id') and employee_data.apartment_id:
+    if employee_data.apartment_id:
         apartment = db.query(Apartment).filter(Apartment.id == employee_data.apartment_id).first()
         if not apartment:
             raise HTTPException(
@@ -454,7 +454,6 @@ async def save_employee_data(
             )
 
     # VALIDATION: Check hire_date is not in the past
-    from datetime import datetime, date
     hire_date = datetime.strptime(employee_data.hire_date, "%Y-%m-%d").date() if isinstance(employee_data.hire_date, str) else employee_data.hire_date
     if hire_date < date.today():
         raise HTTPException(
@@ -463,12 +462,11 @@ async def save_employee_data(
         )
 
     # VALIDATION: Check jikyu is within valid range (800-5000 yen/hour)
-    if hasattr(employee_data, 'jikyu') and employee_data.jikyu:
-        if employee_data.jikyu < 800 or employee_data.jikyu > 5000:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Jikyu must be between 800 and 5000 yen. Provided: {employee_data.jikyu}"
-            )
+    if employee_data.jikyu < 800 or employee_data.jikyu > 5000:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Jikyu must be between 800 and 5000 yen. Provided: {employee_data.jikyu}"
+        )
 
     # Save employee data as JSON
     request.employee_data = employee_data.model_dump()
@@ -745,8 +743,7 @@ async def approve_nyuusha_request(
         await notification_service.send_employee_created(
             employee_name=new_employee.full_name_roman,
             hakenmoto_id=new_hakenmoto_id,
-            factory_id=emp_data.get("factory_id"),
-            position=emp_data.get("position")
+            admin_email=current_user.email
         )
     except Exception as e:
         logger.warning(f"Failed to send notification: {str(e)}")
