@@ -12,8 +12,8 @@ import time
 from app.core.config import settings
 from app.core.database import engine, Base
 
-# Import routers (will be created)
-# from app.api import auth, candidates, employees, factories, apartments, yukyu, timercards, payroll, requests
+# Import routers
+from app.api import auth
 
 
 @asynccontextmanager
@@ -124,18 +124,14 @@ async def health_check():
 
 
 # ============================================================================
-# API ROUTERS (to be added)
+# API ROUTERS
 # ============================================================================
 
-# app.include_router(auth.router, prefix=settings.API_V1_PREFIX, tags=["Authentication"])
-# app.include_router(candidates.router, prefix=settings.API_V1_PREFIX, tags=["Candidates"])
-# app.include_router(employees.router, prefix=settings.API_V1_PREFIX, tags=["Employees"])
-# app.include_router(factories.router, prefix=settings.API_V1_PREFIX, tags=["Factories"])
-# app.include_router(apartments.router, prefix=settings.API_V1_PREFIX, tags=["Apartments"])
-# app.include_router(yukyu.router, prefix=settings.API_V1_PREFIX, tags=["Yukyu"])
-# app.include_router(timercards.router, prefix=settings.API_V1_PREFIX, tags=["Timer Cards"])
-# app.include_router(payroll.router, prefix=settings.API_V1_PREFIX, tags=["Payroll"])
-# app.include_router(requests.router, prefix=settings.API_V1_PREFIX, tags=["Requests"])
+# Include authentication router
+app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
+
+# Additional routers (candidates, employees, factories, apartments, yukyu, timercards, payroll, requests)
+# will be implemented progressively following the 16-week roadmap in JPplanapp.md
 
 
 if __name__ == "__main__":
