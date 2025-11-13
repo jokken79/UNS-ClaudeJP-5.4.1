@@ -24,11 +24,13 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 from decimal import Decimal
 
+from fastapi import Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.payroll_models import PayrollSettings
 from app.core.config import PayrollConfig
+from app.core.database import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -375,22 +377,21 @@ class PayrollConfigService:
 
 
 # Factory function for easy dependency injection
-def get_payroll_config_service(db: AsyncSession) -> PayrollConfigService:
+def get_payroll_config_service(db: AsyncSession = Depends(get_db)) -> PayrollConfigService:
     """
     Factory function to create PayrollConfigService instance.
 
     Args:
-        db: AsyncSession database connection
+        db: AsyncSession database connection (injected via Depends)
 
     Returns:
         PayrollConfigService: Configured service instance
 
     Example:
-        >>> from app.core.deps import get_db
+        >>> from fastapi import Depends
         >>>
         >>> @router.get("/config")
         >>> async def get_config(
-        ...     db: AsyncSession = Depends(get_db),
         ...     config_service: PayrollConfigService = Depends(get_payroll_config_service)
         ... ):
         ...     settings = await config_service.get_configuration()
