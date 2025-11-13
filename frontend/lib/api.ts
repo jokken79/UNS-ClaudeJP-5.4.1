@@ -203,7 +203,7 @@ export const employeeService = {
 // Candidate services
 export const candidateService = {
   getCandidates: async (params?: CandidateListParams): Promise<PaginatedResponse<Candidate>> => {
-    const response = await api.get<PaginatedResponse<Candidate>>('/candidates/', { params });
+    const response = await api.get<PaginatedResponse<Candidate>>('/candidates', { params });
     return response.data;
   },
 
@@ -240,7 +240,7 @@ export const candidateService = {
 // Factory services
 export const factoryService = {
   getFactories: async (params?: Record<string, unknown>): Promise<Factory[]> => {
-    const response = await api.get<Factory[]>('/factories/', { params });
+    const response = await api.get<Factory[]>('/factories', { params });
     return response.data;
   },
 
@@ -250,7 +250,7 @@ export const factoryService = {
   },
 
   createFactory: async (data: FactoryCreateData): Promise<Factory> => {
-    const response = await api.post<Factory>('/factories/', data);
+    const response = await api.post<Factory>('/factories', data);
     return response.data;
   },
 
@@ -267,7 +267,7 @@ export const factoryService = {
 // Timer Card services
 export const timerCardService = {
   getTimerCards: async <T = TimerCard[]>(params?: TimerCardListParams): Promise<T> => {
-    const response = await api.get<T>('/timer-cards/', { params });
+    const response = await api.get<T>('/timer-cards', { params });
     return response.data;
   },
 
@@ -277,7 +277,7 @@ export const timerCardService = {
   },
 
   createTimerCard: async (data: TimerCardCreateData): Promise<TimerCard> => {
-    const response = await api.post<TimerCard>('/timer-cards/', data);
+    const response = await api.post<TimerCard>('/timer-cards', data);
     return response.data;
   },
 
