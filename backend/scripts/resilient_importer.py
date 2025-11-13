@@ -28,12 +28,12 @@ from app.core.resilience import (
     ExponentialBackoffStrategy,
 )
 
+# Operation ID for this run (must be defined before CheckpointManager)
+OPERATION_ID = f"importer_{int(time.time())}"
+
 # Initialize logger
 logger = StructuredLogger(name="resilient_importer")
-checkpoint_manager = CheckpointManager()
-
-# Operation ID for this run
-OPERATION_ID = f"importer_{int(time.time())}"
+checkpoint_manager = CheckpointManager(operation_id=OPERATION_ID)
 
 # Define all operations in order
 OPERATIONS = [
@@ -141,7 +141,7 @@ class ResilientImporter:
         self.operation_id = operation_id
         self.logger = StructuredLogger(name="resilient_importer")
         self.logger.set_context(operation_id=operation_id)
-        self.checkpoint_manager = CheckpointManager()
+        self.checkpoint_manager = CheckpointManager(operation_id=operation_id)
 
         # Load checkpoint if exists
         self.checkpoint = self.checkpoint_manager.load_checkpoint(operation_id) or {

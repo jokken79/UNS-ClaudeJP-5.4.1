@@ -1,7 +1,7 @@
 """Add indexes and constraints to timer_cards table
 
 Revision ID: 2025_11_12_1900
-Revises: 2025_11_12_1804
+Revises: 002
 Create Date: 2025-11-12 19:00:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '2025_11_12_1900'
-down_revision = '2025_11_12_1804'
+revision = 'add_timer_cards_indexes'
+down_revision = 'add_search_indexes'
 branch_labels = None
 depends_on = None
 

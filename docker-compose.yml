@@ -73,7 +73,7 @@ services:
     networks:
       - uns-network
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "--raw", "incr", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -111,7 +111,7 @@ services:
     networks:
       - uns-network
     command: >
-      sh -c "python scripts/resilient_importer.py"
+      sh -c "python scripts/simple_importer.py"
     logging: *logging-default
     profiles: ["dev", "prod"]
 
@@ -277,7 +277,8 @@ services:
     restart: always
     env_file: .env
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_API_URL: /api
+      NEXT_PUBLIC_OTEL_ENABLED: 'false'
       NEXT_PUBLIC_APP_VERSION: ${APP_VERSION:-5.4.1}
       NEXT_PUBLIC_APP_NAME: ${APP_NAME:-UNS-ClaudeJP 5.4.1}
       NEXT_PUBLIC_OTEL_EXPORTER_URL: ${NEXT_PUBLIC_OTEL_EXPORTER_URL:-http://otel-collector:4318/v1/traces}

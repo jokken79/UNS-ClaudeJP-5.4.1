@@ -236,6 +236,7 @@ def _list_staff_members(
     return _paginate_response(items, total, page, page_size)
 
 
+@router.get("")
 @router.get("/")
 async def list_employees(
     page: int = 1,

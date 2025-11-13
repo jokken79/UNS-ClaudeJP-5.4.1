@@ -55,12 +55,12 @@ import type {
 
 // Normalize base URL to ensure it includes `/api` and no trailing slash
 const normalizeBaseUrl = (url: string): string => {
-  if (!url) return 'http://localhost:8000/api';
+  if (!url) return '/api';
   const trimmed = url.replace(/\/+$/, '');
   return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
 };
 
-const API_BASE_URL = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
+const API_BASE_URL = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL || '/api');
 
 // Create axios instance
 const api = axios.create({
@@ -754,34 +754,6 @@ export interface RoleStatsResponse {
   disabled_pages: number;
   percentage: number;
 }
-
-export const adminControlPanelService = {
-  /**
-   * Get recent audit log entries
-   */
-  getRecentAuditLog: async (limit: number = 10): Promise<AuditLogEntry[]> => {
-    const response = await api.get<AuditLogEntry[]>('/admin/audit-log/recent', {
-      params: { limit },
-    });
-    return response.data;
-  },
-
-  /**
-   * Get all audit log entries with pagination
-   */
-  getAllAuditLog: async (params?: { skip?: number; limit?: number }): Promise<PaginatedResponse<AuditLogEntry>> => {
-    const response = await api.get<PaginatedResponse<AuditLogEntry>>('/admin/audit-log', { params });
-    return response.data;
-  },
-
-  /**
-   * Get role statistics (access percentages)
-   */
-  getRoleStats: async (): Promise<RoleStatsResponse[]> => {
-    const response = await api.get<RoleStatsResponse[]>('/admin/role-stats');
-    return response.data;
-  },
-};
 
 // =============================================================================
 // ADMIN CONTROL PANEL SERVICES

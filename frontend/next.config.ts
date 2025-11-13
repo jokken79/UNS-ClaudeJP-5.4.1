@@ -3,6 +3,13 @@ import path from "path";
 
 const resolveApiOrigin = (): string => {
   const candidate = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+  // If it's a relative URL (like /api), return 'self' for CSP purposes
+  // The proxy will handle the actual routing
+  if (candidate.startsWith('/')) {
+    return "'self'";
+  }
+
   try {
     const url = new URL(candidate);
     return url.origin;

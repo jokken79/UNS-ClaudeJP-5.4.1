@@ -1,0 +1,270 @@
+================================================================================
+                      PASOS A SEGUIR - GUIA RAPIDA
+                    UNS-ClaudeJP 5.4.1 - 2025-11-13
+================================================================================
+
+PARA USAR EL SISTEMA REPARADO:
+
+PASO 1: Abre una consola (cmd.exe) en Windows
+  Navegación:
+    - Presiona Windows + R
+    - Escribe: cmd
+    - Presiona Enter
+
+PASO 2: Navega al directorio del proyecto
+  Escribe:
+    cd D:\UNS-ClaudeJP-5.4.1
+
+PASO 3: Ejecuta el instalador automático
+  Escribe:
+    scripts\REINSTALAR.bat
+
+  Qué pasa:
+    1. Se abrirá una ventana con el instalador
+    2. Verificará que todo esté instalado (Python, Docker, etc.)
+    3. Te pedirá confirmación (responde S)
+    4. Iniciará la instalación (15-20 minutos)
+    5. Te mostrará las URLs de acceso al terminar
+
+PASO 4: Abre el navegador cuando veas las URLs
+  Ejemplos:
+    - Frontend:  http://localhost:3000
+    - Backend:   http://localhost:8000
+    - Database:  http://localhost:8080
+
+PASO 5: Inicia sesión
+  Usuario:  admin
+  Password: admin123
+
+================================================================================
+
+SI ALGO FALLA:
+
+OPCION A: Ejecuta el diagnóstico
+  Escribe:
+    scripts\DIAGNOSTICO_PIP.bat
+
+  Qué verifica:
+    - Python instalado
+    - Docker funcionando
+    - Conectividad a PyPI
+    - Espacio en disco libre
+
+OPCION B: Intenta build manual con timeout aumentado
+  Escribe:
+    scripts\BUILD_BACKEND_CON_TIMEOUT.bat
+
+  Selecciona: 2 (para 2000 segundos de timeout)
+
+OPCION C: Ver logs en tiempo real
+  Escribe:
+    scripts\LOGS.bat
+
+  Selecciona el servicio que deseas revisar
+
+================================================================================
+
+PARA DETENER O REINICIAR DESPUÉS:
+
+Ver estado de servicios:
+  docker compose ps
+
+Detener todo:
+  scripts\STOP.bat
+
+Reiniciar todo:
+  scripts\START.bat
+
+Ver logs:
+  scripts\LOGS.bat
+
+Respaldar datos:
+  scripts\BACKUP_DATOS.bat
+
+Restaurar datos:
+  scripts\RESTAURAR_DATOS.bat <archivo_backup.sql>
+
+================================================================================
+
+DOCUMENTACION DISPONIBLE:
+
+Lectura rápida:
+  - LEEME_FIX_20251113.txt (este es el más importante)
+  - RESUMEN_VISUAL_FIXES.txt (resumen con diagramas)
+
+Técnico:
+  - FIX_SUMMARY_20251113.md (resumen técnico completo)
+  - CAMBIOS_DOCKERFILE_DETALLE.md (análisis de cambios)
+  - docs/guides/PIP_TIMEOUT_TROUBLESHOOTING.md (guía de troubleshooting)
+
+Proyecto:
+  - CLAUDE.md (instrucciones del proyecto)
+  - docs/guides/development-patterns.md (patrones de desarrollo)
+
+================================================================================
+
+RESUMEN DE LOS 4 FIXES REALIZADOS:
+
+1. ✅ CARACTERES UNICODE CORRUPTOS
+   Problema: Scripts batch mostraban errores con caracteres especiales
+   Solución: Reemplazados con ASCII [OK], [X], [*]
+
+2. ✅ DOCKER DESKTOP NO INICIA
+   Problema: Si Docker no estaba corriendo, el instalador fallaba
+   Solución: Nuevo script que inicia Docker automáticamente
+
+3. ✅ ERROR_FLAG LOGIC ERROR
+   Problema: Diagnósticos incorrectos aunque todo estaba OK
+   Solución: Reescrito bloque de verificación con lógica correcta
+
+4. ✅ PIP READTIMEOUT ERROR
+   Problema: Docker build fallaba por timeout al descargar dependencias
+   Solución: Aumentado timeout a 1000s + reintentos automáticos
+
+================================================================================
+
+ARCHIVOS IMPORTANTES CREADOS:
+
+scripts/INICIAR_DOCKER.bat
+  → Auto-inicia Docker Desktop si no está corriendo
+
+scripts/DIAGNOSTICO_PIP.bat
+  → Herramienta para verificar que todo está bien
+
+scripts/BUILD_BACKEND_CON_TIMEOUT.bat
+  → Build backend con timeout personalizable
+
+docs/guides/PIP_TIMEOUT_TROUBLESHOOTING.md
+  → Guía completa de solución de problemas
+
+Varios .txt y .md con resúmenes
+
+================================================================================
+
+QUE ESPERAR DURANTE LA EJECUCIÓN:
+
+[FASE 1] Diagnóstico del Sistema (2-3 segundos)
+  Verifica Python, Docker, Docker Compose, etc.
+  Resultado: Todos [OK] ✓
+
+[FASE 2] Confirmación (usuario responde)
+  Te pregunta si deseas continuar
+  Responde: S (o SI)
+
+[FASE 3] Reinstalación (15-20 minutos)
+  Paso 1/6: Generar archivo .env (5-10 segundos)
+  Paso 2/6: Detener servicios antiguos (5 segundos)
+  Paso 3/6: Construir imágenes Docker (8-12 minutos)
+    ⚠️ Esta parte tarda - Es normal, estamos descargando 600MB
+  Paso 4/6: Iniciar base de datos (5-10 segundos)
+  Paso 5/6: Crear tablas y datos (3-5 minutos)
+  Paso 6/6: Iniciar frontend y servicios (2-3 minutos)
+
+[FINALIZACION] URLs de acceso mostradas (1 segundo)
+  Frontend:  http://localhost:3000
+  Backend:   http://localhost:8000
+  Admin:     admin / admin123
+
+================================================================================
+
+PORTS UTILIZADOS:
+
+3000   - Frontend (Next.js)
+8000   - Backend (FastAPI)
+5432   - Base de datos (PostgreSQL)
+6379   - Cache (Redis)
+8080   - Database UI (Adminer)
+3001   - Monitoring (Grafana)
+9090   - Metrics (Prometheus)
+3200   - Tracing (Tempo)
+
+Si algún puerto está en uso:
+  netstat -ano | findstr :3000  (Windows)
+  Luego: taskkill /PID <numero> /F
+
+================================================================================
+
+PROBLEMAS COMUNES:
+
+1. "Docker not running"
+   Solución: El script ya lo inicia automáticamente
+   Si no: Abre Docker Desktop manualmente
+
+2. "ReadTimeoutError"
+   Solución: Ya está reparado en el Dockerfile
+   Si aún falla: Usa scripts\BUILD_BACKEND_CON_TIMEOUT.bat (opción 2)
+
+3. "ERROR_FLAG" incorrecto
+   Solución: Ya está reparado en REINSTALAR.bat
+   Si ves "[X] ERROR" pero diagnósticos son [OK]: Es falso positivo antiguo
+
+4. "Frontend no carga"
+   Normal: Primer acceso tarda 1-2 minutos (compila Next.js)
+   Si tarda >5 min: Revisa docker compose logs frontend
+
+5. "Puertos en uso"
+   Solución: Ver qué está usando el puerto y cerrar
+   O: Cambiar puerto en docker-compose.yml
+
+================================================================================
+
+CREDENCIALES POR DEFECTO:
+
+Usuario:  admin
+Password: admin123
+
+⚠️ IMPORTANTE EN PRODUCCIÓN: Cambiar estas credenciales
+   Ver: CLAUDE.md para instrucciones de seguridad
+
+================================================================================
+
+SOPORTE RÁPIDO:
+
+Ejecuta estos comandos en orden:
+
+1. scripts\DIAGNOSTICO_PIP.bat
+   → Verifica que todo esté instalado
+
+2. scripts\LOGS.bat
+   → Ve los logs de los servicios
+
+3. docker compose ps
+   → Verifica estado de los contenedores
+
+4. docker compose logs backend
+   → Ve los logs específicos del backend
+
+5. docker compose logs frontend
+   → Ve los logs específicos del frontend
+
+6. Revisa la documentación:
+   docs/guides/PIP_TIMEOUT_TROUBLESHOOTING.md
+   docs/guides/development-patterns.md
+
+================================================================================
+
+PRÓXIMA EJECUCIÓN (después de REINSTALAR.bat):
+
+Para iniciar de nuevo los servicios:
+  scripts\START.bat
+
+Para ver logs:
+  scripts\LOGS.bat
+
+Para detener:
+  scripts\STOP.bat
+
+Para hacer cambios y recompilar:
+  docker compose build backend  (si cambiaste código backend)
+  docker compose build frontend (si cambiaste código frontend)
+  docker compose up -d          (reinicia servicios)
+
+================================================================================
+
+VERSION: UNS-ClaudeJP 5.4.1
+FECHA: 2025-11-13
+STATUS: ✅ PRODUCTION READY
+
+¡Disfruta del sistema!
+
+================================================================================

@@ -265,7 +265,7 @@ from app.api import (
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(admin.router, tags=["Admin Panel"])
 app.include_router(audit.router, tags=["Admin Audit Log"])
-app.include_router(apartments_v2.router, prefix="/api/apartments-v2", tags=["Apartments V2"])
+app.include_router(apartments_v2.router, prefix="/api/apartments", tags=["Apartments"])
 app.include_router(candidates.router, prefix="/api/candidates", tags=["Candidates"])
 app.include_router(database.router, prefix="/api/database", tags=["Database"])
 app.include_router(azure_ocr.router, prefix="/api/azure-ocr", tags=["Azure OCR"])
