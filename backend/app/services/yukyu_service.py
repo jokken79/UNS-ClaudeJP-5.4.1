@@ -377,7 +377,7 @@ class YukyuService:
         yukyu_requests = self.db.query(Request).filter(
             Request.employee_id == employee_id,
             Request.request_type == RequestType.YUKYU,
-            Request.approval_status == RequestStatus.APPROVED,
+            Request.status == RequestStatus.APPROVED,
             Request.start_date >= fiscal_start,
             Request.end_date <= fiscal_end,
             Request.deleted_at.is_(None)

@@ -26,9 +26,12 @@ docker compose down
 
 ### Access URLs
 - **Frontend:** http://localhost:3000 (Next.js 16)
-- **Backend API:** http://localhost:8000 (FastAPI)
+- **Backend API (via nginx):** http://localhost/api (Production-like routing)
+- **Backend API (direct):** http://localhost:8000 (Development only)
 - **API Docs:** http://localhost:8000/api/docs (Swagger)
 - **Database UI:** http://localhost:8080 (Adminer)
+- **Grafana:** http://localhost:3001 (Observability dashboards)
+- **Prometheus:** http://localhost:9090 (Metrics)
 
 **Default Login:** `admin` / `admin123`
 
@@ -710,11 +713,13 @@ Claude: [NOW create file]
 - [ ] Passes TypeScript type-check?
 
 **Docker Checklist:**
-- [ ] Maintains 6 services (db, redis, importer, backend, frontend, adminer)
+- [ ] Maintains 12 services (6 core + 4 observability + nginx + backup)
 - [ ] Health checks configured for all services
-- [ ] Volumes for persistence (postgres_data, redis_data)
+- [ ] Volumes for persistence (postgres_data, redis_data, grafana_data, prometheus_data, tempo_data)
 - [ ] Environment variables from .env
 - [ ] Proper service dependencies
+- [ ] Nginx reverse proxy configured correctly
+- [ ] Backup service scheduled and tested
 
 ---
 
@@ -751,17 +756,23 @@ claude --dangerously-skip-permissions
 | Service | URL | Description |
 |---------|-----|-------------|
 | **Frontend** | http://localhost:3000 | Next.js application |
-| **Backend API** | http://localhost:8000 | FastAPI REST API |
+| **Backend API (via nginx)** | http://localhost/api | Production-like routing |
+| **Backend API (direct)** | http://localhost:8000 | Direct access (dev only) |
 | **API Docs** | http://localhost:8000/api/docs | Interactive Swagger UI |
 | **ReDoc** | http://localhost:8000/api/redoc | Alternative API docs |
 | **Adminer** | http://localhost:8080 | Database management UI |
+| **Grafana** | http://localhost:3001 | Observability dashboards |
+| **Prometheus** | http://localhost:9090 | Metrics storage & query |
+| **Nginx Health** | http://localhost/nginx-health | Nginx status check |
 | **Health Check** | http://localhost:8000/api/health | Backend health status |
+
+> **Note**: In development, nginx provides production-like routing. Backend can be accessed directly at port 8000 or via nginx at port 80.
 
 ---
 
 ## 🐳 Docker Services
 
-The application runs **10 services** via Docker Compose (6 core + 4 observability):
+The application runs **12 services** via Docker Compose (6 core + 4 observability + 2 infrastructure):
 
 ### Core Services (6)
 
@@ -787,10 +798,12 @@ The application runs **10 services** via Docker Compose (6 core + 4 observabilit
    - **Runs only on initial setup** (profile: dev,prod)
 
 4. **backend** - FastAPI application with hot reload
-   - Port: 8000
+   - Port: 8000 (internal), routed through nginx on port 80
    - Auto-reload on code changes
    - Depends on: `db` (healthy), `redis` (healthy)
    - Health check: `/api/health` (30s interval, 3 retries, 40s timeout)
+   - **Horizontal scaling supported**: Use `--scale backend=N` for load balancing
+   - Container name removed to enable auto-naming: `uns-claudejp-backend-1`, `uns-claudejp-backend-2`, etc.
 
 5. **frontend** - Next.js 16 application with hot reload
    - Port: 3000
@@ -829,8 +842,29 @@ The application runs **10 services** via Docker Compose (6 core + 4 observabilit
     - Pre-configured dashboards for backend metrics and traces
     - Volume: `grafana_data`
 
+### Infrastructure Services (2) - New in v5.4
+
+11. **nginx** - Reverse Proxy & Load Balancer
+    - Ports: 80 (HTTP), 443 (HTTPS)
+    - Routes `/api/*` to backend services with load balancing
+    - Routes `/` to frontend application
+    - Provides SSL termination (production)
+    - Basic auth for Prometheus (optional)
+    - Health check: `/nginx-health` endpoint
+    - Enables horizontal scaling of backend services
+    - Logs: `./logs/nginx/`
+
+12. **backup** - Automated Database Backup Service
+    - Automated PostgreSQL backups with cron scheduling
+    - Configurable backup time: `BACKUP_TIME` (default: 02:00 Asia/Tokyo)
+    - Retention policy: `BACKUP_RETENTION_DAYS` (default: 30 days)
+    - Backup location: `./backups/` (mounted volume)
+    - Runs on startup: `BACKUP_RUN_ON_STARTUP` (default: true)
+    - Health check: Verifies cron running and recent backup exists
+    - Timezone: Asia/Tokyo (JST)
+
 All services communicate via **`uns-network`** bridge network.
-**Startup order:** `db` → `redis` → `otel-collector` → `tempo` → `prometheus` → `importer` → `backend` → `frontend` → `adminer` → `grafana`
+**Startup order:** `db` → `redis` → `otel-collector` → `tempo` → `prometheus` → `importer` → `backend` → `frontend` → `adminer` → `grafana` → `nginx` → `backup`
 
 **Service Management:**
 ```bash
@@ -849,8 +883,37 @@ docker compose logs -f backend
 # Restart specific service
 docker compose restart frontend
 
-# Scale backend (if needed for load)
-docker compose up -d --scale backend=2
+# Scale backend horizontally for load balancing (nginx handles distribution)
+docker compose up -d --scale backend=3
+
+# Test backup service
+docker compose logs backup
+
+# Check backup files
+ls -lh ./backups/
+
+# Access services via nginx (production-like routing)
+curl http://localhost/api/health
+```
+
+### Horizontal Scaling (Backend)
+
+El backend soporta escalado horizontal gracias a nginx:
+
+```bash
+# Escalar a 3 instancias del backend
+docker compose up -d --scale backend=3
+
+# Verificar instancias activas
+docker compose ps backend
+
+# Nginx distribuirá las peticiones automáticamente entre:
+# - uns-claudejp-backend-1
+# - uns-claudejp-backend-2
+# - uns-claudejp-backend-3
+
+# Ver logs de todas las instancias
+docker compose logs -f backend
 ```
 
 ---
@@ -884,23 +947,45 @@ docker exec uns-claudejp-backend python scripts/sync_candidate_employee_status.p
 **Script:** `scripts/copy_factories.ps1`
 
 ### Backup & Restore
+
+**Automated Backups (via backup service):**
 ```bash
-# Create database backup
+# El servicio backup crea backups automáticos en ./backups/
+# Configuración en .env:
+# BACKUP_TIME=02:00 (hora de backup, zona horaria Asia/Tokyo)
+# BACKUP_RETENTION_DAYS=30 (días de retención)
+# BACKUP_RUN_ON_STARTUP=true (backup al iniciar)
+
+# Ver logs del servicio de backup
+docker compose logs backup
+
+# Listar backups disponibles
+ls -lh ./backups/
+
+# Los backups se nombran: backup_YYYYMMDD_HHMMSS.sql.gz
+```
+
+**Manual Backups:**
+```bash
+# Create database backup (Windows)
 cd scripts
 BACKUP_DATOS.bat
 
-# Restore database
+# Restore database (Windows)
 RESTAURAR_DATOS.bat backup_20251108.sql
 
-# Manual backup
-docker exec uns-claudejp-db pg_dump -U uns_admin uns_claudejp > /tmp/backup.sql
+# Manual backup (cualquier sistema)
+docker exec uns-claudejp-db pg_dump -U uns_admin uns_claudejp > ./backups/manual_backup_$(date +%Y%m%d).sql
+
+# Manual restore
+cat ./backups/backup_20251108.sql | docker exec -i uns-claudejp-db psql -U uns_admin uns_claudejp
 ```
 
 ## 📖 Important Notes
 
 - **Default credentials**: `admin` / `admin123` (CHANGE IN PRODUCTION!)
 - **Docker required**: All services run in containers
-- **Port requirements**: 3000 (frontend), 8000 (backend), 5432 (postgres), 8080 (adminer), 6379 (redis), 3001 (grafana), 9090 (prometheus), 3200 (tempo), 4317/4318 (otel-collector)
+- **Port requirements**: 80/443 (nginx), 3000 (frontend), 8000 (backend), 5432 (postgres), 8080 (adminer), 6379 (redis), 3001 (grafana), 9090 (prometheus), 3200 (tempo), 4317/4318 (otel-collector)
 - **Japanese terminology**: Extensive use of Japanese HR terms (履歴書/rirekisho, 派遣社員, タイムカード, etc.)
 - **Version 5.4**: Latest version with enhanced documentation, AI assistance, and observability stack
 - **Next.js**: Uses App Router (not Pages Router), Server Components by default

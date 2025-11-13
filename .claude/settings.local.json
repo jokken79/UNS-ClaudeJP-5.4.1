@@ -8,7 +8,10 @@
       "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc2Mjk3MzEzNSwiaWF0IjoxNzYyOTQ0MzM1LCJuYmYiOjE3NjI5NDQzMzUsImlzcyI6InVucy1jbGF1ZGVqcCIsImF1ZCI6InVucy1jbGF1ZGVqcDo6YXBpIiwianRpIjoiMGFkZjQyZTAtZDI5MS00YzM3LTkxMjctN2I0ZWY3ODAyMDQzIiwidHlwZSI6ImFjY2VzcyJ9.SxQ4TF4GW7KuH4cW5z4k_rWVPKNqCf5l4YfYmTAqFkY\")",
       "Bash(git fetch:*)",
       "Bash(git checkout:*)",
-      "Bash(git branch:*)"
+      "Bash(git branch:*)",
+      "Bash(docker compose:*)",
+      "Bash(curl:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
