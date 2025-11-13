@@ -10,10 +10,11 @@ from slowapi.util import get_remote_address
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.models.models import User
+from app.models.models import User, UserRole
 from app.schemas.auth import (
     UserLogin, UserRegister, Token, UserResponse,
-    UserUpdate, PasswordChange, RefreshTokenRequest, LogoutRequest
+    UserUpdate, PasswordChange, RefreshTokenRequest, LogoutRequest,
+    UserAdminUpdate, PasswordReset
 )
 from app.services.auth_service import AuthService, auth_service
 
@@ -351,6 +352,126 @@ async def list_users(
     return users
 
 
+@router.get("/users/{user_id}", response_model=UserResponse)
+async def get_user(
+    user_id: int,
+    current_user: User = Depends(auth_service.require_role("admin")),
+    db: Session = Depends(get_db)
+):
+    """
+    Get user by ID (Admin only)
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    return user
+
+
+@router.put("/users/{user_id}", response_model=UserResponse)
+async def update_user(
+    user_id: int,
+    user_update: UserAdminUpdate,
+    current_user: User = Depends(auth_service.require_role("admin")),
+    db: Session = Depends(get_db)
+):
+    """
+    Update user (Admin only)
+
+    Allows updating username, email, full_name, role, and is_active status.
+    Password updates should use the reset-password endpoint.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # Check if updating username and it already exists
+    if user_update.username and user_update.username != user.username:
+        existing = db.query(User).filter(
+            User.username == user_update.username,
+            User.id != user_id
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already in use"
+            )
+        user.username = user_update.username
+
+    # Check if updating email and it already exists
+    if user_update.email and user_update.email != user.email:
+        existing = db.query(User).filter(
+            User.email == user_update.email,
+            User.id != user_id
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already in use"
+            )
+        user.email = user_update.email
+
+    # Update other fields
+    if user_update.full_name is not None:
+        user.full_name = user_update.full_name
+
+    if user_update.role is not None:
+        # Prevent downgrading own role below admin
+        if user.id == current_user.id:
+            if user_update.role not in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot downgrade your own role below ADMIN"
+                )
+        user.role = user_update.role
+
+    if user_update.is_active is not None:
+        # Prevent deactivating yourself
+        if user.id == current_user.id and not user_update.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot deactivate your own account"
+            )
+        user.is_active = user_update.is_active
+
+    db.commit()
+    db.refresh(user)
+
+    return user
+
+
+@router.post("/users/{user_id}/reset-password")
+async def reset_user_password(
+    user_id: int,
+    password_data: PasswordReset,
+    current_user: User = Depends(auth_service.require_role("admin")),
+    db: Session = Depends(get_db)
+):
+    """
+    Reset user password (Admin only)
+
+    Allows administrators to reset any user's password without knowing the old password.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # Update password
+    user.password_hash = auth_service.get_password_hash(password_data.new_password)
+    db.commit()
+
+    return {"message": f"Password reset successfully for user {user.username}"}
+
+
 @router.delete("/users/{user_id}")
 async def delete_user(
     user_id: int,
@@ -366,14 +487,14 @@ async def delete_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
-    
+
     if user.id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot delete yourself"
         )
-    
+
     db.delete(user)
     db.commit()
-    
+
     return {"message": "User deleted successfully"}

@@ -12,6 +12,7 @@ import {
   Activity,
   PieChart,
   Download,
+  Upload,
   Shield,
   AlertTriangle,
   CheckCircle,
@@ -45,7 +46,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { useAllPagesVisibility } from '@/hooks/use-page-visibility';
-import api, { adminControlPanelService, type AuditLogEntry, type RoleStatsResponse } from '@/lib/api';
+import api, { adminControlPanelService, type AuditLogEntry, type RoleStatsResponse, type AdminStatistics } from '@/lib/api';
 import {
   clearPermissionCache,
   getCacheCounts,
@@ -66,6 +67,14 @@ import { RoleReferenceCard } from '@/components/admin/role-reference-card';
 import { EnhancedRoleStats } from '@/components/admin/enhanced-role-stats';
 import { PageCategoryGroup } from '@/components/admin/page-category-group';
 import { AuditTrailPanel } from '@/components/admin/audit-trail-panel';
+import { UserManagementPanel } from '@/components/admin/user-management-panel';
+import { SystemSettingsPanel } from '@/components/admin/system-settings-panel';
+import { ImportConfigDialog } from '@/components/admin/import-config-dialog';
+
+// Chart components
+import { RoleStatsChart } from '@/components/admin/role-stats-chart';
+import { AuditActivityChart } from '@/components/admin/audit-activity-chart';
+import { SystemStatsDashboard } from '@/components/admin/system-stats-dashboard';
 
 interface Statistics {
   pages: {
@@ -149,6 +158,10 @@ export default function AdminControlPanelPage() {
   const [roleStats, setRoleStats] = useState<RoleStatsResponse[]>([]);
   const [roleStatsLoading, setRoleStatsLoading] = useState(false);
 
+  // NEW: Admin statistics state (for charts)
+  const [adminStatistics, setAdminStatistics] = useState<AdminStatistics | null>(null);
+  const [adminStatisticsLoading, setAdminStatisticsLoading] = useState(false);
+
   // NEW: Bulk action confirmation dialog
   const [bulkDialog, setBulkDialog] = useState<BulkActionDialog>({
     isOpen: false,
@@ -159,6 +172,9 @@ export default function AdminControlPanelPage() {
 
   // NEW: Show role reference panel
   const [showRoleReference, setShowRoleReference] = useState(false);
+
+  // NEW: Import config dialog state
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   // Fetch roles from API
   const fetchRoles = async () => {
@@ -229,6 +245,20 @@ export default function AdminControlPanelPage() {
     }
   };
 
+  // NEW: Fetch admin statistics (for charts)
+  const fetchAdminStatistics = async () => {
+    try {
+      setAdminStatisticsLoading(true);
+      const response = await api.get('/admin/statistics');
+      setAdminStatistics(response.data);
+    } catch (error: any) {
+      console.error('Error fetching admin statistics:', error);
+      // Don't show error toast for admin statistics failures (non-critical feature)
+    } finally {
+      setAdminStatisticsLoading(false);
+    }
+  };
+
   // Update cache statistics
   const updateCacheStats = () => {
     const stats = getCacheCounts();
@@ -285,6 +315,7 @@ export default function AdminControlPanelPage() {
     fetchStatistics();
     fetchAuditLog();
     fetchRoleStats();
+    fetchAdminStatistics();
     updateCacheStats(); // Update cache stats on mount
   }, []);
 
@@ -478,6 +509,18 @@ export default function AdminControlPanelPage() {
     }
   };
 
+  // NEW: Handle import success
+  const handleImportSuccess = async () => {
+    // Refresh all data after import
+    await Promise.all([
+      fetchStatistics(),
+      fetchAuditLog(),
+      fetchRoleStats(),
+    ]);
+    // Reload the page to reflect changes in page visibility
+    window.location.reload();
+  };
+
   // NEW: Initialize default permissions
   const handleInitializeDefaults = async () => {
     try {
@@ -598,6 +641,14 @@ export default function AdminControlPanelPage() {
             )}
             Initialize Defaults
           </Button>
+          <Button
+            onClick={() => setShowImportDialog(true)}
+            variant="outline"
+            className="gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            Import Config
+          </Button>
           <Button onClick={handleExportConfig} variant="outline" className="gap-2">
             <Download className="h-4 w-4" />
             Export Config
@@ -707,14 +758,26 @@ export default function AdminControlPanelPage() {
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="global" className="gap-2">
                 <Settings className="h-4 w-4" />
                 <span className="hidden sm:inline">Global</span>
               </TabsTrigger>
+              <TabsTrigger value="analytics" className="gap-2">
+                <TrendingUp className="h-4 w-4" />
+                <span className="hidden sm:inline">Analytics</span>
+              </TabsTrigger>
+              <TabsTrigger value="users" className="gap-2">
+                <UserCog className="h-4 w-4" />
+                <span className="hidden sm:inline">Users</span>
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="gap-2">
+                <Wrench className="h-4 w-4" />
+                <span className="hidden sm:inline">Settings</span>
+              </TabsTrigger>
               <TabsTrigger value="core" className="gap-2">
                 <Shield className="h-4 w-4" />
-                <span className="hidden sm:inline">Core Roles</span>
+                <span className="hidden sm:inline">Core</span>
                 <Badge variant="secondary" className="ml-1 hidden md:inline-flex">
                   {groupedRoles.core.length}
                 </Badge>
@@ -734,6 +797,53 @@ export default function AdminControlPanelPage() {
                 </Badge>
               </TabsTrigger>
             </TabsList>
+
+            {/* Analytics Tab */}
+            <TabsContent value="analytics" className="space-y-6 mt-6">
+              {/* System Statistics Dashboard */}
+              {adminStatistics && (
+                <SystemStatsDashboard
+                  statistics={adminStatistics}
+                  loading={adminStatisticsLoading}
+                />
+              )}
+
+              {/* Role Statistics Chart */}
+              {roleStats.length > 0 && (
+                <RoleStatsChart data={roleStats} loading={roleStatsLoading} />
+              )}
+
+              {/* Audit Activity Chart */}
+              {auditLog.length > 0 && (
+                <AuditActivityChart logs={auditLog} loading={auditLogLoading} />
+              )}
+
+              {/* No Data Message */}
+              {!adminStatisticsLoading && !roleStatsLoading && !auditLogLoading &&
+                (!adminStatistics || roleStats.length === 0) && (
+                  <Card>
+                    <CardContent className="py-12">
+                      <div className="text-center text-muted-foreground">
+                        <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p>No analytics data available yet.</p>
+                        <p className="text-sm mt-2">
+                          Data will appear as the system is used and configured.
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+            </TabsContent>
+
+            {/* User Management Tab */}
+            <TabsContent value="users" className="space-y-6 mt-6">
+              <UserManagementPanel />
+            </TabsContent>
+
+            {/* System Settings Tab */}
+            <TabsContent value="settings" className="space-y-6 mt-6">
+              <SystemSettingsPanel />
+            </TabsContent>
 
             {/* Global Tab */}
             <TabsContent value="global" className="space-y-6 mt-6">
@@ -1508,6 +1618,13 @@ export default function AdminControlPanelPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Import Config Dialog */}
+      <ImportConfigDialog
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
+        onSuccess={handleImportSuccess}
+      />
     </div>
   );
 }

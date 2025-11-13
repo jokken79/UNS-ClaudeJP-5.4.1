@@ -14,7 +14,7 @@ from datetime import datetime
 import json
 
 from app.core.database import get_db
-from app.models.models import PageVisibility, SystemSettings, User
+from app.models.models import PageVisibility, SystemSettings, User, RolePagePermission, AdminActionType, ResourceType
 from app.api.deps import get_current_user, require_admin
 from app.services.audit_service import AuditService
 from pydantic import BaseModel
@@ -72,6 +72,17 @@ class BulkPageToggle(BaseModel):
 
 class MaintenanceModeRequest(BaseModel):
     enabled: bool
+
+class RoleStatsResponse(BaseModel):
+    role_key: str
+    role_name: str
+    total_pages: int
+    enabled_pages: int
+    disabled_pages: int
+    percentage: float
+
+    class Config:
+        from_attributes = True
 
 # ============================================
 # ENDPOINTS - PAGE VISIBILITY
@@ -248,10 +259,13 @@ async def get_system_setting(
 
     return setting
 
+class SystemSettingUpdate(BaseModel):
+    value: str
+
 @router.put("/settings/{setting_key}", response_model=SystemSettingResponse)
 async def update_system_setting(
     setting_key: str,
-    value: str,
+    setting_data: SystemSettingUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin)
 ):
@@ -262,7 +276,7 @@ async def update_system_setting(
     if not setting:
         raise HTTPException(status_code=404, detail="Configuración no encontrada")
 
-    setting.value = value
+    setting.value = setting_data.value
     setting.updated_at = datetime.utcnow()
 
     db.commit()
@@ -327,11 +341,33 @@ async def get_admin_statistics(
 ):
     """
     Obtener estadísticas del panel de administración
+
+    Returns comprehensive system statistics including:
+    - Page counts (total, enabled, disabled)
+    - User counts (total, active)
+    - Candidate, employee, and factory counts
+    - Maintenance mode status
+    - Recent changes
     """
+    from app.models.models import Candidate, Employee, Factory
+
     # Count pages
-    total_pages = db.query(func.count(PageVisibility.id)).scalar()
-    enabled_pages = db.query(func.count(PageVisibility.id)).filter(PageVisibility.is_enabled == True).scalar()
+    total_pages = db.query(func.count(PageVisibility.id)).scalar() or 0
+    enabled_pages = db.query(func.count(PageVisibility.id)).filter(PageVisibility.is_enabled == True).scalar() or 0
     disabled_pages = total_pages - enabled_pages
+
+    # Count users
+    total_users = db.query(func.count(User.id)).scalar() or 0
+    active_users = db.query(func.count(User.id)).filter(User.is_active == True).scalar() or 0
+
+    # Count candidates
+    total_candidates = db.query(func.count(Candidate.id)).scalar() or 0
+
+    # Count employees
+    total_employees = db.query(func.count(Employee.id)).scalar() or 0
+
+    # Count factories
+    total_factories = db.query(func.count(Factory.id)).scalar() or 0
 
     # Get settings
     maintenance_mode = db.query(SystemSettings).filter(SystemSettings.key == "maintenance_mode").first()
@@ -356,7 +392,16 @@ async def get_admin_statistics(
         "system": {
             "maintenance_mode": maintenance_enabled,
             "recent_changes_24h": recent_changes
-        }
+        },
+        # New fields for SystemSettingsPanel
+        "total_users": total_users,
+        "active_users": active_users,
+        "total_candidates": total_candidates,
+        "total_employees": total_employees,
+        "total_factories": total_factories,
+        "maintenance_mode": maintenance_enabled,
+        "database_size": None,  # TODO: Implement database size calculation
+        "uptime": None  # TODO: Implement uptime calculation
     }
 
 # ============================================
@@ -442,6 +487,96 @@ async def import_configuration(
         "imported_pages": imported_pages,
         "imported_settings": imported_settings
     }
+
+# ============================================
+# ENDPOINTS - ROLE STATISTICS
+# ============================================
+
+@router.get("/role-stats", response_model=List[RoleStatsResponse])
+async def get_role_stats(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """
+    Get statistics for all roles showing page permission counts
+
+    Returns statistics for each role including:
+    - Total pages available
+    - Enabled pages count
+    - Disabled pages count
+    - Percentage of enabled pages
+
+    Only ADMIN/SUPER_ADMIN users can access this endpoint
+    """
+    # Define all available roles with their display names
+    AVAILABLE_ROLES = [
+        {"key": "SUPER_ADMIN", "name": "Super Administrator"},
+        {"key": "ADMIN", "name": "Administrator"},
+        {"key": "COORDINATOR", "name": "Coordinator"},
+        {"key": "KANRININSHA", "name": "Manager"},
+        {"key": "EMPLOYEE", "name": "Employee"},
+        {"key": "CONTRACT_WORKER", "name": "Contract Worker"},
+        {"key": "KEITOSAN", "name": "Finance Manager"},
+        {"key": "TANTOSHA", "name": "Representative"},
+    ]
+
+    # Query permissions grouped by role
+    from sqlalchemy import case
+
+    stats_query = db.query(
+        RolePagePermission.role_key,
+        func.count(RolePagePermission.id).label('total_pages'),
+        func.sum(case((RolePagePermission.is_enabled == True, 1), else_=0)).label('enabled_pages'),
+        func.sum(case((RolePagePermission.is_enabled == False, 1), else_=0)).label('disabled_pages')
+    ).group_by(RolePagePermission.role_key).all()
+
+    # Create a dictionary for quick lookup
+    stats_dict = {
+        row.role_key: {
+            'total_pages': row.total_pages or 0,
+            'enabled_pages': row.enabled_pages or 0,
+            'disabled_pages': row.disabled_pages or 0
+        }
+        for row in stats_query
+    }
+
+    # Build response for all roles
+    result = []
+    for role in AVAILABLE_ROLES:
+        role_key = role['key']
+        stats = stats_dict.get(role_key, {'total_pages': 0, 'enabled_pages': 0, 'disabled_pages': 0})
+
+        total = stats['total_pages']
+        enabled = stats['enabled_pages']
+        disabled = stats['disabled_pages']
+        percentage = round((enabled / total * 100), 2) if total > 0 else 0.0
+
+        result.append(RoleStatsResponse(
+            role_key=role_key,
+            role_name=role['name'],
+            total_pages=total,
+            enabled_pages=enabled,
+            disabled_pages=disabled,
+            percentage=percentage
+        ))
+
+    # Log the statistics access in audit log (for security monitoring)
+    AuditService._create_audit_log(
+        db=db,
+        admin_id=current_user.id,
+        action_type=AdminActionType.SYSTEM_SETTINGS,
+        resource_type=ResourceType.SYSTEM,
+        resource_key="role_stats",
+        previous_value=None,
+        new_value=None,
+        description=f"Admin '{current_user.username}' viewed role statistics",
+        ip_address=get_client_ip(request),
+        user_agent=get_user_agent(request),
+        metadata={"action": "view_role_stats", "roles_count": len(result)}
+    )
+
+    return result
 
 # ============================================
 # NOTE: PageVisibility CRUD endpoints removed

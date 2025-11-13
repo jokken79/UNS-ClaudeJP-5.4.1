@@ -780,14 +780,33 @@ export interface RoleStatsResponse {
   percentage: number;
 }
 
+export interface ImportConfigRequest {
+  pages?: Array<{
+    page_key: string;
+    page_name: string;
+    is_enabled: boolean;
+    disabled_message?: string;
+  }>;
+  settings?: Array<{
+    key: string;
+    value: string;
+  }>;
+}
+
+export interface ImportConfigResponse {
+  success?: boolean;
+  message: string;
+  imported_at: string;
+  imported_pages: number;
+  imported_settings: number;
+}
+
 export const adminControlPanelService = {
   /**
    * Get recent audit log entries
    */
   getRecentAuditLog: async (limit: number = 10): Promise<AuditLogEntry[]> => {
-    const response = await api.get<AuditLogEntry[]>('/admin/audit-log/recent', {
-      params: { limit },
-    });
+    const response = await api.get<AuditLogEntry[]>(`/admin/audit-log/recent/${limit}`);
     return response.data;
   },
 
@@ -804,6 +823,178 @@ export const adminControlPanelService = {
    */
   getRoleStats: async (): Promise<RoleStatsResponse[]> => {
     const response = await api.get<RoleStatsResponse[]>('/admin/role-stats');
+    return response.data;
+  },
+
+  /**
+   * Import configuration (pages and settings)
+   */
+  importConfiguration: async (config: ImportConfigRequest): Promise<ImportConfigResponse> => {
+    const response = await api.post<ImportConfigResponse>('/admin/import-config', config);
+    return response.data;
+  },
+};
+
+// =============================================================================
+// USER MANAGEMENT SERVICES (ADMIN)
+// =============================================================================
+
+export interface UserManagementUser {
+  id: number;
+  username: string;
+  email: string;
+  full_name?: string;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface CreateUserRequest {
+  username: string;
+  email: string;
+  password: string;
+  full_name?: string;
+  role: string;
+}
+
+export interface UpdateUserRequest {
+  username?: string;
+  email?: string;
+  full_name?: string;
+  role?: string;
+  is_active?: boolean;
+}
+
+export interface ResetPasswordRequest {
+  new_password: string;
+}
+
+export interface UserListParams {
+  skip?: number;
+  limit?: number;
+  search?: string;
+  role?: string;
+  is_active?: boolean;
+}
+
+export const userManagementService = {
+  /**
+   * List all users with optional filters
+   */
+  getUsers: async (params?: UserListParams): Promise<UserManagementUser[]> => {
+    const response = await api.get<UserManagementUser[]>('/auth/users', { params });
+    return response.data;
+  },
+
+  /**
+   * Get single user by ID
+   */
+  getUser: async (userId: number): Promise<UserManagementUser> => {
+    const response = await api.get<UserManagementUser>(`/auth/users/${userId}`);
+    return response.data;
+  },
+
+  /**
+   * Create new user (register)
+   */
+  createUser: async (userData: CreateUserRequest): Promise<UserManagementUser> => {
+    const response = await api.post<UserManagementUser>('/auth/register', userData);
+    return response.data;
+  },
+
+  /**
+   * Update user information (admin)
+   */
+  updateUser: async (userId: number, userData: UpdateUserRequest): Promise<UserManagementUser> => {
+    const response = await api.put<UserManagementUser>(`/auth/users/${userId}`, userData);
+    return response.data;
+  },
+
+  /**
+   * Delete user (super admin only)
+   */
+  deleteUser: async (userId: number): Promise<void> => {
+    await api.delete(`/auth/users/${userId}`);
+  },
+
+  /**
+   * Reset user password (admin)
+   */
+  resetPassword: async (userId: number, passwordData: ResetPasswordRequest): Promise<void> => {
+    await api.post(`/auth/users/${userId}/reset-password`, passwordData);
+  },
+};
+
+// =============================================================================
+// SYSTEM SETTINGS SERVICES (ADMIN)
+// =============================================================================
+
+export interface SystemSetting {
+  id: number;
+  key: string;
+  value: string | null;
+  description: string | null;
+  updated_at: string;
+  // Extended for frontend
+  setting_type?: 'string' | 'boolean' | 'integer' | 'enum';
+  allowed_values?: string[];
+}
+
+export interface MaintenanceMode {
+  enabled: boolean;
+  message?: string;
+}
+
+export interface AdminStatistics {
+  total_users: number;
+  active_users: number;
+  total_candidates: number;
+  total_employees: number;
+  total_factories: number;
+  maintenance_mode: boolean;
+  database_size?: string;
+  uptime?: string;
+}
+
+export const systemSettingsService = {
+  /**
+   * Get all system settings
+   */
+  getAllSettings: async (): Promise<SystemSetting[]> => {
+    const response = await api.get<SystemSetting[]>('/admin/settings');
+    return response.data;
+  },
+
+  /**
+   * Get single setting by key
+   */
+  getSetting: async (settingKey: string): Promise<SystemSetting> => {
+    const response = await api.get<SystemSetting>(`/admin/settings/${settingKey}`);
+    return response.data;
+  },
+
+  /**
+   * Update setting value
+   */
+  updateSetting: async (settingKey: string, value: any): Promise<SystemSetting> => {
+    const response = await api.put<SystemSetting>(`/admin/settings/${settingKey}`, { value });
+    return response.data;
+  },
+
+  /**
+   * Toggle maintenance mode
+   */
+  toggleMaintenanceMode: async (enabled: boolean): Promise<MaintenanceMode> => {
+    const response = await api.post<MaintenanceMode>('/admin/maintenance-mode', { enabled });
+    return response.data;
+  },
+
+  /**
+   * Get admin statistics
+   */
+  getStatistics: async (): Promise<AdminStatistics> => {
+    const response = await api.get<AdminStatistics>('/admin/statistics');
     return response.data;
   },
 };
