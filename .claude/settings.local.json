@@ -25,7 +25,15 @@
       "Bash(docker stop:*)",
       "Bash(findstr:*)",
       "Bash(ping:*)",
-      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc2Mjk3NTI2MywiaWF0IjoxNzYyOTQ2NDYzLCJuYmYiOjE3NjI5NDY0NjMsImlzcyI6InVucy1jbGF1ZGVqcCIsImF1ZCI6InVucy1jbGF1ZGVqcDo6YXBpIiwianRpIjoiYjZlMTgwYzMtNTA0ZS00NGVmLTljNzEtZmJkNmNlMDY4ZmIzIiwidHlwZSI6ImFjY2VzcyJ9.iZ9DrAzWUyZpKHBk-Q1MFekTXhpNG0AlJF30nvvO2qQ\")"
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc2Mjk3NTI2MywiaWF0IjoxNzYyOTQ2NDYzLCJuYmYiOjE3NjI5NDY0NjMsImlzcyI6InVucy1jbGF1ZGVqcCIsImF1ZCI6InVucy1jbGF1ZGVqcDo6YXBpIiwianRpIjoiYjZlMTgwYzMtNTA0ZS00NGVmLTljNzEtZmJkNmNlMDY4ZmIzIiwidHlwZSI6ImFjY2VzcyJ9.iZ9DrAzWUyZpKHBk-Q1MFekTXhpNG0AlJF30nvvO2qQ\")",
+      "Bash(wmic process:*)",
+      "Bash(dir /B *.txt *.md 2)",
+      "Bash(dir:*)",
+      "Bash(docker system prune:*)",
+      "Bash(docker builder prune:*)",
+      "Bash(del \"backend\\alembic\\versions\\2025_11_11_1200_add_photo_sync_trigger.py.DISABLED\")",
+      "Bash(del \"backend\\alembic\\versions\\2025_11_11_1600_add_nyuusha_renrakuhyo_fields.py.DISABLED\")",
+      "Bash(cd:*)"
     ],
     "deny": [],
     "ask": []

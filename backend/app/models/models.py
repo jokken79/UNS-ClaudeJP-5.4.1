@@ -437,8 +437,8 @@ class Document(Base):
     uploaded_by = Column(Integer, ForeignKey("users.id"))
 
     # Relationships
-    candidate = relationship("Candidate", back_populates="documents", foreign_keys=[candidate_id])
-    employee = relationship("Employee", back_populates="documents", foreign_keys=[employee_id])
+    candidate = relationship("Candidate", back_populates="documents", foreign_keys=["Document.candidate_id"])
+    employee = relationship("Employee", back_populates="documents", foreign_keys=["Document.employee_id"])
 
 
 class Factory(Base, SoftDeleteMixin):
@@ -685,19 +685,19 @@ class Employee(Base, SoftDeleteMixin, EmployeeBaseMixin):
     candidate = relationship(
         "Candidate",
         back_populates="employees",
-        foreign_keys=[rirekisho_id],
+        foreign_keys=["Employee.rirekisho_id"],
         primaryjoin="Employee.rirekisho_id==Candidate.rirekisho_id"
     )
-    factory = relationship("Factory", back_populates="employees", foreign_keys=[factory_id])
+    factory = relationship("Factory", back_populates="employees", foreign_keys=["Employee.factory_id"])
     apartment = relationship("Apartment", back_populates="employees")
     workplace = relationship("Workplace", back_populates="employees")
-    documents = relationship("Document", back_populates="employee", foreign_keys="Document.employee_id")
+    documents = relationship("Document", back_populates="employee", foreign_keys=["Document.employee_id"])
     timer_cards = relationship("TimerCard", back_populates="employee")
     salary_calculations = relationship("SalaryCalculation", back_populates="employee")
     requests = relationship("Request", back_populates="employee")
     contracts = relationship("Contract", back_populates="employee")
     current_region = relationship("Region", back_populates="employees")
-    current_factory_ref = relationship("Factory", foreign_keys=[current_factory_id])
+    current_factory_ref = relationship("Factory", foreign_keys=["Employee.current_factory_id"])
     current_department = relationship("Department", back_populates="employees")
     residence_type = relationship("ResidenceType", back_populates="employees")
     residence_status = relationship("ResidenceStatus", back_populates="employees")
@@ -812,8 +812,8 @@ class TimerCard(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    employee = relationship("Employee", foreign_keys=[hakenmoto_id], back_populates="timer_cards")
-    approver = relationship("User", foreign_keys=[approved_by])
+    employee = relationship("Employee", foreign_keys=["TimerCard.hakenmoto_id"], back_populates="timer_cards")
+    approver = relationship("User", foreign_keys=["TimerCard.approved_by"])
 
 
 class SalaryCalculation(Base):
@@ -886,8 +886,8 @@ class Request(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    employee = relationship("Employee", foreign_keys=[hakenmoto_id], back_populates="requests")
-    candidate = relationship("Candidate", foreign_keys=[candidate_id], back_populates="requests")
+    employee = relationship("Employee", foreign_keys=["Request.hakenmoto_id"], back_populates="requests")
+    candidate = relationship("Candidate", foreign_keys=["Request.candidate_id"], back_populates="requests")
 
     @property
     def total_days(self):
@@ -958,7 +958,7 @@ class AdminAuditLog(Base):
 
     # Who made the change
     admin_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    admin_user = relationship("User", foreign_keys=[admin_user_id])
+    admin_user = relationship("User", foreign_keys=["AdminAuditLog.admin_user_id"])
 
     # What type of action
     action_type = Column(SQLEnum(AdminActionType), nullable=False, index=True)
@@ -979,7 +979,7 @@ class AdminAuditLog(Base):
     description = Column(Text)
 
     # Additional metadata
-    metadata = Column(JSONB)  # For additional context (e.g., affected_count for bulk operations)
+    audit_metadata = Column(JSONB)  # For additional context (e.g., affected_count for bulk operations)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
@@ -1258,8 +1258,8 @@ class YukyuRequest(Base):
 
     # Relationships
     employee = relationship("Employee", backref="yukyu_requests")
-    requested_by = relationship("User", foreign_keys=[requested_by_user_id], backref="yukyu_requests_created")
-    approved_by = relationship("User", foreign_keys=[approved_by_user_id], backref="yukyu_requests_approved")
+    requested_by = relationship("User", foreign_keys=["YukyuRequest.requested_by_user_id"], backref="yukyu_requests_created")
+    approved_by = relationship("User", foreign_keys=["YukyuRequest.approved_by_user_id"], backref="yukyu_requests_approved")
     factory = relationship("Factory", backref="yukyu_requests")
     usage_details = relationship("YukyuUsageDetail", back_populates="request", cascade="all, delete-orphan")
 

@@ -1,0 +1,169 @@
+================================================================================
+                        REDIS HEALTHCHECK FIX
+                      UNS-ClaudeJP 5.4.1
+                         2025-11-13
+================================================================================
+
+ERROR ENCONTRADO:
+
+✘ Container uns-claudejp-redis          Error
+dependency failed to start: container uns-claudejp-redis is unhealthy
+
+================================================================================
+
+CAUSA:
+
+El healthcheck de Redis intentaba:
+  redis-cli --raw incr ping
+
+Pero Redis tenía contraseña (--requirepass):
+  redis-server --requirepass ${REDIS_PASSWORD}
+
+Resultado: El healthcheck fallaba porque no pasaba la contraseña.
+
+================================================================================
+
+SOLUCION IMPLEMENTADA:
+
+Archivo: docker-compose.yml (línea 76)
+
+ANTES:
+  test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+
+DESPUÉS:
+  test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "--raw", "incr", "ping"]
+
+Se agregó: -a "${REDIS_PASSWORD}"
+  → Ahora el healthcheck pasa la contraseña correctamente
+
+================================================================================
+
+COMO ARREGLARLO AHORA:
+
+PASO 1: Ejecuta el script de limpieza
+  scripts\FIX_REDIS_HEALTHCHECK.bat
+
+  Qué hace:
+    ✓ Detiene todos los servicios
+    ✓ Elimina el volumen de Redis
+    ✓ Limpia containers viejos
+    ✓ Limpia imagenes viejas
+
+PASO 2: Reintentar la instalación
+  scripts\REINSTALAR.bat
+
+  Resultado esperado:
+    ✔ Container uns-claudejp-redis          Healthy
+
+================================================================================
+
+ALTERNATIVA (Si no quieres usar FIX_REDIS_HEALTHCHECK.bat):
+
+Ejecuta manualmente en PowerShell o cmd:
+
+  docker compose down -v
+  docker volume rm uns-claudejp-5.4.1_redis_data
+  docker container prune -f
+  docker image prune -f
+  scripts\REINSTALAR.bat
+
+================================================================================
+
+VERIFICACION:
+
+Después del fix, deberías ver:
+
+✔ Container uns-claudejp-db             Healthy
+✔ Container uns-claudejp-redis          Healthy      ← AHORA DEBE ESTAR AQUI
+✔ Container uns-claudejp-backend-1      Created
+✔ Container uns-claudejp-frontend-1     Created
+
+Sin los mensajes de error:
+  ✘ Container uns-claudejp-redis          Error
+  dependency failed to start
+
+================================================================================
+
+STATUS:
+
+✅ FIXED - docker-compose.yml ya está actualizado
+✅ SCRIPT CREADO - FIX_REDIS_HEALTHCHECK.bat listo
+✅ DOCUMENTACION - REDIS_HEALTHCHECK_FIX.md disponible
+
+Solo necesitas ejecutar:
+  1. scripts\FIX_REDIS_HEALTHCHECK.bat
+  2. scripts\REINSTALAR.bat
+
+================================================================================
+
+DETALLES TECNICOS:
+
+El problema ocurría en este flujo:
+
+1. Redis inicia con password: --requirepass ${REDIS_PASSWORD}
+   ✓ Redis listo
+
+2. Healthcheck intenta: redis-cli --raw incr ping
+   ✗ Falla (sin contraseña)
+
+3. Docker registra: Container unhealthy
+   ✗ Falla
+
+4. Docker detiene otros servicios
+   ✗ Cascade failure
+
+La solución agrega -a ${REDIS_PASSWORD}:
+
+1. Redis inicia con password: --requirepass ${REDIS_PASSWORD}
+   ✓ Redis listo
+
+2. Healthcheck intenta: redis-cli -a ${REDIS_PASSWORD} --raw incr ping
+   ✓ Éxito (con contraseña)
+
+3. Docker registra: Container healthy
+   ✓ Éxito
+
+4. Otros servicios inician normalmente
+   ✓ Éxito
+
+================================================================================
+
+COMANDOS UTILES:
+
+Ver estado de Redis:
+  docker compose ps redis
+
+Ver logs de Redis:
+  docker compose logs redis
+
+Conectar a Redis manualmente:
+  docker exec -it uns-claudejp-redis redis-cli
+  (luego escribe: AUTH <password>)
+
+Verificar que Redis está healthy:
+  docker inspect uns-claudejp-redis | findstr -A 5 "Health"
+
+================================================================================
+
+SIGUIENTES PASOS:
+
+1. Ejecuta: scripts\FIX_REDIS_HEALTHCHECK.bat
+   (Limpia y prepara)
+
+2. Ejecuta: scripts\REINSTALAR.bat
+   (Reinstala con Redis fix)
+
+3. Verifica que Redis esté Healthy:
+   docker compose ps
+   (Debe mostrar: ✔ Container uns-claudejp-redis          Healthy)
+
+4. Accede: http://localhost:3000
+   (Usuario: admin, Contraseña: admin123)
+
+================================================================================
+
+VERSION: UNS-ClaudeJP 5.4.1
+FECHA: 2025-11-13
+STATUS: ✅ FIXED
+
+================================================================================

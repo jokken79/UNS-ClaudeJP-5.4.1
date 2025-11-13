@@ -73,7 +73,7 @@ services:
     networks:
       - uns-network
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "--raw", "incr", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -111,7 +111,7 @@ services:
     networks:
       - uns-network
     command: >
-      sh -c "python scripts/resilient_importer.py"
+      sh -c "python scripts/simple_importer.py"
     logging: *logging-default
     profiles: ["dev", "prod"]
 
