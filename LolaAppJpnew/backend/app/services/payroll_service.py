@@ -22,6 +22,7 @@ For NIGHT OVERTIME (働き過ぎ深夜, 22:00-06:00 beyond regular hours):
 - TODO: Add 'night_overtime_hours' category with 1.5 multiplier (base × 0.50 premium)
 
 Reference: Labor Standards Act Article 37 (割増賃金)
+"""
 
 from datetime import date
 from typing import Dict, Any, Optional, List
