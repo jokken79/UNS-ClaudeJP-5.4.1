@@ -33,7 +33,13 @@
       "Bash(docker builder prune:*)",
       "Bash(del \"backend\\alembic\\versions\\2025_11_11_1200_add_photo_sync_trigger.py.DISABLED\")",
       "Bash(del \"backend\\alembic\\versions\\2025_11_11_1600_add_nyuusha_renrakuhyo_fields.py.DISABLED\")",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(DOCKER_BUILDKIT=1 docker compose build:*)",
+      "Bash(export DOCKER_BUILDKIT=1:*)",
+      "Bash(paste:*)",
+      "Bash(for f in 642bced75435_*.py 43b6cf501eed_*.py 2025_11_12_1900_add_tax_rates_*.py)",
+      "Bash(do mv \"$f\" \"$f.DISABLED\")",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

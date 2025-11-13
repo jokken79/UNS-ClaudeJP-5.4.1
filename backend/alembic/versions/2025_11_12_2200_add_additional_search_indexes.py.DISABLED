@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_additional_indexes'
-down_revision = '2025_11_12_2015_add_timer_card_consistency_triggers'
+down_revision = '2025_11_12_2100'
 branch_labels = None
 depends_on = None
 

@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = 'add_timer_cards_indexes'
-down_revision = 'add_tax_rates_payroll'
+down_revision = 'add_search_indexes'
 branch_labels = None
 depends_on = None
 

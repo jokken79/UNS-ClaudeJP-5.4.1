@@ -39,13 +39,7 @@ def upgrade():
     """)
 
     # Regular B-tree index for rirekisho_id search (already exists, but ensure)
-    op.create_index(
-        'idx_candidate_rirekisho_id',
-        'candidates',
-        ['rirekisho_id'],
-        unique=False,
-        postgresql_if_not_exists=True
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_candidate_rirekisho_id ON candidates(rirekisho_id)")
 
     # Index for status filtering (excluding deleted)
     op.execute("""
@@ -55,31 +49,13 @@ def upgrade():
     """)
 
     # Index for date of birth (for age calculations and filtering)
-    op.create_index(
-        'idx_candidate_date_of_birth',
-        'candidates',
-        ['date_of_birth'],
-        unique=False,
-        postgresql_if_not_exists=True
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_candidate_date_of_birth ON candidates(date_of_birth)")
 
     # Index for email (for duplicate checking)
-    op.create_index(
-        'idx_candidate_email',
-        'candidates',
-        ['email'],
-        unique=False,
-        postgresql_if_not_exists=True
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_candidate_email ON candidates(email)")
 
     # Composite index for duplicate detection (name + birthdate)
-    op.create_index(
-        'idx_candidate_name_birthdate',
-        'candidates',
-        ['full_name_kanji', 'date_of_birth'],
-        unique=False,
-        postgresql_if_not_exists=True
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_candidate_name_birthdate ON candidates(full_name_kanji, date_of_birth)")
 
     # Indexes for employees table
 
@@ -90,31 +66,13 @@ def upgrade():
     """)
 
     # Index for rirekisho_id (for relationship lookups)
-    op.create_index(
-        'idx_employee_rirekisho_id',
-        'employees',
-        ['rirekisho_id'],
-        unique=False,
-        postgresql_if_not_exists=True
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_employee_rirekisho_id ON employees(rirekisho_id)")
 
     # Index for factory_id (for filtering by factory)
-    op.create_index(
-        'idx_employee_factory_id',
-        'employees',
-        ['factory_id'],
-        unique=False,
-        postgresql_if_not_exists=True
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_employee_factory_id ON employees(factory_id)")
 
     # Index for hakenmoto_id (employee number)
-    op.create_index(
-        'idx_employee_hakenmoto_id',
-        'employees',
-        ['hakenmoto_id'],
-        unique=True,
-        postgresql_if_not_exists=True
-    )
+    op.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_hakenmoto_id ON employees(hakenmoto_id)")
 
 
 def downgrade():

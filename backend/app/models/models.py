@@ -391,16 +391,15 @@ class Candidate(Base, SoftDeleteMixin):
     approved_at = Column(DateTime(timezone=True))
 
     # Relationships
-    documents = relationship("Document", back_populates="candidate", foreign_keys="Document.candidate_id")
+    documents = relationship("Document", back_populates="candidate")
     form_submissions = relationship("CandidateForm", back_populates="candidate", cascade="all, delete-orphan")
     employees = relationship(
         "Employee",
         back_populates="candidate",
-        foreign_keys="Employee.rirekisho_id",
         primaryjoin="Candidate.rirekisho_id==Employee.rirekisho_id",
         cascade="all, delete-orphan"
     )
-    requests = relationship("Request", foreign_keys="Request.candidate_id", back_populates="candidate")
+    requests = relationship("Request", back_populates="candidate")
 
 
 class CandidateForm(Base):
@@ -437,8 +436,8 @@ class Document(Base):
     uploaded_by = Column(Integer, ForeignKey("users.id"))
 
     # Relationships
-    candidate = relationship("Candidate", back_populates="documents", foreign_keys=["Document.candidate_id"])
-    employee = relationship("Employee", back_populates="documents", foreign_keys=["Document.employee_id"])
+    candidate = relationship("Candidate", back_populates="documents")
+    employee = relationship("Employee", back_populates="documents")
 
 
 class Factory(Base, SoftDeleteMixin):
@@ -458,8 +457,8 @@ class Factory(Base, SoftDeleteMixin):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    employees = relationship("Employee", back_populates="factory", foreign_keys="[Employee.factory_id]")
-    contract_workers = relationship("ContractWorker", back_populates="factory", foreign_keys="[ContractWorker.factory_id]")
+    employees = relationship("Employee", back_populates="factory", primaryjoin="Factory.factory_id==foreign(Employee.factory_id)")
+    contract_workers = relationship("ContractWorker", back_populates="factory", primaryjoin="Factory.factory_id==foreign(ContractWorker.factory_id)")
     apartment_associations = relationship("ApartmentFactory", back_populates="factory", cascade="all, delete-orphan")
 
 
@@ -685,19 +684,18 @@ class Employee(Base, SoftDeleteMixin, EmployeeBaseMixin):
     candidate = relationship(
         "Candidate",
         back_populates="employees",
-        foreign_keys=["Employee.rirekisho_id"],
         primaryjoin="Employee.rirekisho_id==Candidate.rirekisho_id"
     )
-    factory = relationship("Factory", back_populates="employees", foreign_keys=["Employee.factory_id"])
+    factory = relationship("Factory", back_populates="employees", primaryjoin="Employee.factory_id==Factory.factory_id")
     apartment = relationship("Apartment", back_populates="employees")
     workplace = relationship("Workplace", back_populates="employees")
-    documents = relationship("Document", back_populates="employee", foreign_keys=["Document.employee_id"])
+    documents = relationship("Document", back_populates="employee")
     timer_cards = relationship("TimerCard", back_populates="employee")
     salary_calculations = relationship("SalaryCalculation", back_populates="employee")
     requests = relationship("Request", back_populates="employee")
     contracts = relationship("Contract", back_populates="employee")
     current_region = relationship("Region", back_populates="employees")
-    current_factory_ref = relationship("Factory", foreign_keys=["Employee.current_factory_id"])
+    current_factory_ref = relationship("Factory", primaryjoin="Employee.current_factory_id==Factory.id")
     current_department = relationship("Department", back_populates="employees")
     residence_type = relationship("ResidenceType", back_populates="employees")
     residence_status = relationship("ResidenceStatus", back_populates="employees")
@@ -812,8 +810,8 @@ class TimerCard(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    employee = relationship("Employee", foreign_keys=["TimerCard.hakenmoto_id"], back_populates="timer_cards")
-    approver = relationship("User", foreign_keys=["TimerCard.approved_by"])
+    employee = relationship("Employee", back_populates="timer_cards")
+    approver = relationship("User")
 
 
 class SalaryCalculation(Base):
@@ -886,8 +884,8 @@ class Request(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    employee = relationship("Employee", foreign_keys=["Request.hakenmoto_id"], back_populates="requests")
-    candidate = relationship("Candidate", foreign_keys=["Request.candidate_id"], back_populates="requests")
+    employee = relationship("Employee", back_populates="requests")
+    candidate = relationship("Candidate", back_populates="requests")
 
     @property
     def total_days(self):
@@ -958,7 +956,7 @@ class AdminAuditLog(Base):
 
     # Who made the change
     admin_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    admin_user = relationship("User", foreign_keys=["AdminAuditLog.admin_user_id"])
+    admin_user = relationship("User")
 
     # What type of action
     action_type = Column(SQLEnum(AdminActionType), nullable=False, index=True)
@@ -1258,8 +1256,8 @@ class YukyuRequest(Base):
 
     # Relationships
     employee = relationship("Employee", backref="yukyu_requests")
-    requested_by = relationship("User", foreign_keys=["YukyuRequest.requested_by_user_id"], backref="yukyu_requests_created")
-    approved_by = relationship("User", foreign_keys=["YukyuRequest.approved_by_user_id"], backref="yukyu_requests_approved")
+    requested_by = relationship("User", backref="yukyu_requests_created", primaryjoin="YukyuRequest.requested_by_user_id==User.id", foreign_keys=[requested_by_user_id])
+    approved_by = relationship("User", backref="yukyu_requests_approved", primaryjoin="YukyuRequest.approved_by_user_id==User.id", foreign_keys=[approved_by_user_id])
     factory = relationship("Factory", backref="yukyu_requests")
     usage_details = relationship("YukyuUsageDetail", back_populates="request", cascade="all, delete-orphan")
 
