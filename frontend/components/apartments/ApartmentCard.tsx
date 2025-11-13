@@ -9,45 +9,45 @@ import {
   UserGroupIcon,
   EyeIcon,
   PencilIcon,
+  UserPlusIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import type { ApartmentWithStats } from '@/types/apartments-v2';
 
 interface ApartmentCardProps {
-  apartment: {
-    id: number;
-    apartment_code: string;
-    address: string;
-    monthly_rent: number;
-    capacity: number;
-    employees_count: number;
-    occupancy_rate: number;
-    status: 'disponible' | 'parcial' | 'lleno';
-  };
+  apartment: ApartmentWithStats;
   onView?: (id: number) => void;
   onEdit?: (id: number) => void;
+  onAssign?: (id: number) => void;
+  onDelete?: (id: number) => void;
 }
 
-export function ApartmentCard({ apartment, onView, onEdit }: ApartmentCardProps) {
+export function ApartmentCard({ apartment, onView, onEdit, onAssign, onDelete }: ApartmentCardProps) {
   const router = useRouter();
 
+  // Determine availability status
+  const getAvailabilityStatus = () => {
+    if (!apartment.is_available) return 'full';
+    if (apartment.occupancy_rate === 0) return 'available';
+    return 'partial';
+  };
+
+  const availabilityStatus = getAvailabilityStatus();
+
   // Status badge component
-  const StatusBadge = ({ status }: { status: string }) => {
-    const styles = {
-      disponible: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-      parcial: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
-      lleno: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+  const StatusBadge = () => {
+    const variants = {
+      available: { label: 'Disponible', variant: 'default' as const },
+      partial: { label: 'Parcial', variant: 'secondary' as const },
+      full: { label: 'Lleno', variant: 'destructive' as const },
     };
 
-    const labels = {
-      disponible: 'Disponible',
-      parcial: 'Parcial',
-      lleno: 'Lleno',
-    };
+    const { label, variant } = variants[availabilityStatus];
 
-    return (
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${styles[status as keyof typeof styles]}`}>
-        {labels[status as keyof typeof labels]}
-      </span>
-    );
+    return <Badge variant={variant}>{label}</Badge>;
   };
 
   const handleView = () => {
@@ -66,80 +66,149 @@ export function ApartmentCard({ apartment, onView, onEdit }: ApartmentCardProps)
     }
   };
 
+  const handleAssign = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onAssign) {
+      onAssign(apartment.id);
+    } else {
+      router.push(`/apartment-assignments/create?apartmentId=${apartment.id}`);
+    }
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onDelete) {
+      onDelete(apartment.id);
+    }
+  };
+
+  // Format full address
+  const fullAddress = apartment.full_address ||
+    [apartment.prefecture, apartment.city, apartment.address_line1, apartment.address_line2]
+      .filter(Boolean)
+      .join(', ');
+
   return (
-    <div
-      className="border rounded-lg p-4 hover:shadow-lg transition-shadow cursor-pointer"
-      onClick={handleView}
-    >
-      {/* Header */}
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <h3 className="font-semibold text-lg">{apartment.apartment_code}</h3>
-          <p className="text-sm text-muted-foreground flex items-center gap-1">
-            <MapPinIcon className="h-4 w-4" />
-            {apartment.address}
-          </p>
+    <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={handleView}>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <BuildingOfficeIcon className="h-5 w-5 text-muted-foreground" />
+              <h3 className="font-semibold text-lg">{apartment.name}</h3>
+            </div>
+            {apartment.building_name && (
+              <p className="text-sm text-muted-foreground">
+                {apartment.building_name} {apartment.room_number}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+              <MapPinIcon className="h-3 w-3" />
+              {fullAddress}
+            </p>
+          </div>
+          <StatusBadge />
         </div>
-        <StatusBadge status={apartment.status} />
-      </div>
+      </CardHeader>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-2 mb-3 text-sm">
-        <div>
-          <span className="text-muted-foreground">Ocupación:</span>
-          <p className="font-medium flex items-center gap-1">
-            <UserGroupIcon className="h-4 w-4" />
-            {apartment.employees_count}/{apartment.capacity} ({apartment.occupancy_rate.toFixed(0)}%)
-          </p>
+      <CardContent className="space-y-4">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <span className="text-muted-foreground text-xs">Ocupación</span>
+            <p className="font-medium flex items-center gap-1 mt-1">
+              <UserGroupIcon className="h-4 w-4" />
+              {apartment.current_occupancy}/{apartment.max_occupancy} ({apartment.occupancy_rate.toFixed(0)}%)
+            </p>
+          </div>
+          <div>
+            <span className="text-muted-foreground text-xs">Renta Base</span>
+            <p className="font-medium flex items-center gap-1 mt-1">
+              <CurrencyYenIcon className="h-4 w-4" />
+              ¥{apartment.base_rent.toLocaleString()}
+            </p>
+          </div>
+          {apartment.total_monthly_cost && (
+            <div className="col-span-2">
+              <span className="text-muted-foreground text-xs">Costo Total Mensual</span>
+              <p className="font-medium mt-1">
+                ¥{apartment.total_monthly_cost.toLocaleString()}
+              </p>
+            </div>
+          )}
         </div>
-        <div>
-          <span className="text-muted-foreground">Renta:</span>
-          <p className="font-medium flex items-center gap-1">
-            <CurrencyYenIcon className="h-4 w-4" />
-            ¥{apartment.monthly_rent.toLocaleString()}
-          </p>
-        </div>
-      </div>
 
-      {/* Progress bar */}
-      <div className="mb-3">
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-          <div
-            className={`h-2 rounded-full ${
-              apartment.status === 'disponible'
-                ? 'bg-green-500'
-                : apartment.status === 'parcial'
-                ? 'bg-yellow-500'
-                : 'bg-red-500'
-            }`}
-            style={{ width: `${Math.min(apartment.occupancy_rate, 100)}%` }}
-          />
+        {/* Occupancy Progress Bar */}
+        <div>
+          <div className="w-full bg-secondary rounded-full h-2">
+            <div
+              className={`h-2 rounded-full transition-all ${
+                availabilityStatus === 'available'
+                  ? 'bg-green-500'
+                  : availabilityStatus === 'partial'
+                  ? 'bg-yellow-500'
+                  : 'bg-red-500'
+              }`}
+              style={{ width: `${Math.min(apartment.occupancy_rate, 100)}%` }}
+            />
+          </div>
         </div>
-      </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-2 pt-3 border-t">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleView();
-          }}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 text-sm border rounded hover:bg-accent transition-colors"
-        >
-          <EyeIcon className="h-4 w-4" />
-          Ver
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleEdit();
-          }}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 text-sm border rounded hover:bg-accent transition-colors"
-        >
-          <PencilIcon className="h-4 w-4" />
-          Editar
-        </button>
-      </div>
-    </div>
+        {/* Factory Info */}
+        {apartment.primary_factory && (
+          <div className="text-xs text-muted-foreground">
+            <span className="font-medium">Fábrica Principal:</span> {apartment.primary_factory.company_name}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 pt-2 border-t">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleView();
+            }}
+            className="flex-1"
+          >
+            <EyeIcon className="h-4 w-4 mr-1" />
+            Ver
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEdit();
+            }}
+            className="flex-1"
+          >
+            <PencilIcon className="h-4 w-4 mr-1" />
+            Editar
+          </Button>
+          {apartment.is_available && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleAssign}
+              className="flex-1"
+            >
+              <UserPlusIcon className="h-4 w-4 mr-1" />
+              Asignar
+            </Button>
+          )}
+          {onDelete && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDelete}
+            >
+              <TrashIcon className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

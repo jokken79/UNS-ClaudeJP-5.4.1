@@ -260,16 +260,54 @@ export interface TimerCardListParams extends PaginationParams {
 export interface SalaryCalculation {
   id: number;
   employee_id: number;
-  period_start: string;
-  period_end: string;
-  base_salary?: number;
-  overtime_pay?: number;
-  allowances?: number;
-  deductions?: number;
-  net_salary?: number;
+  employee_name?: string;
+  month: number;
+  year: number;
+
+  // Hours
+  regular_hours: number;
+  overtime_hours: number;
+  night_hours: number;
+  holiday_hours: number;
+  sunday_hours: number;
+  total_hours: number;
+
+  // Rates
+  regular_rate: number;
+  overtime_rate: number;
+  night_rate: number;
+  holiday_rate: number;
+  sunday_rate: number;
+
+  // Amounts
+  regular_amount: number;
+  overtime_amount: number;
+  night_amount: number;
+  holiday_amount: number;
+  sunday_amount: number;
+  bonus: number;
+  gasoline_allowance: number;
+
+  // Deductions
+  apartment_deduction: number;
+  income_tax: number;
+  resident_tax: number;
+  health_insurance: number;
+  pension: number;
+  employment_insurance: number;
+  other_deductions: number;
+
+  // Totals
+  gross_salary: number;
+  total_deductions: number;
+  net_salary: number;
+  company_profit: number;
+
+  // Status
+  is_paid: boolean;
+  paid_at?: string | null;
   created_at: string;
-  updated_at?: string;
-  [key: string]: any;
+  updated_at: string;
 }
 
 export interface SalaryCalculationCreateData {
@@ -284,8 +322,52 @@ export interface SalaryCalculationCreateData {
 
 export interface SalaryListParams extends PaginationParams {
   employee_id?: number;
+  month?: number;
+  year?: number;
+  is_paid?: boolean;
   period_start?: string;
   period_end?: string;
+}
+
+export interface SalaryReportFilters {
+  start_date?: string;
+  end_date?: string;
+  employee_ids?: number[];
+  factory_ids?: number[];
+  include_paid_only?: boolean;
+  include_unpaid?: boolean;
+}
+
+export interface SalaryReport {
+  total_employees: number;
+  total_gross_salary: number;
+  total_deductions: number;
+  total_net_salary: number;
+  average_salary: number;
+  payment_rate: number;
+  by_employee: SalaryCalculation[];
+  by_period: {
+    period: string;
+    total_employees: number;
+    gross_salary: number;
+    deductions: number;
+    net_salary: number;
+    paid_count: number;
+  }[];
+  by_factory: {
+    factory_id: number;
+    factory_name: string;
+    employee_count: number;
+    gross_salary: number;
+    deductions: number;
+    net_salary: number;
+    company_profit: number;
+  }[];
+  tax_analysis: {
+    type: string;
+    amount: number;
+    percentage: number;
+  }[];
 }
 
 export interface EmployeeData {

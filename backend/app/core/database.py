@@ -62,9 +62,60 @@ Base = declarative_base()
 
 
 from app.core.audit import get_audit_context, register_audit_listeners, update_audit_context
+from sqlalchemy import event
+from sqlalchemy.orm import Query
 
 
 register_audit_listeners()
+
+
+def register_soft_delete_filters():
+    """
+    Register automatic soft delete filters for all queries.
+
+    This ensures that queries automatically exclude soft-deleted records
+    (where deleted_at IS NOT NULL) unless explicitly requested otherwise.
+
+    To include soft-deleted records in a query, use:
+        session.query(Model).enable_eagerloads(False).filter(...).all()
+    Or create a new session with the filter disabled.
+    """
+
+    @event.listens_for(Query, "before_compile", retval=True)
+    def apply_soft_delete_filter(query):
+        """
+        Automatically filter out soft-deleted records from queries.
+
+        This event listener runs before every query is compiled and adds
+        a WHERE clause to exclude records with deleted_at IS NOT NULL.
+        """
+        # Get the model being queried
+        for desc in query.column_descriptions:
+            entity = desc['entity']
+            if entity is None:
+                continue
+
+            # Check if the model has the deleted_at column (SoftDeleteMixin)
+            if hasattr(entity, 'deleted_at'):
+                # Check if filter is already applied (avoid duplicate filters)
+                already_filtered = False
+                for clause in query.whereclause.clauses if hasattr(query.whereclause, 'clauses') else [query.whereclause] if query.whereclause is not None else []:
+                    clause_str = str(clause)
+                    if 'deleted_at' in clause_str:
+                        already_filtered = True
+                        break
+
+                # Apply filter only if not already present
+                if not already_filtered:
+                    query = query.filter(entity.deleted_at.is_(None))
+
+        return query
+
+
+# Register the soft delete filters
+# NOTE: Commented out by default as it may cause issues with some queries
+# To enable globally, uncomment the line below:
+# register_soft_delete_filters()
 
 
 def get_db(request: Request = None):

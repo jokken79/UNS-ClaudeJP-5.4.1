@@ -2,9 +2,13 @@
 Salary Calculation API Endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, extract
 from datetime import datetime
+from io import BytesIO
+import tempfile
+import os
 
 from app.core.database import get_db
 from app.core.config import settings
@@ -13,8 +17,14 @@ from app.schemas.salary import (
     SalaryCalculate, SalaryCalculationResponse, SalaryBulkCalculate,
     SalaryBulkResult, SalaryMarkPaid, SalaryStatistics
 )
+from app.schemas.salary_unified import (
+    SalaryUpdate, MarkSalaryPaidRequest, SalaryReportFilters,
+    SalaryExportResponse, SalaryReportResponse
+)
 from app.schemas.base import PaginatedResponse, create_paginated_response
 from app.services.auth_service import auth_service
+from app.services.salary_export_service import SalaryExportService
+from app.services.payslip_service import PayslipService
 
 router = APIRouter()
 
@@ -363,10 +373,10 @@ async def get_salary_statistics(
         SalaryCalculation.month == month,
         SalaryCalculation.year == year
     ).all()
-    
+
     if not salaries:
         raise HTTPException(status_code=404, detail="No salary data found for this month")
-    
+
     total_employees = len(salaries)
     total_gross = sum(s.gross_salary for s in salaries)
     total_net = sum(s.net_salary for s in salaries)
@@ -374,7 +384,7 @@ async def get_salary_statistics(
     total_revenue = sum(s.factory_payment for s in salaries)
     total_profit = sum(s.company_profit for s in salaries)
     avg_salary = total_net // total_employees if total_employees > 0 else 0
-    
+
     # Group by factory
     factory_stats = {}
     for salary in salaries:
@@ -391,7 +401,7 @@ async def get_salary_statistics(
             factory_stats[factory_id]["employees"] += 1
             factory_stats[factory_id]["total_salary"] += salary.net_salary
             factory_stats[factory_id]["total_profit"] += salary.company_profit
-    
+
     return SalaryStatistics(
         month=month,
         year=year,
@@ -404,3 +414,553 @@ async def get_salary_statistics(
         average_salary=avg_salary,
         factories=list(factory_stats.values())
     )
+
+
+@router.put("/{salary_id}", response_model=SalaryCalculationResponse)
+async def update_salary(
+    salary_id: int,
+    data: SalaryUpdate,
+    current_user: User = Depends(auth_service.require_role("admin")),
+    db: Session = Depends(get_db)
+):
+    """
+    Update an existing salary calculation.
+
+    Only allows updating bonus, gasoline_allowance, other_deductions, and notes.
+    Cannot update if salary is already paid (is_paid=True).
+
+    Args:
+        salary_id: ID of the salary calculation to update
+        data: Fields to update
+        current_user: Current authenticated admin user
+        db: Database session
+
+    Returns:
+        Updated salary calculation
+
+    Raises:
+        HTTPException 404: Salary calculation not found
+        HTTPException 400: Salary already paid or invalid data
+    """
+    # Get salary calculation
+    salary = db.query(SalaryCalculation).filter(SalaryCalculation.id == salary_id).first()
+
+    if not salary:
+        raise HTTPException(status_code=404, detail="Salary calculation not found")
+
+    # Check if already paid
+    if salary.is_paid:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot update salary that has already been paid"
+        )
+
+    # Update fields if provided
+    if data.bonus is not None:
+        salary.bonus = int(data.bonus)
+    if data.gasoline_allowance is not None:
+        salary.gasoline_allowance = int(data.gasoline_allowance)
+    if data.other_deductions is not None:
+        salary.other_deductions = int(data.other_deductions)
+    if data.notes is not None:
+        # Assuming there's a notes field in the model (if not, this will be skipped)
+        if hasattr(salary, 'notes'):
+            salary.notes = data.notes
+
+    # Recalculate gross and net salary
+    salary.gross_salary = (
+        salary.base_salary + salary.overtime_pay +
+        salary.night_pay + salary.holiday_pay +
+        salary.bonus + salary.gasoline_allowance
+    )
+    salary.net_salary = (
+        salary.gross_salary - salary.apartment_deduction -
+        salary.other_deductions
+    )
+
+    # Commit changes
+    try:
+        db.commit()
+        db.refresh(salary)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error updating salary: {str(e)}")
+
+    return salary
+
+
+@router.delete("/{salary_id}")
+async def delete_salary(
+    salary_id: int,
+    current_user: User = Depends(auth_service.require_role("admin")),
+    db: Session = Depends(get_db)
+):
+    """
+    Delete a salary calculation.
+
+    Cannot delete if salary has been paid (is_paid=True).
+
+    Args:
+        salary_id: ID of the salary calculation to delete
+        current_user: Current authenticated admin user
+        db: Database session
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException 404: Salary calculation not found
+        HTTPException 400: Salary already paid
+    """
+    # Get salary calculation
+    salary = db.query(SalaryCalculation).filter(SalaryCalculation.id == salary_id).first()
+
+    if not salary:
+        raise HTTPException(status_code=404, detail="Salary calculation not found")
+
+    # Check if already paid
+    if salary.is_paid:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete salary that has already been paid"
+        )
+
+    # Delete
+    try:
+        db.delete(salary)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error deleting salary: {str(e)}")
+
+    return {
+        "success": True,
+        "message": f"Salary calculation {salary_id} deleted successfully"
+    }
+
+
+@router.post("/{salary_id}/mark-paid", response_model=SalaryCalculationResponse)
+async def mark_salary_paid(
+    salary_id: int,
+    data: MarkSalaryPaidRequest,
+    current_user: User = Depends(auth_service.require_role("admin")),
+    db: Session = Depends(get_db)
+):
+    """
+    Mark a salary calculation as paid.
+
+    Updates is_paid=True and paid_at timestamp.
+
+    Args:
+        salary_id: ID of the salary calculation
+        data: Payment details (date, method, notes)
+        current_user: Current authenticated admin user
+        db: Database session
+
+    Returns:
+        Updated salary calculation
+
+    Raises:
+        HTTPException 404: Salary calculation not found
+        HTTPException 400: Salary already paid
+    """
+    # Get salary calculation
+    salary = db.query(SalaryCalculation).filter(SalaryCalculation.id == salary_id).first()
+
+    if not salary:
+        raise HTTPException(status_code=404, detail="Salary calculation not found")
+
+    # Check if already paid
+    if salary.is_paid:
+        raise HTTPException(
+            status_code=400,
+            detail="Salary has already been marked as paid"
+        )
+
+    # Mark as paid
+    salary.is_paid = True
+    salary.paid_at = data.payment_date
+
+    # Store payment metadata if notes field exists
+    if data.notes and hasattr(salary, 'notes'):
+        salary.notes = data.notes
+
+    # Commit changes
+    try:
+        db.commit()
+        db.refresh(salary)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error marking salary as paid: {str(e)}")
+
+    return salary
+
+
+@router.get("/reports", response_model=SalaryReportResponse)
+async def get_salary_reports(
+    start_date: str = Query(..., description="Start date in YYYY-MM-DD format"),
+    end_date: str = Query(..., description="End date in YYYY-MM-DD format"),
+    employee_ids: Optional[str] = Query(None, description="Comma-separated employee IDs"),
+    factory_ids: Optional[str] = Query(None, description="Comma-separated factory IDs"),
+    is_paid: Optional[bool] = Query(None, description="Filter by paid status"),
+    current_user: User = Depends(auth_service.get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get salary report for a date range with filters.
+
+    Generates comprehensive salary report with summary statistics:
+    - Total employees
+    - Total gross/net amounts
+    - Average salary
+    - Paid vs unpaid counts
+
+    Args:
+        start_date: Start date (YYYY-MM-DD)
+        end_date: End date (YYYY-MM-DD)
+        employee_ids: Optional comma-separated list of employee IDs
+        factory_ids: Optional comma-separated list of factory IDs
+        is_paid: Optional filter by payment status
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        Salary report with calculations and summary statistics
+
+    Raises:
+        HTTPException 400: Invalid date format
+    """
+    from datetime import datetime as dt
+
+    # Parse dates
+    try:
+        start = dt.strptime(start_date, "%Y-%m-%d")
+        end = dt.strptime(end_date, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+
+    # Build query
+    query = db.query(SalaryCalculation).join(Employee)
+
+    # Filter by date range (month/year based)
+    query = query.filter(
+        func.make_date(SalaryCalculation.year, SalaryCalculation.month, 1) >= start.date(),
+        func.make_date(SalaryCalculation.year, SalaryCalculation.month, 1) <= end.date()
+    )
+
+    # Apply filters
+    if employee_ids:
+        emp_id_list = [int(x.strip()) for x in employee_ids.split(",")]
+        query = query.filter(SalaryCalculation.employee_id.in_(emp_id_list))
+
+    if factory_ids:
+        factory_id_list = [x.strip() for x in factory_ids.split(",")]
+        query = query.filter(Employee.factory_id.in_(factory_id_list))
+
+    if is_paid is not None:
+        query = query.filter(SalaryCalculation.is_paid == is_paid)
+
+    # Get results
+    salaries = query.all()
+
+    # Calculate summary statistics
+    total_count = len(salaries)
+
+    if total_count > 0:
+        total_gross = sum(s.gross_salary for s in salaries)
+        total_deductions = sum(
+            s.apartment_deduction + s.other_deductions for s in salaries
+        )
+        total_net = sum(s.net_salary for s in salaries)
+        average_salary = total_net / total_count
+        paid_count = sum(1 for s in salaries if s.is_paid)
+        unpaid_count = total_count - paid_count
+    else:
+        total_gross = 0
+        total_deductions = 0
+        total_net = 0
+        average_salary = 0
+        paid_count = 0
+        unpaid_count = 0
+
+    summary = {
+        "total_employees": total_count,
+        "total_gross": float(total_gross),
+        "total_deductions": float(total_deductions),
+        "total_net": float(total_net),
+        "average_salary": float(average_salary),
+        "paid_count": paid_count,
+        "unpaid_count": unpaid_count
+    }
+
+    return SalaryReportResponse(
+        total_count=total_count,
+        salaries=salaries,
+        summary=summary
+    )
+
+
+@router.post("/export/excel", response_model=SalaryExportResponse)
+async def export_salary_excel(
+    filters: SalaryReportFilters,
+    current_user: User = Depends(auth_service.get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Export salary data to Excel file.
+
+    Generates comprehensive Excel workbook with multiple sheets using SalaryExportService:
+    - Sheet 1: Resumen Ejecutivo (Summary with KPIs)
+    - Sheet 2: Detalle por Empleado (Detailed employee salary data)
+    - Sheet 3: Análisis Fiscal (Tax and deductions analysis)
+
+    Args:
+        filters: Report filters (date range, employees, factories, paid status)
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        Excel export response with download URL
+
+    Raises:
+        HTTPException 400: Invalid filters or no data found
+        HTTPException 500: Export generation failed
+    """
+    try:
+        # Parse dates
+        start = datetime.strptime(filters.start_date, "%Y-%m-%d")
+        end = datetime.strptime(filters.end_date, "%Y-%m-%d")
+
+        # Build query with filters
+        query = db.query(SalaryCalculation).join(Employee)
+
+        # Filter by date range
+        query = query.filter(
+            func.make_date(SalaryCalculation.year, SalaryCalculation.month, 1) >= start.date(),
+            func.make_date(SalaryCalculation.year, SalaryCalculation.month, 1) <= end.date()
+        )
+
+        # Apply additional filters
+        if filters.employee_ids:
+            query = query.filter(SalaryCalculation.employee_id.in_(filters.employee_ids))
+        if filters.factory_ids:
+            query = query.filter(Employee.factory_id.in_(filters.factory_ids))
+        if filters.is_paid is not None:
+            query = query.filter(SalaryCalculation.is_paid == filters.is_paid)
+
+        salaries = query.all()
+
+        if not salaries:
+            raise HTTPException(status_code=400, detail="No salary data found for specified filters")
+
+        # Use SalaryExportService to generate Excel
+        export_service = SalaryExportService()
+        excel_buffer = export_service.export_to_excel(
+            salaries=salaries,
+            period_start=filters.start_date,
+            period_end=filters.end_date
+        )
+
+        # Save to temporary file for download
+        exports_dir = os.path.join(os.getcwd(), "exports", "salary")
+        os.makedirs(exports_dir, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"salary_report_{timestamp}.xlsx"
+        filepath = os.path.join(exports_dir, filename)
+
+        # Write buffer to file
+        with open(filepath, "wb") as f:
+            f.write(excel_buffer.getvalue())
+
+        return SalaryExportResponse(
+            success=True,
+            file_url=f"/api/salary/downloads/{filename}",
+            filename=filename,
+            format="excel",
+            generated_at=datetime.now()
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating Excel export: {str(e)}")
+
+
+@router.post("/export/pdf", response_model=SalaryExportResponse)
+async def export_salary_pdf(
+    filters: SalaryReportFilters,
+    current_user: User = Depends(auth_service.get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Export salary data to PDF file.
+
+    Generates professional PDF report with ReportLab:
+    - Cover page with period and user info
+    - Executive summary with KPIs
+    - Detailed salary tables (landscape format)
+    - Professional styling and formatting
+
+    Args:
+        filters: Report filters (date range, employees, factories, paid status)
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        PDF export response with download URL
+
+    Raises:
+        HTTPException 400: Invalid filters or no data found
+        HTTPException 500: Export generation failed
+    """
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+    from reportlab.lib.enums import TA_CENTER
+
+    try:
+        # Parse dates
+        start = datetime.strptime(filters.start_date, "%Y-%m-%d")
+        end = datetime.strptime(filters.end_date, "%Y-%m-%d")
+
+        # Build query with filters (same logic as Excel)
+        query = db.query(SalaryCalculation).join(Employee)
+
+        query = query.filter(
+            func.make_date(SalaryCalculation.year, SalaryCalculation.month, 1) >= start.date(),
+            func.make_date(SalaryCalculation.year, SalaryCalculation.month, 1) <= end.date()
+        )
+
+        if filters.employee_ids:
+            query = query.filter(SalaryCalculation.employee_id.in_(filters.employee_ids))
+        if filters.factory_ids:
+            query = query.filter(Employee.factory_id.in_(filters.factory_ids))
+        if filters.is_paid is not None:
+            query = query.filter(SalaryCalculation.is_paid == filters.is_paid)
+
+        salaries = query.all()
+
+        if not salaries:
+            raise HTTPException(status_code=400, detail="No salary data found for specified filters")
+
+        # Create PDF file path
+        exports_dir = os.path.join(os.getcwd(), "exports", "salary")
+        os.makedirs(exports_dir, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"salary_report_{timestamp}.pdf"
+        filepath = os.path.join(exports_dir, filename)
+
+        # Initialize PDF document
+        doc = SimpleDocTemplate(filepath, pagesize=landscape(A4))
+        story = []
+        styles = getSampleStyleSheet()
+
+        # Custom title style
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            textColor=colors.HexColor("#1e3a8a"),
+            spaceAfter=30,
+            alignment=TA_CENTER
+        )
+
+        # Title and metadata
+        story.append(Paragraph("REPORTE DE SALARIOS / SALARY REPORT", title_style))
+        story.append(Paragraph(f"<b>Período:</b> {filters.start_date} a {filters.end_date}", styles['Normal']))
+        story.append(Paragraph(f"<b>Generado:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
+        story.append(Paragraph(f"<b>Usuario:</b> {current_user.username}", styles['Normal']))
+        story.append(Spacer(1, 0.3*inch))
+
+        # Summary statistics table
+        total_employees = len(salaries)
+        total_gross = sum(s.gross_salary for s in salaries)
+        total_net = sum(s.net_salary for s in salaries)
+        avg_salary = total_net / total_employees if total_employees > 0 else 0
+
+        summary_data = [
+            ["KPI", "Valor / Value"],
+            ["Total Empleados / Employees", f"{total_employees}"],
+            ["Salario Bruto Total / Total Gross", f"¥{total_gross:,.0f}"],
+            ["Salario Neto Total / Total Net", f"¥{total_net:,.0f}"],
+            ["Salario Promedio / Average", f"¥{avg_salary:,.0f}"],
+            ["Pagados / Paid", f"{sum(1 for s in salaries if s.is_paid)}"],
+            ["No Pagados / Unpaid", f"{sum(1 for s in salaries if not s.is_paid)}"]
+        ]
+
+        summary_table = Table(summary_data, colWidths=[3*inch, 2*inch])
+        summary_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1e3a8a")),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor("#dbeafe")),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey)
+        ]))
+
+        story.append(summary_table)
+        story.append(PageBreak())
+
+        # Detailed salary table
+        story.append(Paragraph("Detalle de Salarios / Salary Details", styles['Heading2']))
+        story.append(Spacer(1, 0.2*inch))
+
+        detail_data = [
+            ["ID", "Nombre/Name", "Mes/Month", "Bruto/Gross", "Deducciones", "Neto/Net", "Pagado/Paid"]
+        ]
+
+        for salary in salaries:
+            employee = db.query(Employee).filter(Employee.id == salary.employee_id).first()
+            detail_data.append([
+                str(salary.employee_id),
+                employee.full_name_roman[:15] if employee else "N/A",
+                f"{salary.year}/{salary.month:02d}",
+                f"¥{salary.gross_salary:,}",
+                f"¥{(salary.apartment_deduction or 0) + (salary.other_deductions or 0):,}",
+                f"¥{salary.net_salary:,}",
+                "Sí/Yes" if salary.is_paid else "No"
+            ])
+
+        detail_table = Table(detail_data, colWidths=[0.6*inch, 1.5*inch, 0.9*inch, 1.2*inch, 1.2*inch, 1.2*inch, 0.8*inch])
+        detail_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1e3a8a")),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#f3f4f6")])
+        ]))
+
+        story.append(detail_table)
+
+        # Footer
+        story.append(Spacer(1, 0.5*inch))
+        footer_text = f"Generado por UNS-ClaudeJP | {datetime.now().strftime('%d/%m/%Y %H:%M')} | Documento Confidencial"
+        footer = Paragraph(footer_text, styles['Normal'])
+        footer.alignment = TA_CENTER
+        story.append(footer)
+
+        # Build PDF
+        doc.build(story)
+
+        return SalaryExportResponse(
+            success=True,
+            file_url=f"/api/salary/downloads/{filename}",
+            filename=filename,
+            format="pdf",
+            generated_at=datetime.now()
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating PDF export: {str(e)}")

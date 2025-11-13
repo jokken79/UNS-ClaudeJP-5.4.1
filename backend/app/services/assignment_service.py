@@ -14,9 +14,10 @@ Autor: Sistema UNS-ClaudeJP
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func, desc
 from typing import List, Optional, Tuple
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import calendar
 from decimal import Decimal
+import logging
 
 from app.models.models import (
     Apartment,
@@ -26,7 +27,12 @@ from app.models.models import (
     AssignmentStatus,
     RentDeduction,
     DeductionStatus,
+    ApartmentStatus,
+    RoomType,
 )
+
+# Configure logging
+logger = logging.getLogger(__name__)
 from app.schemas.apartment_v2 import (
     AssignmentCreate,
     AssignmentResponse,
@@ -49,6 +55,46 @@ class AssignmentService:
 
     def __init__(self, db: Session):
         self.db = db
+
+    # -------------------------------------------------------------------------
+    # HELPER METHODS
+    # -------------------------------------------------------------------------
+
+    def _get_apartment_capacity(self, apartment: Apartment) -> int:
+        """
+        Obtener capacidad del apartamento basada en room_type
+
+        Capacidades definidas:
+        - 1K/1DK/STUDIO = 1 persona
+        - 1LDK/2DK/2K = 2 personas
+        - 2LDK = 3 personas
+        - 3LDK = 4 personas
+        - OTHER = 1 persona (default)
+
+        Args:
+            apartment: Apartamento
+
+        Returns:
+            Capacidad máxima del apartamento
+        """
+        # Si apartment.capacity ya está definido, usarlo
+        if hasattr(apartment, 'capacity') and apartment.capacity is not None and apartment.capacity > 0:
+            return apartment.capacity
+
+        # Calcular capacidad basada en room_type
+        capacity_map = {
+            RoomType.ONE_K: 1,
+            RoomType.ONE_DK: 1,
+            RoomType.STUDIO: 1,
+            RoomType.ONE_LDK: 2,
+            RoomType.TWO_DK: 2,
+            RoomType.TWO_K: 2,
+            RoomType.TWO_LDK: 3,
+            RoomType.THREE_LDK: 4,
+            RoomType.OTHER: 1,
+        }
+
+        return capacity_map.get(apartment.room_type, 1)
 
     # -------------------------------------------------------------------------
     # GESTIÓN DE ASIGNACIONES
@@ -93,15 +139,22 @@ class AssignmentService:
         ).first()
 
         if not apartment:
+            logger.error(f"Apartment not found: apartment_id={assignment.apartment_id}")
             raise HTTPException(
                 status_code=404,
-                detail="Apartamento no encontrado"
+                detail="Apartamento no encontrado / Apartment not found"
             )
 
-        if apartment.status != "active":
+        # Validación: Apartamento debe estar ACTIVE
+        if apartment.status != ApartmentStatus.ACTIVE:
+            logger.error(
+                f"Apartment not available: apartment_id={apartment.id}, "
+                f"status={apartment.status.value}"
+            )
             raise HTTPException(
                 status_code=400,
-                detail="El apartamento no está activo"
+                detail=f"Apartamento no disponible para asignación (estado: {apartment.status.value}) / "
+                       f"Apartment not available for assignment (status: {apartment.status.value})"
             )
 
         # 2. Validar empleado
@@ -113,18 +166,65 @@ class AssignmentService:
         ).first()
 
         if not employee:
+            logger.error(f"Employee not found: employee_id={assignment.employee_id}")
             raise HTTPException(
                 status_code=404,
-                detail="Empleado no encontrado"
+                detail="Empleado no encontrado / Employee not found"
             )
 
+        # Validación: Empleado debe estar ACTIVO
         if not employee.is_active:
+            logger.error(
+                f"Employee not active: employee_id={employee.id}, "
+                f"is_active={employee.is_active}"
+            )
             raise HTTPException(
                 status_code=400,
-                detail="El empleado no está activo"
+                detail="El empleado no está activo / Employee not available for assignment (inactive)"
             )
 
-        # 2.1. Verificar capacidad disponible del apartamento
+        # 2.1. Validación: Fechas válidas (start_date y end_date)
+        today = date.today()
+
+        # start_date no puede ser en el pasado (tolerancia de 1 día para correcciones)
+        if assignment.start_date < today - timedelta(days=1):
+            logger.error(
+                f"Start date in the past: start_date={assignment.start_date}, today={today}"
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=f"La fecha de inicio no puede ser en el pasado (start_date: {assignment.start_date}) / "
+                       f"Start date cannot be in the past"
+            )
+
+        # Si hay end_date, debe ser >= start_date
+        if assignment.end_date and assignment.end_date < assignment.start_date:
+            logger.error(
+                f"Invalid date range: start_date={assignment.start_date}, end_date={assignment.end_date}"
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=f"La fecha de finalización ({assignment.end_date}) no puede ser anterior a "
+                       f"la fecha de inicio ({assignment.start_date}) / "
+                       f"End date cannot be before start date"
+            )
+
+        # 2.2. Validación: end_date no puede exceder contract_end_date del apartamento
+        if assignment.end_date and apartment.contract_end_date:
+            if assignment.end_date > apartment.contract_end_date:
+                logger.error(
+                    f"Assignment end_date exceeds apartment contract: "
+                    f"assignment_end={assignment.end_date}, "
+                    f"apartment_contract_end={apartment.contract_end_date}"
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"La fecha de finalización de la asignación ({assignment.end_date}) "
+                           f"excede el contrato del apartamento ({apartment.contract_end_date}) / "
+                           f"Assignment end date exceeds apartment contract end date"
+                )
+
+        # 2.3. Validación: Verificar capacidad disponible del apartamento
         # Contar asignaciones activas actuales
         current_occupancy = self.db.query(func.count(ApartmentAssignment.id)).filter(
             and_(
@@ -134,17 +234,23 @@ class AssignmentService:
             )
         ).scalar() or 0
 
-        # Obtener capacidad del apartamento (por ahora asumimos capacidad = 1)
-        # TODO: Agregar campo capacity en tabla apartments si se necesita más de 1 empleado por apartamento
-        apartment_capacity = getattr(apartment, 'capacity', 1)
+        # Obtener capacidad del apartamento basada en room_type
+        apartment_capacity = self._get_apartment_capacity(apartment)
 
         if current_occupancy >= apartment_capacity:
+            logger.error(
+                f"Apartment at maximum capacity: apartment_id={apartment.id}, "
+                f"room_type={apartment.room_type.value if apartment.room_type else 'N/A'}, "
+                f"capacity={apartment_capacity}, current_occupancy={current_occupancy}"
+            )
             raise HTTPException(
                 status_code=400,
-                detail=f"Apartamento en capacidad máxima ({apartment_capacity}). No se puede asignar más empleados."
+                detail=f"Apartamento en capacidad máxima ({apartment_capacity}/{apartment_capacity}). "
+                       f"No se puede asignar más empleados / "
+                       f"Apartment at maximum capacity ({apartment_capacity}/{apartment_capacity})"
             )
 
-        # 3. Verificar que empleado no tiene asignación activa
+        # 3. Validación: Verificar que empleado NO tiene asignación ACTIVA
         # Verificar tanto en Employee como en ApartmentAssignment
         existing_employee_assignment = self.db.query(Employee).filter(
             and_(
@@ -163,12 +269,17 @@ class AssignmentService:
         ).first()
 
         if existing_employee_assignment or existing_assignment_record:
+            logger.error(
+                f"Employee already has active assignment: employee_id={assignment.employee_id}, "
+                f"existing_apartment_id={existing_employee_assignment.apartment_id if existing_employee_assignment else existing_assignment_record.apartment_id}"
+            )
             raise HTTPException(
-                status_code=400,
-                detail="El empleado ya tiene una asignación activa. Debe finalizarla primero."
+                status_code=409,  # 409 Conflict for business logic conflict
+                detail="El empleado ya tiene una asignación activa. Debe finalizarla primero / "
+                       "Employee already has active assignment. Must end it first."
             )
 
-        # 3.1. Verificar no hay overlap de fechas para el mismo empleado
+        # 3.1. Validación: Verificar NO hay overlap de fechas para el mismo empleado
         # Buscar asignaciones del empleado que se solapan con las fechas nuevas
         overlapping_query = self.db.query(ApartmentAssignment).filter(
             and_(
@@ -194,10 +305,17 @@ class AssignmentService:
         overlapping = overlapping_query.first()
 
         if overlapping:
+            logger.error(
+                f"Date overlap detected: employee_id={assignment.employee_id}, "
+                f"existing_assignment_id={overlapping.id}, "
+                f"existing_dates={overlapping.start_date} to {overlapping.end_date or 'active'}, "
+                f"new_dates={assignment.start_date} to {assignment.end_date or 'active'}"
+            )
             raise HTTPException(
-                status_code=400,
+                status_code=409,  # 409 Conflict
                 detail=f"El empleado tiene una asignación con fechas que se solapan (ID: {overlapping.id}, "
-                       f"desde {overlapping.start_date} hasta {overlapping.end_date or 'activa'})"
+                       f"desde {overlapping.start_date} hasta {overlapping.end_date or 'activa'}) / "
+                       f"Employee has overlapping assignment dates (ID: {overlapping.id})"
             )
 
         # 4. Calcular renta prorrateada si es necesario
@@ -261,6 +379,14 @@ class AssignmentService:
 
             self.db.commit()
 
+            # Log success
+            logger.info(
+                f"Assignment created successfully: assignment_id={assignment_record.id}, "
+                f"employee_id={assignment.employee_id}, apartment_id={assignment.apartment_id}, "
+                f"start_date={assignment.start_date}, monthly_rent={assignment.monthly_rent}, "
+                f"prorated_rent={prorated_rent.prorated_rent}"
+            )
+
             # Construir respuesta
             return await self._build_assignment_response(
                 assignment_id=assignment_record.id,
@@ -270,8 +396,16 @@ class AssignmentService:
                 prorated_rent=prorated_rent,
             )
 
+        except HTTPException:
+            # Re-raise HTTPException (validations already logged)
+            self.db.rollback()
+            raise
         except Exception as e:
             self.db.rollback()
+            logger.error(
+                f"Unexpected error creating assignment: employee_id={assignment.employee_id}, "
+                f"apartment_id={assignment.apartment_id}, error={str(e)}"
+            )
             raise HTTPException(
                 status_code=500,
                 detail=f"Error al crear asignación: {str(e)}"
@@ -444,6 +578,16 @@ class AssignmentService:
         from sqlalchemy.exc import SQLAlchemyError
 
         try:
+            # 0. Validación: old_apartment != new_apartment
+            if transfer.current_apartment_id == transfer.new_apartment_id:
+                logger.error(
+                    f"Transfer to same apartment: apartment_id={transfer.current_apartment_id}"
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail="No se puede transferir al mismo apartamento / Cannot transfer to same apartment"
+                )
+
             # 1. Buscar asignación actual del empleado
             current_assignment = self.db.query(ApartmentAssignment).filter(
                 and_(
@@ -455,9 +599,14 @@ class AssignmentService:
             ).first()
 
             if not current_assignment:
+                logger.error(
+                    f"Active assignment not found for transfer: employee_id={transfer.employee_id}, "
+                    f"current_apartment_id={transfer.current_apartment_id}"
+                )
                 raise HTTPException(
                     status_code=404,
-                    detail="No se encontró una asignación activa para este empleado en el apartamento actual"
+                    detail="No se encontró una asignación activa para este empleado en el apartamento actual / "
+                           "Active assignment not found"
                 )
 
             # 2. Validar nuevo apartamento existe y está disponible
@@ -469,15 +618,44 @@ class AssignmentService:
             ).first()
 
             if not new_apartment:
+                logger.error(f"New apartment not found: apartment_id={transfer.new_apartment_id}")
                 raise HTTPException(
                     status_code=404,
-                    detail="El nuevo apartamento no existe"
+                    detail="El nuevo apartamento no existe / New apartment not found"
                 )
 
-            if new_apartment.status != "active":
+            # Validación: Nuevo apartamento debe estar ACTIVE
+            if new_apartment.status != ApartmentStatus.ACTIVE:
+                logger.error(
+                    f"New apartment not available: apartment_id={new_apartment.id}, "
+                    f"status={new_apartment.status.value}"
+                )
                 raise HTTPException(
                     status_code=400,
-                    detail="El nuevo apartamento no está activo"
+                    detail=f"El nuevo apartamento no está disponible (estado: {new_apartment.status.value}) / "
+                           f"New apartment not available (status: {new_apartment.status.value})"
+                )
+
+            # 2.1. Validación: Verificar capacidad del nuevo apartamento
+            new_apartment_occupancy = self.db.query(func.count(ApartmentAssignment.id)).filter(
+                and_(
+                    ApartmentAssignment.apartment_id == transfer.new_apartment_id,
+                    ApartmentAssignment.status == AssignmentStatus.ACTIVE,
+                    ApartmentAssignment.deleted_at.is_(None)
+                )
+            ).scalar() or 0
+
+            new_apartment_capacity = self._get_apartment_capacity(new_apartment)
+
+            if new_apartment_occupancy >= new_apartment_capacity:
+                logger.error(
+                    f"New apartment at maximum capacity: apartment_id={new_apartment.id}, "
+                    f"capacity={new_apartment_capacity}, current_occupancy={new_apartment_occupancy}"
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"El nuevo apartamento está en capacidad máxima ({new_apartment_capacity}/{new_apartment_capacity}) / "
+                           f"New apartment at maximum capacity"
                 )
 
             # 3. Calcular renta prorrateada hasta transfer_date para apartamento actual
@@ -544,6 +722,16 @@ class AssignmentService:
             )
 
             self.db.commit()
+
+            # Log success
+            logger.info(
+                f"Transfer completed successfully: employee_id={transfer.employee_id}, "
+                f"old_apartment_id={transfer.current_apartment_id}, "
+                f"new_apartment_id={transfer.new_apartment_id}, "
+                f"transfer_date={transfer.transfer_date}, "
+                f"ended_assignment_id={current_assignment.id}, "
+                f"new_assignment_id={new_assignment.id}"
+            )
 
             # 8. Construir respuesta con breakdown de costos
             employee = self.db.query(Employee).filter(Employee.id == transfer.employee_id).first()
@@ -625,10 +813,16 @@ class AssignmentService:
             )
 
         except HTTPException:
+            # Re-raise HTTPException (validations already logged)
             self.db.rollback()
             raise
         except Exception as e:
             self.db.rollback()
+            logger.error(
+                f"Unexpected error transferring employee: employee_id={transfer.employee_id}, "
+                f"old_apartment_id={transfer.current_apartment_id}, "
+                f"new_apartment_id={transfer.new_apartment_id}, error={str(e)}"
+            )
             raise HTTPException(
                 status_code=500,
                 detail=f"Error al transferir empleado: {str(e)}"
@@ -856,7 +1050,12 @@ class AssignmentService:
 
         Returns:
             Resultado del cálculo
+
+        Raises:
+            HTTPException: Si los datos de entrada son inválidos
         """
+        from fastapi import HTTPException
+
         # Calcular días en el mes
         days_in_month = calendar.monthrange(calculation.year, calculation.month)[1]
 
@@ -868,10 +1067,24 @@ class AssignmentService:
             end_of_month = datetime(calculation.year, calculation.month, days_in_month).date()
             days_occupied = (end_of_month - calculation.start_date).days + 1
 
-        # Validar
+        # Validación: days_occupied debe ser >= 1
         if days_occupied < 1:
-            days_occupied = 1
+            logger.error(
+                f"Invalid days_occupied calculated: days_occupied={days_occupied}, "
+                f"start_date={calculation.start_date}, end_date={calculation.end_date}"
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=f"Días ocupados inválidos: {days_occupied}. Debe ser >= 1 / "
+                       f"Invalid occupied days: {days_occupied}"
+            )
+
+        # Validación: days_occupied no debe exceder days_in_month
         if days_occupied > days_in_month:
+            logger.warning(
+                f"Days occupied exceeds days in month: days_occupied={days_occupied}, "
+                f"days_in_month={days_in_month}. Clamping to {days_in_month}"
+            )
             days_occupied = days_in_month
 
         # Calcular tasa diaria (con decimales)
@@ -879,6 +1092,18 @@ class AssignmentService:
 
         # Calcular renta prorrateada y redondear
         prorated_rent = int((daily_rate * Decimal(days_occupied)).quantize(Decimal('1')))
+
+        # Validación: prorated_rent debe ser >= 0
+        if prorated_rent < 0:
+            logger.error(
+                f"Negative prorated_rent calculated: prorated_rent={prorated_rent}, "
+                f"monthly_rent={calculation.monthly_rent}, days_occupied={days_occupied}"
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=f"Renta prorrateada inválida: {prorated_rent}. Debe ser >= 0 / "
+                       f"Invalid prorated rent: {prorated_rent}"
+            )
 
         is_prorated = days_occupied != days_in_month
 

@@ -83,10 +83,10 @@ export default function AdditionalChargesPage() {
 
   // Fetch apartments
   const { data: apartments = [] } = useQuery({
-    queryKey: ['apartments'],
+    queryKey: ['apartments-v2'],
     queryFn: async () => {
-      const response = await api.get('/apartments/');
-      return response.data;
+      const response = await api.get('/apartments-v2/apartments');
+      return response.data.items || response.data;  // Handle paginated response
     },
   });
 

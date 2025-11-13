@@ -11,6 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useAuthStore } from '@/stores/auth-store';
+import { canCreateYukyuRequest } from '@/lib/yukyu-roles';
+import { ErrorState } from '@/components/error-state';
 
 interface Employee {
   id: number;
@@ -31,6 +34,21 @@ interface Factory {
 export default function CreateYukyuRequestPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+
+  // Role validation: Only TANTOSHA (HR) and ADMIN can create yukyu requests
+  // 有給休暇申請の作成は担当者以上のユーザーのみ
+  if (!canCreateYukyuRequest(user?.role)) {
+    return (
+      <ErrorState
+        type="forbidden"
+        title="アクセス拒否 (Access Denied)"
+        message="有給休暇申請の作成は担当者以上のユーザーのみが利用できます。"
+        showRetry={false}
+        showGoBack={true}
+      />
+    );
+  }
 
   // Form state
   const [selectedFactoryId, setSelectedFactoryId] = useState<string>('');

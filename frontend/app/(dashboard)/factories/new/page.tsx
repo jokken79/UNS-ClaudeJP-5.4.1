@@ -57,7 +57,7 @@ export default function NewFactoryPage() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <Link href="/dashboard/factories">
+          <Link href="/factories">
             <button className="inline-flex items-center text-muted-foreground hover:text-foreground mb-4 transition-colors">
               <ArrowLeftIcon className="h-5 w-5 mr-2" />
               工場一覧に戻る
@@ -173,7 +173,7 @@ export default function NewFactoryPage() {
 
           {/* Actions */}
           <div className="px-8 py-6 bg-muted border-t border-input flex justify-end gap-4">
-            <Link href="/dashboard/factories">
+            <Link href="/factories">
               <button
                 type="button"
                 className="px-6 py-3 border-2 border-input text-muted-foreground rounded-xl hover:bg-accent font-medium transition-all"

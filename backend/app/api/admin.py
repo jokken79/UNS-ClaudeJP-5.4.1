@@ -1,5 +1,10 @@
 """
 Admin API - Panel de Control para gestionar módulos y configuraciones
+
+CONSOLIDATED (2025-11-12):
+- PageVisibility endpoints removed - use /api/pages/visibility instead
+- SystemSettings endpoints kept for backward compatibility
+- Maintenance mode, statistics, export/import endpoints kept (unique functionality)
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
@@ -40,26 +45,6 @@ def get_user_agent(request: Request) -> Optional[str]:
 # SCHEMAS
 # ============================================
 
-class PageVisibilityResponse(BaseModel):
-    id: int
-    page_key: str
-    page_name: str
-    page_name_en: Optional[str]
-    is_enabled: bool
-    path: str
-    description: Optional[str]
-    disabled_message: Optional[str]
-    last_toggled_by: Optional[int]
-    last_toggled_at: Optional[datetime]
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
-class PageVisibilityUpdate(BaseModel):
-    is_enabled: bool
-    disabled_message: Optional[str] = None
-
 class SystemSettingResponse(BaseModel):
     id: int
     key: str
@@ -69,10 +54,6 @@ class SystemSettingResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
-class BulkPageToggle(BaseModel):
-    page_keys: List[str]
-    is_enabled: bool
 
 class MaintenanceModeRequest(BaseModel):
     enabled: bool
@@ -282,14 +263,22 @@ async def toggle_maintenance_mode(
 ):
     """
     Activar/desactivar modo mantenimiento
+
+    When enabling maintenance mode, all pages are disabled.
     """
     # Update maintenance mode setting
     setting = db.query(SystemSettings).filter(SystemSettings.key == "maintenance_mode").first()
     if not setting:
-        raise HTTPException(status_code=404, detail="Configuración de mantenimiento no encontrada")
-
-    setting.value = "true" if maintenance_data.enabled else "false"
-    setting.updated_at = datetime.utcnow()
+        # Create if doesn't exist
+        setting = SystemSettings(
+            key="maintenance_mode",
+            value="false" if not maintenance_data.enabled else "true",
+            description="Global maintenance mode toggle"
+        )
+        db.add(setting)
+    else:
+        setting.value = "true" if maintenance_data.enabled else "false"
+        setting.updated_at = datetime.utcnow()
 
     # If enabling maintenance mode, disable all pages
     if maintenance_data.enabled:
@@ -334,12 +323,13 @@ async def get_admin_statistics(
     maintenance_enabled = maintenance_mode.value == "true" if maintenance_mode else False
 
     # Recent changes (last 24 hours)
-    yesterday = datetime.utcnow().timestamp() - (24 * 60 * 60)
+    from datetime import timedelta
+    yesterday = datetime.utcnow() - timedelta(days=1)
     recent_changes = (
         db.query(PageVisibility)
-        .filter(PageVisibility.last_toggled_at >= datetime.fromtimestamp(yesterday))
+        .filter(PageVisibility.last_toggled_at >= yesterday)
         .count()
-    )
+    ) if db.query(PageVisibility).first() else 0
 
     return {
         "pages": {
@@ -365,6 +355,8 @@ async def export_configuration(
 ):
     """
     Exportar toda la configuración del panel
+
+    Includes both PageVisibility and SystemSettings configurations.
     """
     pages = db.query(PageVisibility).order_by(PageVisibility.page_key).all()
     settings = db.query(SystemSettings).order_by(SystemSettings.key).all()
@@ -400,7 +392,12 @@ async def import_configuration(
 ):
     """
     Importar configuración del panel
+
+    Imports both PageVisibility and SystemSettings configurations.
     """
+    imported_pages = 0
+    imported_settings = 0
+
     # Import pages
     if "pages" in config_data:
         for page_data in config_data["pages"]:
@@ -411,6 +408,7 @@ async def import_configuration(
                 page.last_toggled_by = current_user.id
                 page.last_toggled_at = datetime.utcnow()
                 page.updated_at = datetime.utcnow()
+                imported_pages += 1
 
     # Import settings
     if "settings" in config_data:
@@ -419,10 +417,19 @@ async def import_configuration(
             if setting:
                 setting.value = setting_data["value"]
                 setting.updated_at = datetime.utcnow()
+                imported_settings += 1
 
     db.commit()
 
     return {
         "message": "Configuración importada exitosamente",
-        "imported_at": datetime.utcnow().isoformat()
+        "imported_at": datetime.utcnow().isoformat(),
+        "imported_pages": imported_pages,
+        "imported_settings": imported_settings
     }
+
+# ============================================
+# NOTE: PageVisibility CRUD endpoints removed
+# Use /api/pages/visibility/* endpoints instead
+# See app/api/pages.py for PageVisibility management
+# ============================================

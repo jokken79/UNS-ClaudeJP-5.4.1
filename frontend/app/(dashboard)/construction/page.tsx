@@ -260,7 +260,7 @@ export default function ConstructionPage() {
             className="mt-12 text-slate-500 text-sm"
           >
             何かご不明な点がある場合は、
-            <a href="/dashboard/help" className="text-blue-400 hover:text-blue-300 transition-colors ml-1">
+            <a href="/help" className="text-blue-400 hover:text-blue-300 transition-colors ml-1">
               サポートチーム
             </a>
             にお問い合わせください

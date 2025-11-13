@@ -22,6 +22,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { useAuthStore } from '@/stores/auth-store';
+import { canViewYukyuReports } from '@/lib/yukyu-roles';
+import { ErrorState } from '@/components/error-state';
 
 interface YukyuSummary {
   employee_id: number;
@@ -48,6 +51,21 @@ interface YukyuStats {
 
 export default function YukyuReportsPage() {
   const [isExporting, setIsExporting] = useState(false);
+  const { user } = useAuthStore();
+
+  // Role validation: Only Finance Manager and Admin can view detailed reports
+  // 詳細レポートの閲覧は経理管理者以上のユーザーのみ
+  if (!canViewYukyuReports(user?.role)) {
+    return (
+      <ErrorState
+        type="forbidden"
+        title="アクセス拒否 (Access Denied)"
+        message="有給休暇レポートの閲覧は経理管理者以上のユーザーのみが利用できます。"
+        showRetry={false}
+        showGoBack={true}
+      />
+    );
+  }
 
   // Fetch all employee summaries
   const { data: employees } = useQuery<any[]>({

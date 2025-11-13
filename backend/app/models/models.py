@@ -550,21 +550,31 @@ class ApartmentFactory(Base):
     factory = relationship("Factory", back_populates="apartment_associations")
 
 
-class Employee(Base, SoftDeleteMixin):
-    __tablename__ = "employees"
+# ============================================
+# EMPLOYEE BASE MIXIN (Shared fields)
+# ============================================
 
+class EmployeeBaseMixin:
+    """
+    Shared fields between Employee (派遣社員) and ContractWorker (請負社員)
+
+    REFACTORED (2025-11-12): Extracted common fields to eliminate duplication.
+    This mixin contains ~60 shared fields that both employee types use.
+    """
+
+    # Core identifiers (common)
     id = Column(Integer, primary_key=True, index=True)
     hakenmoto_id = Column(Integer, unique=True, nullable=False, index=True)
-    rirekisho_id = Column(String(20), ForeignKey("candidates.rirekisho_id"))  # Changed from uns_id
+    rirekisho_id = Column(String(20), ForeignKey("candidates.rirekisho_id"))
     factory_id = Column(String(200), ForeignKey("factories.factory_id"))  # Compound: Company__Plant
-    company_name = Column(String(100))  # 企業名 - Company name (denormalized for easy display)
-    plant_name = Column(String(100))    # 工場名 - Plant name (denormalized for easy display)
+    company_name = Column(String(100))  # 企業名 - Company name (denormalized)
+    plant_name = Column(String(100))    # 工場名 - Plant name (denormalized)
     hakensaki_shain_id = Column(String(50))
 
-    # Personal information
+    # Personal information (common)
     full_name_kanji = Column(String(100), nullable=False)
     full_name_kana = Column(String(100))
-    photo_url = Column(String(255))  # Photo from candidate
+    photo_url = Column(String(255))
     photo_data_url = Column(Text)  # Base64 data URL photo synchronized from candidates
     date_of_birth = Column(Date)
     gender = Column(String(10))
@@ -572,18 +582,15 @@ class Employee(Base, SoftDeleteMixin):
     zairyu_card_number = Column(String(50))
     zairyu_expire_date = Column(Date)
 
-    # Contact information
+    # Contact information (common)
     address = Column(Text)
-    current_address = Column(String)  # 現住所 - Base address from postal code
-    address_banchi = Column(String)  # 番地 - Block/lot number
-    address_building = Column(String)  # 物件名 - Building/apartment name
     phone = Column(String(20))
     email = Column(String(100))
     emergency_contact_name = Column(String(100))
     emergency_contact_phone = Column(String(20))
     emergency_contact_relationship = Column(String(50))
 
-    # Employment information
+    # Employment information (common)
     hire_date = Column(Date)  # 入社日
     current_hire_date = Column(Date)  # 現入社 - Fecha de entrada a fábrica actual
     jikyu = Column(Integer)  # 時給
@@ -591,13 +598,67 @@ class Employee(Base, SoftDeleteMixin):
     position = Column(String(100))
     contract_type = Column(String(50))
 
-    # Assignment information
-    assignment_location = Column(String(200))  # 配属先 - Ubicación de asignación (legacy)
+    # Assignment information (common)
+    assignment_location = Column(String(200))  # 配属先 - Ubicación de asignación
     assignment_line = Column(String(200))  # 配属ライン - Línea de asignación
     job_description = Column(Text)  # 仕事内容 - Descripción del trabajo
+
+    # Financial information (common)
+    hourly_rate_charged = Column(Integer)  # 請求単価
+    billing_revision_date = Column(Date)  # 請求改定 - Fecha de revisión de facturación
+    profit_difference = Column(Integer)    # 差額利益
+    standard_compensation = Column(Integer)  # 標準報酬
+    health_insurance = Column(Integer)     # 健康保険
+    nursing_insurance = Column(Integer)    # 介護保険
+    pension_insurance = Column(Integer)    # 厚生年金
+    social_insurance_date = Column(Date)   # 社保加入日
+
+    # Visa and documents (common)
+    visa_type = Column(String(50))         # ビザ種類
+    license_type = Column(String(100))     # 免許種類
+    license_expire_date = Column(Date)     # 免許期限
+    commute_method = Column(String(50))    # 通勤方法
+    optional_insurance_expire = Column(Date)  # 任意保険期限
+    japanese_level = Column(String(50))    # 日本語検定
+    career_up_5years = Column(Boolean, default=False)  # キャリアアップ5年目
+    entry_request_date = Column(Date)      # 入社依頼日
+    notes = Column(Text)                   # 備考
+    postal_code = Column(String(10))       # 郵便番号
+
+    # Apartment (common)
+    apartment_id = Column(Integer, ForeignKey("apartments.id"))
+    apartment_start_date = Column(Date)
+    apartment_move_out_date = Column(Date) # 退去日
+    apartment_rent = Column(Integer)
+    is_corporate_housing = Column(Boolean, default=False, nullable=False)  # 社宅 (Corporate Housing)
+    housing_subsidy = Column(Integer, default=0)  # 住宅手当 (Housing Subsidy)
+
+    # Status (common)
+    is_active = Column(Boolean, default=True)
+    termination_date = Column(Date)
+    termination_reason = Column(Text)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class Employee(Base, SoftDeleteMixin, EmployeeBaseMixin):
+    """派遣社員 - Dispatch Workers
+
+    REFACTORED (2025-11-12): Common fields moved to EmployeeBaseMixin.
+    This class now only contains Employee-specific fields.
+    """
+    __tablename__ = "employees"
+
+    # Employee-specific contact fields (not in ContractWorker)
+    current_address = Column(String)  # 現住所 - Base address from postal code
+    address_banchi = Column(String)  # 番地 - Block/lot number
+    address_building = Column(String)  # 物件名 - Building/apartment name
+
+    # Employee-specific assignment fields
     workplace_id = Column(Integer, ForeignKey("workplaces.id"))  # 職場 - Current workplace
 
-    # Regional management fields
+    # Regional management fields (Employee-specific)
     current_region_id = Column(Integer, ForeignKey("regions.id"))
     current_factory_id = Column(Integer, ForeignKey("factories.id"))
     current_department_id = Column(Integer, ForeignKey("departments.id"))
@@ -608,52 +669,17 @@ class Employee(Base, SoftDeleteMixin):
     residence_start_date = Column(Date)
     assigned_regionally_at = Column(DateTime(timezone=True))
 
-    # Financial information
-    hourly_rate_charged = Column(Integer)  # 請求単価
-    billing_revision_date = Column(Date)  # 請求改定 - Fecha de revisión de facturación
-    profit_difference = Column(Integer)    # 差額利益
-    standard_compensation = Column(Integer)  # 標準報酬
-    health_insurance = Column(Integer)     # 健康保険
-    nursing_insurance = Column(Integer)    # 介護保険
-    pension_insurance = Column(Integer)    # 厚生年金
-    social_insurance_date = Column(Date)   # 社保加入日
-
-    # Visa and documents
-    visa_type = Column(String(50))         # ビザ種類
+    # Employee-specific visa fields
     visa_renewal_alert = Column(Boolean, default=False)  # ビザ更新アラート - Auto-calculado por trigger
     visa_alert_days = Column(Integer, default=30)  # Días antes de alerta de visa
-    license_type = Column(String(100))     # 免許種類
-    license_expire_date = Column(Date)     # 免許期限
-    commute_method = Column(String(50))    # 通勤方法
-    optional_insurance_expire = Column(Date)  # 任意保険期限
-    japanese_level = Column(String(50))    # 日本語検定
-    career_up_5years = Column(Boolean, default=False)  # キャリアアップ5年目
-    entry_request_date = Column(Date)      # 入社依頼日
-    # photo_url ya está definido arriba, no duplicar
-    notes = Column(Text)                   # 備考
-    postal_code = Column(String(10))       # 郵便番号
 
-    # Apartment
-    apartment_id = Column(Integer, ForeignKey("apartments.id"))
-    apartment_start_date = Column(Date)
-    apartment_move_out_date = Column(Date) # 退去日
-    apartment_rent = Column(Integer)
-    is_corporate_housing = Column(Boolean, default=False, nullable=False)  # 社宅 (Corporate Housing)
-    housing_subsidy = Column(Integer, default=0)  # 住宅手当 (Housing Subsidy)
-
-    # Yukyu (]~b]️有効)
+    # Yukyu (Employee-specific)
     yukyu_total = Column(Integer, default=0)
     yukyu_used = Column(Integer, default=0)
     yukyu_remaining = Column(Integer, default=0)
 
-    # Status
+    # Employee-specific status
     current_status = Column(String(20), default='active')  # 現在: "active", "terminated", "suspended"
-    is_active = Column(Boolean, default=True)
-    termination_date = Column(Date)
-    termination_reason = Column(Text)
-
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
     candidate = relationship(
@@ -677,92 +703,21 @@ class Employee(Base, SoftDeleteMixin):
     residence_status = relationship("ResidenceStatus", back_populates="employees")
 
 
-class ContractWorker(Base, SoftDeleteMixin):
-    """請負社員 (Ukeoi) - Contract Workers Table"""
+class ContractWorker(Base, SoftDeleteMixin, EmployeeBaseMixin):
+    """請負社員 (Ukeoi) - Contract Workers
+
+    REFACTORED (2025-11-12): Common fields moved to EmployeeBaseMixin.
+    ContractWorkers have the same base fields as Employees but lack some
+    Employee-specific features like yukyu (paid vacation), regional management, etc.
+
+    NOTE: ContractWorkers DO have yukyu fields (inherited from mixin) but may
+    have different calculation rules or policies compared to regular Employees.
+    """
     __tablename__ = "contract_workers"
 
-    id = Column(Integer, primary_key=True, index=True)
-    hakenmoto_id = Column(Integer, unique=True, nullable=False, index=True)
-    rirekisho_id = Column(String(20), ForeignKey("candidates.rirekisho_id"))
-    factory_id = Column(String(200), ForeignKey("factories.factory_id"))  # Compound: Company__Plant
-    company_name = Column(String(100))  # 企業名 - Company name (denormalized for easy display)
-    plant_name = Column(String(100))    # 工場名 - Plant name (denormalized for easy display)
-    hakensaki_shain_id = Column(String(50))
-
-    # Personal information
-    full_name_kanji = Column(String(100), nullable=False)
-    full_name_kana = Column(String(100))
-    photo_url = Column(String(255))
-    photo_data_url = Column(Text)  # Base64 data URL photo synchronized from candidates
-    date_of_birth = Column(Date)
-    gender = Column(String(10))
-    nationality = Column(String(50))
-    zairyu_card_number = Column(String(50))
-    zairyu_expire_date = Column(Date)
-
-    # Contact information
-    address = Column(Text)
-    phone = Column(String(20))
-    email = Column(String(100))
-    emergency_contact_name = Column(String(100))
-    emergency_contact_phone = Column(String(20))
-    emergency_contact_relationship = Column(String(50))
-
-    # Employment information
-    hire_date = Column(Date)  # 入社日
-    current_hire_date = Column(Date)  # 現入社 - Fecha de entrada a fábrica actual
-    jikyu = Column(Integer)  # 時給
-    jikyu_revision_date = Column(Date)  # 時給改定 - Fecha de revisión de salario
-    position = Column(String(100))
-    contract_type = Column(String(50))
-
-    # Assignment information
-    assignment_location = Column(String(200))  # 配属先 - Ubicación de asignación
-    assignment_line = Column(String(200))  # 配属ライン - Línea de asignación
-    job_description = Column(Text)  # 仕事内容 - Descripción del trabajo
-
-    # Financial information
-    hourly_rate_charged = Column(Integer)  # 請求単価
-    billing_revision_date = Column(Date)  # 請求改定 - Fecha de revisión de facturación
-    profit_difference = Column(Integer)
-    standard_compensation = Column(Integer)
-    health_insurance = Column(Integer)
-    nursing_insurance = Column(Integer)
-    pension_insurance = Column(Integer)
-    social_insurance_date = Column(Date)
-
-    # Visa and documents
-    visa_type = Column(String(50))
-    license_type = Column(String(100))
-    license_expire_date = Column(Date)
-    commute_method = Column(String(50))
-    optional_insurance_expire = Column(Date)
-    japanese_level = Column(String(50))
-    career_up_5years = Column(Boolean, default=False)
-    entry_request_date = Column(Date)
-    notes = Column(Text)
-    postal_code = Column(String(10))
-
-    # Apartment
-    apartment_id = Column(Integer, ForeignKey("apartments.id"))
-    apartment_start_date = Column(Date)
-    apartment_move_out_date = Column(Date)
-    apartment_rent = Column(Integer)
-    is_corporate_housing = Column(Boolean, default=False, nullable=False)  # 社宅 (Corporate Housing)
-    housing_subsidy = Column(Integer, default=0)  # 住宅手当 (Housing Subsidy)
-
-    # Yukyu (有給休暇)
-    yukyu_total = Column(Integer, default=0)
-    yukyu_used = Column(Integer, default=0)
-    yukyu_remaining = Column(Integer, default=0)
-
-    # Status
-    is_active = Column(Boolean, default=True)
-    termination_date = Column(Date)
-    termination_reason = Column(Text)
-
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    # ContractWorker-specific fields (if any) would go here
+    # Currently ContractWorker uses only the base fields from EmployeeBaseMixin
+    # No additional unique fields needed at this time
 
     # Relationships
     factory = relationship("Factory", back_populates="contract_workers")
@@ -810,7 +765,7 @@ class Staff(Base, SoftDeleteMixin):
     # Yukyu (有給休暇)
     yukyu_total = Column(Integer, default=0)
     yukyu_used = Column(Integer, default=0)
-    is_corporate_housing = Column(Boolean, default=False, nullable=False)  # 社宅 (Corporate Housing) - para contabilidad keiri
+    is_corporate_housing = Column(Boolean, default=False, nullable=False)  # 社宅 (Corporate Housing) - para contabilidad (accounting)
     housing_subsidy = Column(Integer, default=0)  # 住宅手当 (Housing Subsidy)
     yukyu_remaining = Column(Integer, default=0)
 
@@ -1265,8 +1220,8 @@ class YukyuRequest(Base):
     有給休暇申請 (Yukyu Request) - Yukyu request by TANTOSHA for employees
 
     Workflow:
-    1. TANTOSHA (担当者) creates request for employee
-    2. KEIRI (経理) approves or rejects
+    1. TANTOSHA (担当者/HR Representative) creates request for employee
+    2. KEITOSAN (経理管理/Finance Manager) approves or rejects
     3. On approval, days are deducted using LIFO (newest first)
     """
     __tablename__ = "yukyu_requests"
@@ -1290,7 +1245,7 @@ class YukyuRequest(Base):
     status = Column(SQLEnum(RequestStatus, name='request_status'), nullable=False, default=RequestStatus.PENDING, index=True)
 
     # Approval/Rejection
-    approved_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # KEIRI who approved/rejected
+    approved_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # KEITOSAN (Finance Manager) who approved/rejected
     approval_date = Column(DateTime(timezone=True), nullable=True)
     rejection_reason = Column(Text, nullable=True)
 

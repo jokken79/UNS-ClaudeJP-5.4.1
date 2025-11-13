@@ -103,7 +103,7 @@ export default function TimerCardsPage() {
               <h1 className="text-3xl font-extrabold text-foreground">タイムカード管理</h1>
               <p className="text-muted-foreground mt-1">従業員の勤怠管理</p>
             </div>
-            <Link href="/dashboard/timercards/upload">
+            <Link href="/timercards/upload">
               <Button className="flex items-center gap-2">
                 <DocumentArrowUpIcon className="h-5 w-5" />
                 PDFでOCR取り込み

@@ -1,5 +1,15 @@
 """
 Requests API Endpoints (Yukyu, Ikkikokoku, Taisha, etc.)
+
+NOTE (2025-11-12): This API handles ALL request types generically.
+For yukyu-specific operations (balance management, calculations, reports),
+use the specialized /api/yukyu endpoints which provide richer functionality.
+
+Supported request types:
+- YUKYU (有給休暇) - Paid vacation -> Use /api/yukyu for advanced features
+- IKKIKOKOKU (一時帰国) - Temporary return home
+- TAISHA (退社) - Resignation
+- NYUUSHA (入社) - New hire
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
@@ -24,7 +34,12 @@ async def create_request(
     current_user: User = Depends(auth_service.get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Create new request (yukyu, ikkikokoku, etc.)"""
+    """
+    Create new request (yukyu, ikkikokoku, taisha, nyuusha, etc.)
+
+    NOTE: For yukyu requests with automatic balance deduction and
+    advanced validations, consider using POST /api/yukyu/requests/ instead.
+    """
     # Verify employee exists
     employee = db.query(Employee).filter(Employee.id == request_data.employee_id).first()
     if not employee:
@@ -199,6 +214,9 @@ async def approve_request(
     """
     Approve a request (convenience endpoint).
     Shortcut for /review with status=APPROVED.
+
+    NOTE: For yukyu requests, /api/yukyu/requests/{id}/approve provides
+    comprehensive approval logic with balance validation and history tracking.
     """
     request = db.query(Request).filter(Request.id == request_id).first()
     if not request:

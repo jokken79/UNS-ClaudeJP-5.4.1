@@ -1,12 +1,13 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { LucideIcon, TrendingUp, TrendingDown } from 'lucide-react';
+import { LucideIcon, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { slideInBottom, shouldReduceMotion } from '@/lib/animations';
 import { AnimatedCounter } from '@/components/ui/animated';
 import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
 
 export type MetricCardVariant = 'default' | 'large' | 'compact' | 'featured';
 export type MetricCardTheme = 'default' | 'success' | 'warning' | 'danger' | 'info';
@@ -26,6 +27,8 @@ interface MetricCardProps {
   variant?: MetricCardVariant;
   theme?: MetricCardTheme;
   sparkline?: { value: number }[];
+  onRefresh?: () => void | Promise<void>;
+  refreshing?: boolean;
 }
 
 export function MetricCard({
@@ -39,6 +42,8 @@ export function MetricCard({
   variant = 'default',
   theme = 'default',
   sparkline,
+  onRefresh,
+  refreshing = false,
 }: MetricCardProps) {
   const reducedMotion = shouldReduceMotion();
   const [mounted, setMounted] = useState(false);
@@ -139,13 +144,29 @@ export function MetricCard({
 
   const cardContent = (
     <>
-      <CardHeader className={cn("flex flex-row items-center justify-between pb-2", currentVariant.padding)}>
-        <CardTitle className={cn("font-medium text-muted-foreground", currentVariant.titleSize)}>
-          {title}
-        </CardTitle>
+      <CardHeader className={cn("flex flex-row items-center justify-between pb-2 gap-2", currentVariant.padding)}>
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <CardTitle className={cn("font-medium text-muted-foreground truncate", currentVariant.titleSize)}>
+            {title}
+          </CardTitle>
+          {onRefresh && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 shrink-0 hover:bg-transparent"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRefresh();
+              }}
+              disabled={refreshing || loading}
+            >
+              <RefreshCw className={cn("h-3 w-3 text-muted-foreground transition-all", refreshing && "animate-spin")} />
+            </Button>
+          )}
+        </div>
         <motion.div
           className={cn(
-            "rounded-full flex items-center justify-center ring-4",
+            "rounded-full flex items-center justify-center ring-4 shrink-0",
             currentVariant.iconSize,
             currentTheme.iconBg,
             currentTheme.ring

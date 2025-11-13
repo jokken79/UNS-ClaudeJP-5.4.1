@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
+import { apartmentsV2Service } from '@/lib/api';
 import {
   ArrowLeftIcon,
   CurrencyYenIcon,
@@ -49,14 +49,14 @@ interface CostReport {
 }
 
 export default function CostsReportPage() {
-  const [selectedPeriod, setSelectedPeriod] = useState('6months');
+  const [selectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth] = useState(new Date().getMonth() + 1);
 
   // Fetch cost report data
   const { data: report, isLoading } = useQuery({
-    queryKey: ['apartment-costs-report', selectedPeriod],
+    queryKey: ['apartment-costs-report', selectedYear, selectedMonth],
     queryFn: async () => {
-      const response = await api.get(`/apartment-reports/costs?period=${selectedPeriod}`);
-      return response.data as CostReport;
+      return await apartmentsV2Service.getCostAnalysisReport(selectedYear, selectedMonth);
     },
   });
 

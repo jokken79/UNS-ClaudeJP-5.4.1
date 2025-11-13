@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Calendar,
@@ -19,6 +19,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import api from '@/lib/api';
+import { useAuthStore } from '@/stores/auth-store';
+import { canViewAllYukyuHistory } from '@/lib/yukyu-roles';
 
 interface YukyuUsageDetail {
   id: number;
@@ -50,6 +52,11 @@ export default function YukyuHistoryPage() {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [fiscalYear, setFiscalYear] = useState<string>('');
+  const { user } = useAuthStore();
+
+  // Access control: Regular employees can only view their own history
+  // 一般ユーザーは自分の履歴のみ閲覧可能
+  const canViewAllHistory = useMemo(() => canViewAllYukyuHistory(user?.role), [user?.role]);
 
   // Fetch employees
   const { data: employees } = useQuery({
@@ -57,7 +64,10 @@ export default function YukyuHistoryPage() {
     queryFn: async () => {
       const res = await api.get('/employees');
       return res.data.items || [];
-    }
+    },
+    // Only fetch all employees if user can view all history (ADMIN/KEIRI)
+    // 管理者のみ全従業員を取得
+    enabled: canViewAllHistory
   });
 
   // Fetch employee yukyu summary
@@ -175,6 +185,15 @@ export default function YukyuHistoryPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            {/* Access control notice for regular employees */}
+            {!canViewAllHistory && (
+              <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
+                <AlertDescription className="text-blue-800 dark:text-blue-100">
+                  自分の有給休暇履歴のみ閲覧可能です。 (You can only view your own yukyu history)
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Employee Shain Number Input */}
             <div>
               <Label>社員№ (Número de Empleado) *</Label>
@@ -182,12 +201,18 @@ export default function YukyuHistoryPage() {
                 <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
                   type="text"
-                  placeholder="Digita el 社員№ del empleado (ej: 200901)"
+                  placeholder={canViewAllHistory ? "Digita el 社員№ del empleado (ej: 200901)" : "Solo puedes ver tu propio historial"}
                   value={employeeIdInput}
                   onChange={(e) => handleEmployeeIdChange(e.target.value)}
+                  disabled={!canViewAllHistory}
                   className="pl-10"
                 />
               </div>
+              {!canViewAllHistory && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  管理者のみ他の従業員の履歴を検索できます (Only admins can search other employees)
+                </p>
+              )}
             </div>
 
             {/* Employee Info Display (Auto-shown when shain number is entered) */}

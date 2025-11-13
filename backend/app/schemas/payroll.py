@@ -74,6 +74,8 @@ class EmployeeData(BaseModel):
     prefecture: str = Field(default="Tokyo", description="Prefecture for resident tax")
     apartment_rent: float = Field(default=30000, ge=0, description="Monthly apartment rent")
     dependents: int = Field(default=0, ge=0, description="Number of dependents")
+    standard_hours_per_month: float = Field(default=160, gt=0, le=300, description="Standard hours per month for teiji (定時) calculation")
+    yukyu_days_approved: float = Field(default=0, ge=0, description="Approved yukyu days in period (有給休暇)")
 
 
 class EmployeePayrollCreate(BaseModel):
@@ -81,6 +83,7 @@ class EmployeePayrollCreate(BaseModel):
     employee_data: EmployeeData
     timer_records: List[TimerRecord]
     payroll_run_id: Optional[int] = Field(None, description="Payroll run ID")
+    yukyu_days_approved: float = Field(default=0, ge=0, description="Yukyu days approved (alternative to employee_data.yukyu_days_approved)")
 
 
 class HoursBreakdown(BaseModel):
@@ -124,6 +127,7 @@ class DeductionsDetail(BaseModel):
     employment_insurance: float
     apartment: float
     other: float
+    yukyu_deduction: float = Field(default=0, description="Deduction for approved yukyu days (有給休暇控除)")
 
 
 class ValidationResult(BaseModel):
@@ -209,13 +213,30 @@ class PayslipDetail(BaseModel):
 
 
 class PayrollSettingsBase(BaseModel):
-    """Base schema for payroll settings."""
+    """
+    Base schema for payroll settings.
+
+    Includes:
+    - Hour rates (multipliers for base wage)
+    - Tax rates (percentage of gross salary)
+    - Insurance rates (percentage of gross salary)
+    - Standard hours per month
+    """
     company_id: Optional[int] = None
-    overtime_rate: float = Field(default=1.25, ge=1.0, le=2.0, description="Overtime rate multiplier")
-    night_shift_rate: float = Field(default=1.25, ge=1.0, le=2.0, description="Night shift rate multiplier")
-    holiday_rate: float = Field(default=1.35, ge=1.0, le=2.0, description="Holiday rate multiplier")
-    sunday_rate: float = Field(default=1.35, ge=1.0, le=2.0, description="Sunday rate multiplier")
+
+    # Hour rates (multipliers)
+    overtime_rate: float = Field(default=1.25, ge=1.0, le=2.0, description="Overtime rate multiplier (e.g., 1.25 = 125%)")
+    night_shift_rate: float = Field(default=1.25, ge=1.0, le=2.0, description="Night shift rate multiplier (e.g., 1.25 = 125%)")
+    holiday_rate: float = Field(default=1.35, ge=1.0, le=2.0, description="Holiday rate multiplier (e.g., 1.35 = 135%)")
+    sunday_rate: float = Field(default=1.35, ge=1.0, le=2.0, description="Sunday rate multiplier (e.g., 1.35 = 135%)")
     standard_hours_per_month: float = Field(default=160, gt=0, le=300, description="Standard hours per month")
+
+    # Tax & insurance rates (percentages)
+    income_tax_rate: float = Field(default=10.0, ge=0, le=100, description="Income tax rate (%)")
+    resident_tax_rate: float = Field(default=5.0, ge=0, le=100, description="Resident tax rate (%)")
+    health_insurance_rate: float = Field(default=4.75, ge=0, le=100, description="Health insurance rate (%)")
+    pension_rate: float = Field(default=10.0, ge=0, le=100, description="Pension insurance rate (%)")
+    employment_insurance_rate: float = Field(default=0.3, ge=0, le=100, description="Employment insurance rate (%)")
 
 
 class PayrollSettingsCreate(PayrollSettingsBase):
@@ -224,12 +245,24 @@ class PayrollSettingsCreate(PayrollSettingsBase):
 
 
 class PayrollSettingsUpdate(BaseModel):
-    """Schema for updating payroll settings."""
-    overtime_rate: Optional[float] = Field(None, ge=1.0, le=2.0)
-    night_shift_rate: Optional[float] = Field(None, ge=1.0, le=2.0)
-    holiday_rate: Optional[float] = Field(None, ge=1.0, le=2.0)
-    sunday_rate: Optional[float] = Field(None, ge=1.0, le=2.0)
-    standard_hours_per_month: Optional[float] = Field(None, gt=0, le=300)
+    """
+    Schema for updating payroll settings (partial updates allowed).
+
+    All fields are optional - only provided fields will be updated.
+    """
+    # Hour rates (multipliers)
+    overtime_rate: Optional[float] = Field(None, ge=1.0, le=2.0, description="Overtime rate multiplier")
+    night_shift_rate: Optional[float] = Field(None, ge=1.0, le=2.0, description="Night shift rate multiplier")
+    holiday_rate: Optional[float] = Field(None, ge=1.0, le=2.0, description="Holiday rate multiplier")
+    sunday_rate: Optional[float] = Field(None, ge=1.0, le=2.0, description="Sunday rate multiplier")
+    standard_hours_per_month: Optional[float] = Field(None, gt=0, le=300, description="Standard hours per month")
+
+    # Tax & insurance rates (percentages)
+    income_tax_rate: Optional[float] = Field(None, ge=0, le=100, description="Income tax rate (%)")
+    resident_tax_rate: Optional[float] = Field(None, ge=0, le=100, description="Resident tax rate (%)")
+    health_insurance_rate: Optional[float] = Field(None, ge=0, le=100, description="Health insurance rate (%)")
+    pension_rate: Optional[float] = Field(None, ge=0, le=100, description="Pension insurance rate (%)")
+    employment_insurance_rate: Optional[float] = Field(None, ge=0, le=100, description="Employment insurance rate (%)")
 
 
 class PayrollSettings(PayrollSettingsBase):

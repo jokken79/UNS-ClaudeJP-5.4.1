@@ -79,3 +79,56 @@ export function updateCustomTheme(themeId: string, updates: Partial<CustomTheme>
     saveCustomThemes(themes);
   }
 }
+
+/**
+ * Clear all theme-related cache from localStorage
+ * This includes custom themes and theme favorites
+ */
+export function clearThemeCache(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    // Clear custom themes
+    localStorage.removeItem(CUSTOM_THEMES_KEY);
+
+    // Clear theme favorites
+    localStorage.removeItem("theme-favorites");
+
+    // Clear any other theme-related cache
+    const themeKeys = Object.keys(localStorage).filter(key =>
+      key.startsWith("theme-") || key.includes("custom-theme")
+    );
+
+    themeKeys.forEach(key => {
+      localStorage.removeItem(key);
+    });
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🗑️ Theme cache cleared successfully');
+    }
+  } catch (error) {
+    console.error("Error clearing theme cache:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get the size of theme cache in bytes
+ */
+export function getThemeCacheSize(): number {
+  if (typeof window === "undefined") {
+    return 0;
+  }
+
+  try {
+    const customThemes = localStorage.getItem(CUSTOM_THEMES_KEY) || "";
+    const favorites = localStorage.getItem("theme-favorites") || "";
+
+    return new Blob([customThemes, favorites]).size;
+  } catch (error) {
+    console.error("Error calculating cache size:", error);
+    return 0;
+  }
+}

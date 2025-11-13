@@ -61,7 +61,7 @@ export default function CreateAssignmentPage() {
   const { data: apartments = [] } = useQuery({
     queryKey: ['available-apartments'],
     queryFn: async () => {
-      const response = await api.get('/apartments/?available_only=true');
+      const response = await api.get('/apartments-v2/apartments?available_only=true');
       return response.data as Apartment[];
     },
   });

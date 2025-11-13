@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTheme } from 'next-themes';
 import { themes } from '@/lib/themes';
 import { getCustomThemes, type CustomTheme } from '@/lib/custom-themes';
@@ -10,11 +10,13 @@ import { getCustomThemes, type CustomTheme } from '@/lib/custom-themes';
  *
  * Automatically applies CSS custom properties when theme changes
  * Persists theme selection in localStorage via next-themes
+ * Synchronizes theme changes across browser tabs
  *
  * Usage: Call this hook in root layout or app component
  */
 export function useThemeApplier() {
-  const { theme, resolvedTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
+  const channelRef = useRef<BroadcastChannel | null>(null);
 
   useEffect(() => {
     // Skip if not mounted yet
@@ -82,4 +84,71 @@ export function useThemeApplier() {
       }
     }
   }, [theme, resolvedTheme]);
+
+  // Cross-tab synchronization effect
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Initialize BroadcastChannel for cross-tab communication
+    try {
+      channelRef.current = new BroadcastChannel('theme-sync');
+
+      // Listen for theme changes from other tabs
+      channelRef.current.onmessage = (event) => {
+        if (event.data.type === 'theme-change' && event.data.theme) {
+          // Apply theme change from another tab
+          setTheme(event.data.theme);
+
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`🔄 Theme synchronized from another tab: ${event.data.theme}`);
+          }
+        }
+      };
+    } catch (error) {
+      // BroadcastChannel not supported, fallback to storage events
+      console.warn('BroadcastChannel not supported, using storage events for sync');
+    }
+
+    // Fallback: Listen for localStorage changes (for browsers without BroadcastChannel)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'theme' && e.newValue && e.newValue !== theme) {
+        setTheme(e.newValue);
+
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`🔄 Theme synchronized via storage event: ${e.newValue}`);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    // Cleanup
+    return () => {
+      if (channelRef.current) {
+        channelRef.current.close();
+        channelRef.current = null;
+      }
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [theme, setTheme]);
+
+  // Broadcast theme changes to other tabs
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!theme) return;
+
+    // Broadcast theme change to other tabs
+    if (channelRef.current) {
+      try {
+        channelRef.current.postMessage({
+          type: 'theme-change',
+          theme: theme,
+          timestamp: Date.now(),
+        });
+      } catch (error) {
+        // Silently fail if broadcast fails
+        console.error('Failed to broadcast theme change:', error);
+      }
+    }
+  }, [theme]);
 }
