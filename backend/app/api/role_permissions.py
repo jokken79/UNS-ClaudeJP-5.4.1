@@ -2,7 +2,7 @@
 Role-Based Permissions API
 Controls which pages each role can access (ADMIN, KEITOSAN, TANTOSHA, EMPLOYEE)
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
@@ -10,8 +10,29 @@ from pydantic import BaseModel
 from app.core.database import get_db
 from app.models.models import RolePagePermission, User, UserRole
 from app.api.deps import get_current_user, require_admin
+from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/api/role-permissions", tags=["role-permissions"])
+
+
+# ================================
+# HELPER FUNCTIONS
+# ================================
+
+def get_client_ip(request: Request) -> Optional[str]:
+    """Extract client IP address from request"""
+    if "x-forwarded-for" in request.headers:
+        return request.headers["x-forwarded-for"].split(",")[0].strip()
+    elif "x-real-ip" in request.headers:
+        return request.headers["x-real-ip"]
+    else:
+        return request.client.host if request.client else None
+
+
+def get_user_agent(request: Request) -> Optional[str]:
+    """Extract user agent from request"""
+    return request.headers.get("user-agent")
+
 
 # ================================
 # SCHEMAS (Pydantic Models)
@@ -305,6 +326,7 @@ async def update_permission(
     role_key: str,
     page_key: str,
     permission: PermissionUpdate,
+    request: Request,
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
@@ -326,6 +348,9 @@ async def update_permission(
         RolePagePermission.page_key == page_key
     ).first()
 
+    # Store old value for audit log
+    old_value = db_permission.is_enabled if db_permission else False
+
     if not db_permission:
         db_permission = RolePagePermission(
             role_key=role_key,
@@ -338,6 +363,18 @@ async def update_permission(
 
     db.commit()
     db.refresh(db_permission)
+
+    # Log the change in audit log
+    AuditService.log_role_permission_change(
+        db=db,
+        admin_id=current_user.id,
+        role_key=role_key,
+        page_key=page_key,
+        old_value=old_value,
+        new_value=permission.is_enabled,
+        ip_address=get_client_ip(request),
+        user_agent=get_user_agent(request)
+    )
 
     return PermissionResponse(
         role_key=role_key,
@@ -352,6 +389,7 @@ async def update_permission(
 async def bulk_update_permissions(
     role_key: str,
     bulk_update: BulkPermissionUpdate,
+    request: Request,
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
@@ -362,6 +400,10 @@ async def bulk_update_permissions(
     # Validate role
     if role_key not in [r["key"] for r in AVAILABLE_ROLES]:
         raise HTTPException(status_code=404, detail=f"Role '{role_key}' not found")
+
+    # Track changes for audit log
+    pages_affected = []
+    success_count = 0
 
     # Process each permission update
     for perm_data in bulk_update.permissions:
@@ -391,7 +433,24 @@ async def bulk_update_permissions(
         else:
             db_permission.is_enabled = is_enabled
 
+        pages_affected.append(page_key)
+        success_count += 1
+
     db.commit()
+
+    # Log the bulk operation in audit log
+    operation_type = f"bulk_update_role_permissions_{role_key}"
+    AuditService.log_bulk_operation(
+        db=db,
+        admin_id=current_user.id,
+        operation_type=operation_type,
+        pages_affected=pages_affected,
+        roles_affected=[role_key],
+        total_count=len(bulk_update.permissions),
+        success_count=success_count,
+        ip_address=get_client_ip(request),
+        user_agent=get_user_agent(request)
+    )
 
     # Return updated permissions
     return await get_role_permissions(role_key, current_user, db)

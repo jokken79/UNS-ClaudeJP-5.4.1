@@ -1,7 +1,12 @@
 """
 Admin API - Panel de Control para gestionar módulos y configuraciones
+
+CONSOLIDATED (2025-11-12):
+- PageVisibility endpoints removed - use /api/pages/visibility instead
+- SystemSettings endpoints kept for backward compatibility
+- Maintenance mode, statistics, export/import endpoints kept (unique functionality)
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import update, func
 from typing import List, Optional
@@ -11,33 +16,34 @@ import json
 from app.core.database import get_db
 from app.models.models import PageVisibility, SystemSettings, User
 from app.api.deps import get_current_user, require_admin
+from app.services.audit_service import AuditService
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
+
+# ============================================
+# HELPER FUNCTIONS
+# ============================================
+
+def get_client_ip(request: Request) -> Optional[str]:
+    """Extract client IP address from request"""
+    if "x-forwarded-for" in request.headers:
+        return request.headers["x-forwarded-for"].split(",")[0].strip()
+    elif "x-real-ip" in request.headers:
+        return request.headers["x-real-ip"]
+    else:
+        return request.client.host if request.client else None
+
+
+def get_user_agent(request: Request) -> Optional[str]:
+    """Extract user agent from request"""
+    return request.headers.get("user-agent")
+
+
 # ============================================
 # SCHEMAS
 # ============================================
-
-class PageVisibilityResponse(BaseModel):
-    id: int
-    page_key: str
-    page_name: str
-    page_name_en: Optional[str]
-    is_enabled: bool
-    path: str
-    description: Optional[str]
-    disabled_message: Optional[str]
-    last_toggled_by: Optional[int]
-    last_toggled_at: Optional[datetime]
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
-class PageVisibilityUpdate(BaseModel):
-    is_enabled: bool
-    disabled_message: Optional[str] = None
 
 class SystemSettingResponse(BaseModel):
     id: int
@@ -48,10 +54,6 @@ class SystemSettingResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
-class BulkPageToggle(BaseModel):
-    page_keys: List[str]
-    is_enabled: bool
 
 class MaintenanceModeRequest(BaseModel):
     enabled: bool
@@ -90,6 +92,7 @@ async def get_page_visibility_by_key(
 async def update_page_visibility(
     page_key: str,
     page_data: PageVisibilityUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin)
 ):
@@ -99,6 +102,9 @@ async def update_page_visibility(
     page = db.query(PageVisibility).filter(PageVisibility.page_key == page_key).first()
     if not page:
         raise HTTPException(status_code=404, detail="Página no encontrada")
+
+    # Store old value for audit log
+    old_value = page.is_enabled
 
     # Update page
     page.is_enabled = page_data.is_enabled
@@ -111,17 +117,32 @@ async def update_page_visibility(
     db.commit()
     db.refresh(page)
 
+    # Log the change in audit log
+    AuditService.log_page_visibility_change(
+        db=db,
+        admin_id=current_user.id,
+        page_key=page_key,
+        old_value=old_value,
+        new_value=page_data.is_enabled,
+        ip_address=get_client_ip(request),
+        user_agent=get_user_agent(request)
+    )
+
     return page
 
 @router.post("/pages/bulk-toggle")
 async def bulk_toggle_pages(
     bulk_data: BulkPageToggle,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin)
 ):
     """
     Habilitar/deshabilitar múltiples páginas simultáneamente
     """
+    # Count successful updates
+    pages_count = len(bulk_data.page_keys)
+
     # Update all pages in bulk
     stmt = (
         update(PageVisibility)
@@ -133,8 +154,22 @@ async def bulk_toggle_pages(
             updated_at=datetime.utcnow()
         )
     )
-    db.execute(stmt)
+    result = db.execute(stmt)
     db.commit()
+
+    # Log the bulk operation in audit log
+    operation_type = "bulk_enable" if bulk_data.is_enabled else "bulk_disable"
+    AuditService.log_bulk_operation(
+        db=db,
+        admin_id=current_user.id,
+        operation_type=operation_type,
+        pages_affected=bulk_data.page_keys,
+        total_count=pages_count,
+        success_count=result.rowcount,
+        failed_count=pages_count - result.rowcount,
+        ip_address=get_client_ip(request),
+        user_agent=get_user_agent(request)
+    )
 
     return {
         "message": f"{len(bulk_data.page_keys)} páginas actualizadas",
@@ -228,14 +263,22 @@ async def toggle_maintenance_mode(
 ):
     """
     Activar/desactivar modo mantenimiento
+
+    When enabling maintenance mode, all pages are disabled.
     """
     # Update maintenance mode setting
     setting = db.query(SystemSettings).filter(SystemSettings.key == "maintenance_mode").first()
     if not setting:
-        raise HTTPException(status_code=404, detail="Configuración de mantenimiento no encontrada")
-
-    setting.value = "true" if maintenance_data.enabled else "false"
-    setting.updated_at = datetime.utcnow()
+        # Create if doesn't exist
+        setting = SystemSettings(
+            key="maintenance_mode",
+            value="false" if not maintenance_data.enabled else "true",
+            description="Global maintenance mode toggle"
+        )
+        db.add(setting)
+    else:
+        setting.value = "true" if maintenance_data.enabled else "false"
+        setting.updated_at = datetime.utcnow()
 
     # If enabling maintenance mode, disable all pages
     if maintenance_data.enabled:
@@ -280,12 +323,13 @@ async def get_admin_statistics(
     maintenance_enabled = maintenance_mode.value == "true" if maintenance_mode else False
 
     # Recent changes (last 24 hours)
-    yesterday = datetime.utcnow().timestamp() - (24 * 60 * 60)
+    from datetime import timedelta
+    yesterday = datetime.utcnow() - timedelta(days=1)
     recent_changes = (
         db.query(PageVisibility)
-        .filter(PageVisibility.last_toggled_at >= datetime.fromtimestamp(yesterday))
+        .filter(PageVisibility.last_toggled_at >= yesterday)
         .count()
-    )
+    ) if db.query(PageVisibility).first() else 0
 
     return {
         "pages": {
@@ -311,6 +355,8 @@ async def export_configuration(
 ):
     """
     Exportar toda la configuración del panel
+
+    Includes both PageVisibility and SystemSettings configurations.
     """
     pages = db.query(PageVisibility).order_by(PageVisibility.page_key).all()
     settings = db.query(SystemSettings).order_by(SystemSettings.key).all()
@@ -346,7 +392,12 @@ async def import_configuration(
 ):
     """
     Importar configuración del panel
+
+    Imports both PageVisibility and SystemSettings configurations.
     """
+    imported_pages = 0
+    imported_settings = 0
+
     # Import pages
     if "pages" in config_data:
         for page_data in config_data["pages"]:
@@ -357,6 +408,7 @@ async def import_configuration(
                 page.last_toggled_by = current_user.id
                 page.last_toggled_at = datetime.utcnow()
                 page.updated_at = datetime.utcnow()
+                imported_pages += 1
 
     # Import settings
     if "settings" in config_data:
@@ -365,10 +417,19 @@ async def import_configuration(
             if setting:
                 setting.value = setting_data["value"]
                 setting.updated_at = datetime.utcnow()
+                imported_settings += 1
 
     db.commit()
 
     return {
         "message": "Configuración importada exitosamente",
-        "imported_at": datetime.utcnow().isoformat()
+        "imported_at": datetime.utcnow().isoformat(),
+        "imported_pages": imported_pages,
+        "imported_settings": imported_settings
     }
+
+# ============================================
+# NOTE: PageVisibility CRUD endpoints removed
+# Use /api/pages/visibility/* endpoints instead
+# See app/api/pages.py for PageVisibility management
+# ============================================

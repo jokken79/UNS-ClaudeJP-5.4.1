@@ -57,9 +57,9 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname, '../'),
 
-  // Temporary: ignore TypeScript errors during build (framer-motion conflicts)
+  // TypeScript errors will fail the build (security fix)
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
 
   // Skip static generation for dynamic routes

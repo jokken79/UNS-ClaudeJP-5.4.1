@@ -17,7 +17,7 @@ class EmployeeMatchInfo(BaseModel):
 
 class TimerCardBase(BaseModel):
     """Base timer card schema"""
-    employee_id: int
+    hakenmoto_id: int
     factory_id: str
     work_date: date
     clock_in: Optional[time] = None

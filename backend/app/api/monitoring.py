@@ -6,11 +6,12 @@ import time
 from typing import Any, Dict
 
 import psutil
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.config import settings
 from app.core.logging import app_logger
 from app.core.observability import get_runtime_metrics
+from app.services.auth_service import AuthService
 
 router = APIRouter()
 
@@ -49,8 +50,15 @@ async def detailed_health() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@router.get("/metrics", summary="Application metrics")
-async def metrics() -> Dict[str, Any]:
+@router.get("/metrics", summary="Application metrics (Admin only)")
+async def metrics(
+    current_user = Depends(AuthService.require_role("admin"))
+) -> Dict[str, Any]:
+    """
+    Get application metrics - REQUIRES ADMIN ROLE.
+
+    Returns OCR processing statistics and performance metrics.
+    """
     metrics_snapshot = get_runtime_metrics()
     return {
         "ocr_total_requests": metrics_snapshot.get("requests", 0),
@@ -59,8 +67,15 @@ async def metrics() -> Dict[str, Any]:
     }
 
 
-@router.delete("/cache", summary="Clear OCR cache")
-async def clear_cache() -> Dict[str, Any]:
+@router.delete("/cache", summary="Clear OCR cache (Admin only)")
+async def clear_cache(
+    current_user = Depends(AuthService.require_role("admin"))
+) -> Dict[str, Any]:
+    """
+    Clear OCR cache - REQUIRES ADMIN ROLE.
+
+    Note: Azure OCR service doesn't use cache, but endpoint is kept for compatibility.
+    """
     # OCR service removed - using Azure OCR service instead
     result = {"success": True, "message": "Cache cleared successfully (Azure OCR doesn't use cache)"}
     return result

@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { StateStorage } from 'zustand/middleware';
+import { clearPermissionCache } from '@/lib/cache/permission-cache';
 
 const AUTH_COOKIE_NAME = 'uns-auth-token';
 const parsedMaxAge = Number(process.env.NEXT_PUBLIC_AUTH_TOKEN_MAX_AGE ?? 60 * 60 * 8);
@@ -68,6 +69,8 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('auth-storage');
+          // Clear all permission cache on logout
+          clearPermissionCache();
         }
         writeAuthCookie(null);
         set({ token: null, user: null, isAuthenticated: false });

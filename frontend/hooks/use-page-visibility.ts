@@ -1,7 +1,23 @@
 'use client';
 
+/**
+ * @deprecated Consider using useCachedPageVisibility from './use-cached-page-visibility'
+ * for better performance with localStorage caching.
+ *
+ * This hook still works but makes API calls on every render.
+ * The cached version checks cache first and only calls API when needed.
+ */
+
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
+
+// Re-export cached versions as recommended alternatives
+export {
+  useCachedPageVisibility,
+  useCachedAllPagesVisibility,
+  useCachedCurrentPageVisibility,
+  invalidateAllPageVisibilityCache,
+} from './use-cached-page-visibility';
 
 interface PageVisibility {
   id: number;

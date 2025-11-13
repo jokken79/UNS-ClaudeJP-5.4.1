@@ -166,6 +166,46 @@ export default function ApartmentReportsPage() {
         </button>
 
         <button
+          onClick={() => router.push('/apartment-reports/arrears')}
+          className="bg-card border rounded-lg p-6 hover:shadow-lg transition-shadow text-left"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 bg-red-100 rounded-lg flex items-center justify-center">
+                <CurrencyYenIcon className="h-8 w-8 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold">Reporte de Pagos Pendientes</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Seguimiento de deducciones pendientes y tasa de cobranza
+                </p>
+              </div>
+            </div>
+            <ArrowRightIcon className="h-6 w-6 text-muted-foreground" />
+          </div>
+        </button>
+
+        <button
+          onClick={() => router.push('/apartment-reports/maintenance')}
+          className="bg-card border rounded-lg p-6 hover:shadow-lg transition-shadow text-left"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 bg-yellow-100 rounded-lg flex items-center justify-center">
+                <BuildingOfficeIcon className="h-8 w-8 text-yellow-600" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold">Reporte de Mantenimiento</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Análisis de cargos adicionales y costos de mantenimiento
+                </p>
+              </div>
+            </div>
+            <ArrowRightIcon className="h-6 w-6 text-muted-foreground" />
+          </div>
+        </button>
+
+        <button
           onClick={() => router.push('/apartment-reports/costs')}
           className="bg-card border rounded-lg p-6 hover:shadow-lg transition-shadow text-left"
         >

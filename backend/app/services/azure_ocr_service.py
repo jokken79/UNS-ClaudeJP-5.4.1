@@ -359,6 +359,8 @@ class AzureOCRService:
             data.update(self._parse_zairyu_card(raw_text))
         elif document_type == "license":
             data.update(self._parse_license(raw_text))
+        elif document_type == "rirekisho":
+            data.update(self._parse_rirekisho(raw_text))
 
         return data
 
@@ -764,6 +766,326 @@ class AzureOCRService:
         if result.get('license_expire_date') and 'license_expiry' not in result:
             result['license_expiry'] = result['license_expire_date']
 
+        return result
+
+    def _parse_rirekisho(self, text: str) -> Dict[str, Any]:
+        """
+        Parse Rirekisho (Resume/CV) data - Comprehensive 50+ field extraction
+
+        Extracts data for all Candidate model fields from Japanese resume format.
+        """
+        import re
+        from datetime import datetime
+
+        result = {}
+        raw_lines = [line.replace('\u3000', ' ') for line in text.split('\n')]
+        lines = [line.strip() for line in raw_lines if line.strip()]
+
+        logger.info(f"Rirekisho parsing - Total lines: {len(lines)}")
+
+        # Date patterns (Japanese format)
+        date_patterns = [
+            r'(\d{4})[年/\-\.](\d{1,2})[月/\-\.](\d{1,2})日?',
+            r'(\d{4})[/\-\.](\d{1,2})[/\-\.](\d{1,2})'
+        ]
+
+        for i, line in enumerate(lines):
+            line_normalized = re.sub(r'\s+', '', line)
+            line_upper = line.upper()
+
+            # ===== BASIC INFORMATION =====
+
+            # Full Name (Kanji) - 氏名
+            if ('氏名' in line or 'ふりがな' in line or 'フリガナ' in line) and 'full_name_kanji' not in result:
+                # Try same line first
+                name_match = re.search(r'(?:氏名|名前)[：:\s]*([^\s]+(?:\s+[^\s]+)?)', line)
+                if name_match and len(name_match.group(1).strip()) > 1:
+                    result['full_name_kanji'] = name_match.group(1).strip()
+                # Check next line
+                elif i + 1 < len(lines):
+                    next_line = lines[i + 1].strip()
+                    if next_line and not any(k in next_line for k in ['生年月日', '性別', '年齢']):
+                        result['full_name_kanji'] = next_line
+
+            # Full Name (Kana) - フリガナ
+            if ('ふりがな' in line.lower() or 'フリガナ' in line or 'かな' in line) and 'full_name_kana' not in result:
+                kana_match = re.search(r'(?:フリガナ|ふりがな|かな)[：:\s]*([^\s]+(?:\s+[^\s]+)?)', line)
+                if kana_match:
+                    result['full_name_kana'] = kana_match.group(1).strip()
+                elif i + 1 < len(lines):
+                    next_line = lines[i + 1].strip()
+                    if next_line and not any(k in next_line for k in ['生年月日', '性別', '氏名']):
+                        result['full_name_kana'] = next_line
+
+            # Full Name (Roman) - ローマ字
+            if ('ローマ字' in line or 'ROMAN' in line_upper) and 'full_name_roman' not in result:
+                roman_match = re.search(r'(?:ローマ字|ROMAN)[：:\s]*([A-Z][A-Z\s]+)', line)
+                if roman_match:
+                    result['full_name_roman'] = roman_match.group(1).strip()
+
+            # Gender - 性別
+            if '性別' in line and 'gender' not in result:
+                if '男' in line:
+                    result['gender'] = '男性'
+                elif '女' in line:
+                    result['gender'] = '女性'
+
+            # Date of Birth - 生年月日
+            if ('生年月日' in line or '生まれ' in line) and 'date_of_birth' not in result:
+                for pattern in date_patterns:
+                    match = re.search(pattern, line)
+                    if match:
+                        year, month, day = match.groups()
+                        result['date_of_birth'] = f"{year}年{int(month):02d}月{int(day):02d}日"
+                        logger.info(f"Rirekisho - Date of birth: {result['date_of_birth']}")
+                        break
+
+            # Nationality - 国籍
+            if '国籍' in line and 'nationality' not in result:
+                nat_match = re.search(r'国籍[：:\s]*(.+)', line)
+                if nat_match:
+                    result['nationality'] = self._normalize_nationality(nat_match.group(1).strip())
+
+            # Marital Status - 配偶者
+            if '配偶者' in line and 'marital_status' not in result:
+                if '有' in line or '既婚' in line:
+                    result['marital_status'] = '有'
+                elif '無' in line or '未婚' in line:
+                    result['marital_status'] = '無'
+
+            # Hire Date - 入社日
+            if '入社日' in line and 'hire_date' not in result:
+                for pattern in date_patterns:
+                    match = re.search(pattern, line)
+                    if match:
+                        year, month, day = match.groups()
+                        result['hire_date'] = f"{year}年{int(month):02d}月{int(day):02d}日"
+                        break
+
+            # ===== ADDRESS INFORMATION =====
+
+            # Postal Code - 郵便番号
+            if ('郵便番号' in line or '〒' in line) and 'postal_code' not in result:
+                postal_match = re.search(r'(\d{3}[-\s]?\d{4})', line)
+                if postal_match:
+                    result['postal_code'] = postal_match.group(1)
+
+            # Current Address - 現住所
+            if ('現住所' in line or '住所' in line) and 'current_address' not in result:
+                addr_match = re.search(r'(?:現住所|住所)[：:\s]*(.+)', line)
+                if addr_match:
+                    result['current_address'] = addr_match.group(1).strip()
+                elif i + 1 < len(lines):
+                    next_line = lines[i + 1].strip()
+                    if next_line and not any(k in next_line for k in ['電話', 'TEL', '携帯']):
+                        result['current_address'] = next_line
+
+            # ===== CONTACT INFORMATION =====
+
+            # Phone - 電話番号
+            if ('電話' in line or 'TEL' in line_upper) and 'phone' not in result:
+                phone_match = re.search(r'(\d{2,4}[-\s]?\d{2,4}[-\s]?\d{3,4})', line)
+                if phone_match:
+                    result['phone'] = phone_match.group(1)
+
+            # Mobile - 携帯電話
+            if ('携帯' in line or 'MOBILE' in line_upper or '携帯電話' in line) and 'mobile' not in result:
+                mobile_match = re.search(r'(0[789]0[-\s]?\d{4}[-\s]?\d{4})', line)
+                if mobile_match:
+                    result['mobile'] = mobile_match.group(1)
+
+            # ===== PASSPORT INFORMATION =====
+
+            # Passport Number - パスポート番号
+            if 'パスポート' in line and 'passport_number' not in result:
+                passport_match = re.search(r'([A-Z]{2}\d{7,8})', line)
+                if passport_match:
+                    result['passport_number'] = passport_match.group(1)
+
+            # Passport Expiry - パスポート期限
+            if 'パスポート' in line and '期限' in line and 'passport_expiry' not in result:
+                for pattern in date_patterns:
+                    match = re.search(pattern, line)
+                    if match:
+                        year, month, day = match.groups()
+                        result['passport_expiry'] = f"{year}年{int(month):02d}月{int(day):02d}日"
+                        break
+
+            # ===== RESIDENCE CARD INFORMATION =====
+
+            # Residence Status - 在留資格
+            if '在留資格' in line and 'residence_status' not in result:
+                status_match = re.search(r'在留資格[：:\s]*([^\s]+)', line)
+                if status_match:
+                    result['residence_status'] = status_match.group(1).strip()
+
+            # Residence Expiry - 在留期限
+            if '在留期限' in line and 'residence_expiry' not in result:
+                for pattern in date_patterns:
+                    match = re.search(pattern, line)
+                    if match:
+                        year, month, day = match.groups()
+                        result['residence_expiry'] = f"{year}年{int(month):02d}月{int(day):02d}日"
+                        break
+
+            # Residence Card Number - 在留カード番号
+            if '在留カード' in line and 'residence_card_number' not in result:
+                card_match = re.search(r'([A-Z]{2}\s?\d{8}\s?[A-Z]{2})', line)
+                if card_match:
+                    result['residence_card_number'] = card_match.group(1)
+
+            # ===== DRIVER'S LICENSE =====
+
+            # License Number - 免許番号
+            if '免許' in line and 'license_number' not in result:
+                license_match = re.search(r'第?(\d{12,13})号?', line)
+                if license_match:
+                    result['license_number'] = license_match.group(1)
+
+            # License Expiry - 免許期限
+            if '免許' in line and '期限' in line and 'license_expiry' not in result:
+                for pattern in date_patterns:
+                    match = re.search(pattern, line)
+                    if match:
+                        year, month, day = match.groups()
+                        result['license_expiry'] = f"{year}年{int(month):02d}月{int(day):02d}日"
+                        break
+
+            # Car Ownership - 自動車所有
+            if '自動車所有' in line and 'car_ownership' not in result:
+                if '有' in line:
+                    result['car_ownership'] = '有'
+                elif '無' in line:
+                    result['car_ownership'] = '無'
+
+            # Voluntary Insurance - 任意保険
+            if '任意保険' in line and 'voluntary_insurance' not in result:
+                if '有' in line or '加入' in line:
+                    result['voluntary_insurance'] = '有'
+                elif '無' in line:
+                    result['voluntary_insurance'] = '無'
+
+            # ===== QUALIFICATIONS & LICENSES =====
+
+            # Forklift License - フォークリフト
+            if 'フォークリフト' in line or 'フォーク' in line:
+                result['forklift_license'] = '有'
+
+            # Tama-kake - 玉掛
+            if '玉掛' in line:
+                result['tama_kake'] = '有'
+
+            # Mobile Crane - 移動式クレーン
+            if '移動式クレーン' in line or 'クレーン運転' in line:
+                if '5トン未満' in line or '5t未満' in line:
+                    result['mobile_crane_under_5t'] = '有'
+                elif '5トン以上' in line or '5t以上' in line:
+                    result['mobile_crane_over_5t'] = '有'
+
+            # Gas Welding - ガス溶接
+            if 'ガス溶接' in line:
+                result['gas_welding'] = '有'
+
+            # ===== COMMUTE =====
+
+            # Commute Method - 通勤方法
+            if '通勤' in line and 'commute_method' not in result:
+                if '車' in line or '自動車' in line:
+                    result['commute_method'] = '車'
+                elif '電車' in line:
+                    result['commute_method'] = '電車'
+                elif '自転車' in line:
+                    result['commute_method'] = '自転車'
+                elif 'バス' in line:
+                    result['commute_method'] = 'バス'
+
+            # Commute Time (One Way) - 通勤時間
+            if '通勤時間' in line and 'commute_time_oneway' not in result:
+                time_match = re.search(r'(\d+)\s*分', line)
+                if time_match:
+                    result['commute_time_oneway'] = int(time_match.group(1))
+
+            # ===== JAPANESE LANGUAGE SKILLS =====
+
+            # Japanese Qualification - 日本語能力
+            if '日本語' in line and '能力' in line and 'japanese_qualification' not in result:
+                if 'N1' in line or 'Ｎ1' in line:
+                    result['japanese_level'] = 'N1'
+                elif 'N2' in line or 'Ｎ2' in line:
+                    result['japanese_level'] = 'N2'
+                elif 'N3' in line or 'Ｎ3' in line:
+                    result['japanese_level'] = 'N3'
+                elif 'N4' in line or 'Ｎ4' in line:
+                    result['japanese_level'] = 'N4'
+                elif 'N5' in line or 'Ｎ5' in line:
+                    result['japanese_level'] = 'N5'
+
+            # JLPT Taken - 能力試験受験
+            if '能力試験' in line and 'jlpt_taken' not in result:
+                if '有' in line or '受験' in line:
+                    result['jlpt_taken'] = '有'
+
+            # ===== PHYSICAL INFORMATION =====
+
+            # Height - 身長
+            if '身長' in line and 'height' not in result:
+                height_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:cm|CM|ｃｍ)', line)
+                if height_match:
+                    result['height'] = float(height_match.group(1))
+
+            # Weight - 体重
+            if '体重' in line and 'weight' not in result:
+                weight_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:kg|KG|ｋｇ)', line)
+                if weight_match:
+                    result['weight'] = float(weight_match.group(1))
+
+            # Clothing Size - 服のサイズ
+            if '服' in line and 'サイズ' in line and 'clothing_size' not in result:
+                size_match = re.search(r'([SMLX]{1,3}|\d+)', line)
+                if size_match:
+                    result['clothing_size'] = size_match.group(1)
+
+            # Blood Type - 血液型
+            if '血液型' in line and 'blood_type' not in result:
+                blood_match = re.search(r'([ABO]{1,2})[型\s]', line)
+                if blood_match:
+                    result['blood_type'] = blood_match.group(1)
+
+            # ===== EMERGENCY CONTACT =====
+
+            # Emergency Contact Name - 緊急連絡先
+            if '緊急連絡先' in line and 'emergency_contact_name' not in result:
+                name_match = re.search(r'氏名[：:\s]*(.+)', line)
+                if name_match:
+                    result['emergency_contact_name'] = name_match.group(1).strip()
+                elif i + 1 < len(lines):
+                    result['emergency_contact_name'] = lines[i + 1].strip()
+
+            # Emergency Contact Relation - 続柄
+            if '続柄' in line and 'emergency_contact_relation' not in result:
+                relation_match = re.search(r'続柄[：:\s]*(.+)', line)
+                if relation_match:
+                    result['emergency_contact_relation'] = relation_match.group(1).strip()
+
+            # Emergency Contact Phone - 緊急連絡先電話
+            if '緊急' in line and ('電話' in line or 'TEL' in line_upper) and 'emergency_contact_phone' not in result:
+                phone_match = re.search(r'(\d{2,4}[-\s]?\d{2,4}[-\s]?\d{3,4})', line)
+                if phone_match:
+                    result['emergency_contact_phone'] = phone_match.group(1)
+
+        # ===== POST-PROCESSING =====
+
+        # Parse address components if address exists
+        if result.get('current_address'):
+            address_components = self._parse_japanese_address(result['current_address'])
+            result.update(address_components)
+            result['address'] = result['current_address']  # Duplicate for compatibility
+
+        # Add aliases
+        if result.get('date_of_birth') and 'birthday' not in result:
+            result['birthday'] = result['date_of_birth']
+
+        logger.info(f"Rirekisho parsed - Extracted {len(result)} fields")
         return result
 
     def _convert_to_katakana(self, text: str) -> str:

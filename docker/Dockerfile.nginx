@@ -1,0 +1,48 @@
+# ========================================
+# UNS-ClaudeJP 5.4.1 - Nginx Dockerfile
+# ========================================
+#
+# Purpose: Reverse proxy for all services
+# Base: nginx:1.26-alpine (lightweight, secure)
+#
+# Author: Claude Code
+# Created: 2025-11-12
+# Version: 1.0.0
+#
+# ========================================
+
+FROM nginx:1.26-alpine
+
+# Metadata
+LABEL maintainer="UNS-Kikaku <dev@uns-kikaku.com>"
+LABEL description="Nginx reverse proxy for UNS-ClaudeJP 5.4.1"
+LABEL version="1.0.0"
+
+# Install dependencies (if needed for debugging)
+RUN apk add --no-cache \
+    curl \
+    ca-certificates
+
+# Remove default Nginx configuration
+RUN rm -f /etc/nginx/conf.d/default.conf
+
+# Copy custom Nginx configuration
+COPY docker/nginx/nginx.conf /etc/nginx/nginx.conf
+
+# Create log directory
+RUN mkdir -p /var/log/nginx && \
+    chown -R nginx:nginx /var/log/nginx
+
+# Create cache directory (for future use)
+RUN mkdir -p /var/cache/nginx && \
+    chown -R nginx:nginx /var/cache/nginx
+
+# Expose HTTP and HTTPS ports
+EXPOSE 80 443
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost/nginx-health || exit 1
+
+# Run Nginx in foreground
+CMD ["nginx", "-g", "daemon off;"]

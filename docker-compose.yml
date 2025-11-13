@@ -1,3 +1,39 @@
+# ========================================
+# Logging Configuration Templates
+# ========================================
+# See: docker/logging-config.yml for details
+
+x-logging-default: &logging-default
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+    compress: "true"
+    labels: "service,environment"
+    tag: "{{.Name}}/{{.ID}}"
+
+x-logging-verbose: &logging-verbose
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+    compress: "true"
+    labels: "service,environment"
+    tag: "{{.Name}}/{{.ID}}"
+
+x-logging-minimal: &logging-minimal
+  driver: json-file
+  options:
+    max-size: "5m"
+    max-file: "2"
+    compress: "true"
+    labels: "service,environment"
+    tag: "{{.Name}}/{{.ID}}"
+
+# ========================================
+# Services
+# ========================================
+
 services:
   db:
     image: postgres:15-alpine
@@ -21,13 +57,15 @@ services:
       timeout: 10s
       retries: 10
       start_period: 90s
+    logging: *logging-default
     profiles: ["dev", "prod"]
 
   redis:
     image: redis:7-alpine
     container_name: uns-claudejp-redis
     restart: always
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly yes
+    env_file: .env
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly yes --requirepass ${REDIS_PASSWORD}
     ports:
       - "6379:6379"
     volumes:
@@ -35,11 +73,12 @@ services:
     networks:
       - uns-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
+    logging: *logging-minimal
     profiles: ["dev", "prod"]
 
   importer:
@@ -72,93 +111,21 @@ services:
     networks:
       - uns-network
     command: >
-      sh -c "
-        echo '========================================' &&
-        echo '   UNS-ClaudeJP 5.4.1 - COMPLETE SETUP' &&
-        echo '   100% Field Mapping Enabled' &&
-        echo '========================================' &&
-        echo '' &&
-        echo '--- Step 1: Running ALL Alembic migrations (includes new columns) ---' &&
-        cd /app && alembic upgrade head &&
-        echo '✅ All migrations applied (including family_dependent, height, weight, vision, etc.)' &&
-        echo '' &&
-        echo '--- Step 2: Seeding demo data ---' &&
-        python scripts/manage_db.py seed &&
-        echo '✅ Demo data seeded' &&
-        echo '' &&
-        echo '--- Step 3: Creating apartments from employee data ---' &&
-        python scripts/create_apartments_from_employees.py &&
-        echo '✅ Apartments created (449 records)' &&
-        echo '' &&
-        echo '--- Step 4: Importing employees from Excel ---' &&
-        python scripts/import_data.py &&
-        echo '✅ Employees imported' &&
-        echo '' &&
-        echo '--- Step 5: Importing candidates with 100% COMPLETE field mapping ---' &&
-        python scripts/import_candidates_improved.py &&
-        echo '✅ Candidates imported with complete field coverage' &&
-        echo '' &&
-        echo '--- Step 6: Synchronizing candidate-employee status ---' &&
-        python scripts/sync_candidate_employee_status.py &&
-        echo '✅ Status synchronized' &&
-        echo '' &&
-        echo '--- Step 6.5: Linking employees to candidates (rirekisho_id + photos) ---' &&
-        python scripts/link_employees_to_candidates.py &&
-        echo '✅ Employees linked with candidates and photos' &&
-        echo '' &&
-        echo '--- Step 6.6: Creating SQL functions for apartment-factory relationships ---' &&
-        PGPASSWORD=$${POSTGRES_PASSWORD} psql -h db -U $${POSTGRES_USER} -d $${POSTGRES_DB} -f alembic/versions/create_populate_apartment_factory_function.sql &&
-        echo '✅ SQL functions created' &&
-        echo '' &&
-        echo '--- Step 6.7: Linking employees to factories and creating apartment-factory relationships ---' &&
-        python scripts/link_employees_to_factories.py &&
-        echo '✅ Employees linked to factories, apartment-factory relationships created' &&
-        echo '' &&
-        echo '--- Step 7: Checking for photo mappings file ---' &&
-        if [ -f /app/config/access_photo_mappings.json ]; then
-          echo '✅ Photo mappings file found - importing photos...' &&
-          python scripts/import_photos_from_json_simple.py --file config/access_photo_mappings.json --batch-size 100 &&
-          echo '✅ Photo import completed';
-        else
-          echo '⚠️  Photo mappings file not found at /app/config/access_photo_mappings.json' &&
-          echo '   To import photos:' &&
-          echo '   1. Download Access database from Google Drive' &&
-          echo '   2. Run: scripts\EXTRAER_FOTOS_ROBUSTO.bat (Windows)' &&
-          echo '   3. Restart services: scripts\STOP.bat && scripts\START.bat';
-        fi &&
-        echo '' &&
-        echo '--- Step 8: Verifying candidates were imported ---' &&
-        python scripts/verify_candidates_imported.py &&
-        echo '✅ Candidate verification completed' &&
-        echo '' &&
-        echo '--- Step 9: Importing factories from JSON files ---' &&
-        python scripts/import_factories_from_json.py &&
-        echo '✅ Factories imported' &&
-        echo '' &&
-        echo '========================================' &&
-        echo '   ✅ COMPLETE SETUP FINISHED!' &&
-        echo '   - All migrations applied' &&
-        echo '   - 142 columns in candidates table' &&
-        echo '   - 100% field mapping enabled' &&
-        echo '   - Percentage support for Japanese skills' &&
-        echo '   - 472 apartments created and loaded' &&
-        echo '   - Employees linked to factories (95%)' &&
-        echo '   - Apartment-factory relationships (437 apartments)' &&
-        echo '   - Apartment V2 system fully initialized' &&
-        echo '========================================'
-      "
+      sh -c "python scripts/resilient_importer.py"
+    logging: *logging-default
     profiles: ["dev", "prod"]
 
   backend:
     build:
       context: ./backend
       dockerfile: ../docker/Dockerfile.backend
-    container_name: uns-claudejp-backend
+    # container_name removed to enable horizontal scaling with --scale backend=N
+    # Docker Compose will auto-generate unique names: uns-claudejp-backend-1, uns-claudejp-backend-2, etc.
     restart: always
     env_file: .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -204,8 +171,9 @@ services:
       - ./.env:/app/.env
       - ./base-datos:/app/DATABASEJP:ro
       - ./BASEDATEJP:/app/BASEDATEJP:ro
-    ports:
-      - "8000:8000"
+    # ports removed to enable horizontal scaling - nginx handles load balancing
+    # To access backend directly, use: docker compose port backend 8000
+    # Or access via nginx: http://localhost/api/
     depends_on:
       db:
         condition: service_healthy
@@ -222,18 +190,20 @@ services:
       retries: 3
       start_period: 90s
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    logging: *logging-verbose
     profiles: ["dev"]
 
   backend-prod:
     build:
       context: ./backend
       dockerfile: ../docker/Dockerfile.backend
-    container_name: uns-claudejp-backend-prod
+    # container_name removed to enable horizontal scaling with --scale backend-prod=N
+    # Docker Compose will auto-generate unique names: uns-claudejp-backend-prod-1, uns-claudejp-backend-prod-2, etc.
     restart: always
     env_file: .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -295,6 +265,7 @@ services:
       retries: 3
       start_period: 90s
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    logging: *logging-verbose
     profiles: ["prod"]
 
   frontend:
@@ -331,8 +302,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 120s
     command: npm run dev
+    logging: *logging-verbose
     profiles: ["dev"]
 
   frontend-prod:
@@ -364,6 +336,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+    logging: *logging-verbose
     profiles: ["prod"]
 
   adminer:
@@ -377,6 +350,13 @@ services:
         condition: service_healthy
     networks:
       - uns-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging: *logging-minimal
     profiles: ["dev"]
 
   otel-collector:
@@ -390,7 +370,12 @@ services:
       - "4318:4318"
       - "13133:13133"
     healthcheck:
-      disable: true
+      test: ["CMD-SHELL", "wget -qO- http://localhost:13133 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging: *logging-verbose
     networks:
       - uns-network
     profiles: ["dev", "prod"]
@@ -409,6 +394,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    logging: *logging-default
     networks:
       - uns-network
     profiles: ["dev", "prod"]
@@ -419,6 +405,7 @@ services:
     command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus"]
     volumes:
       - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/observability/prometheus-alerts.yml:/etc/prometheus/prometheus-alerts.yml:ro
       - prometheus_data:/prometheus
     ports:
       - "9090:9090"
@@ -427,6 +414,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    logging: *logging-default
     networks:
       - uns-network
     profiles: ["dev", "prod"]
@@ -451,6 +439,88 @@ services:
         condition: service_healthy
     networks:
       - uns-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    logging: *logging-default
+    profiles: ["dev", "prod"]
+
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.nginx
+    container_name: uns-claudejp-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+      adminer:
+        condition: service_healthy
+      grafana:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+    networks:
+      - uns-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/nginx-health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    volumes:
+      # Optional: Mount SSL certificates for production
+      # - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+      # Optional: Mount custom configs
+      # - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      # Basic auth for Prometheus (uncomment to enable)
+      - ./docker/nginx/htpasswd:/etc/nginx/htpasswd:ro
+      # Logs
+      - ./logs/nginx:/var/log/nginx
+    logging: *logging-verbose
+    profiles: ["dev", "prod"]
+
+  backup:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backup
+    container_name: uns-claudejp-backup
+    restart: always
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_INTERVAL: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_TIME: ${BACKUP_TIME:-02:00}
+      RUN_ON_STARTUP: ${BACKUP_RUN_ON_STARTUP:-true}
+      TZ: Asia/Tokyo
+    volumes:
+      - ./backups:/backups
+      - ./docker/backup:/scripts:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - uns-network
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep crond > /dev/null && find /backups -name 'backup_*.sql.gz' -type f -mtime -2 | grep -q . || exit 1"]
+      interval: 1h
+      timeout: 30s
+      retries: 3
+      start_period: 30s
+    logging: *logging-default
     profiles: ["dev", "prod"]
 
 volumes:

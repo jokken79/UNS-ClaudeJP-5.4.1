@@ -31,6 +31,9 @@ import {
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { useAuthStore } from '@/stores/auth-store';
+import { canApproveYukyu } from '@/lib/yukyu-roles';
+import { ErrorState } from '@/components/error-state';
 
 interface YukyuRequest {
   id: number;
@@ -54,6 +57,21 @@ interface YukyuRequest {
 
 export default function YukyuRequestsPage() {
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+
+  // Role validation: Only KEITOSAN (Finance Manager) and ADMIN can access this page
+  // 有給休暇申請の承認・却下は経理管理者のみ
+  if (!canApproveYukyu(user?.role)) {
+    return (
+      <ErrorState
+        type="forbidden"
+        title="アクセス拒否 (Access Denied)"
+        message="有給休暇申請の承認・却下は経理管理者以上のユーザーのみが利用できます。"
+        showRetry={false}
+        showGoBack={true}
+      />
+    );
+  }
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('all');

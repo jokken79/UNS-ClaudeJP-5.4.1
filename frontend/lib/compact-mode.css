@@ -1,0 +1,237 @@
+/**
+ * Compact Mode Styles
+ *
+ * Reduces spacing and font sizes for a more compact interface
+ * Applied when .compact-mode class is added to the root element
+ */
+
+.compact-mode {
+  /* Reduce base font size */
+  font-size: 14px;
+}
+
+.compact-mode h1 {
+  @apply text-2xl;
+}
+
+.compact-mode h2 {
+  @apply text-xl;
+}
+
+.compact-mode h3 {
+  @apply text-lg;
+}
+
+.compact-mode h4 {
+  @apply text-base;
+}
+
+/* Reduce spacing in common components */
+.compact-mode .space-y-6 {
+  @apply space-y-4;
+}
+
+.compact-mode .space-y-4 {
+  @apply space-y-3;
+}
+
+.compact-mode .space-y-3 {
+  @apply space-y-2;
+}
+
+.compact-mode .space-y-2 {
+  @apply space-y-1;
+}
+
+.compact-mode .space-x-6 {
+  @apply space-x-4;
+}
+
+.compact-mode .space-x-4 {
+  @apply space-x-3;
+}
+
+.compact-mode .space-x-3 {
+  @apply space-x-2;
+}
+
+.compact-mode .space-x-2 {
+  @apply space-x-1;
+}
+
+.compact-mode .gap-6 {
+  @apply gap-4;
+}
+
+.compact-mode .gap-4 {
+  @apply gap-3;
+}
+
+.compact-mode .gap-3 {
+  @apply gap-2;
+}
+
+.compact-mode .gap-2 {
+  @apply gap-1;
+}
+
+/* Reduce padding in containers */
+.compact-mode .container {
+  @apply px-4;
+}
+
+.compact-mode .p-6 {
+  @apply p-4;
+}
+
+.compact-mode .p-4 {
+  @apply p-3;
+}
+
+.compact-mode .p-3 {
+  @apply p-2;
+}
+
+.compact-mode .px-6 {
+  @apply px-4;
+}
+
+.compact-mode .px-4 {
+  @apply px-3;
+}
+
+.compact-mode .py-6 {
+  @apply py-4;
+}
+
+.compact-mode .py-4 {
+  @apply py-3;
+}
+
+/* Compact cards */
+.compact-mode [class*="card"] {
+  @apply text-sm;
+}
+
+.compact-mode [role="dialog"] {
+  @apply text-sm;
+}
+
+/* Compact buttons */
+.compact-mode button {
+  @apply text-sm py-1.5 px-3;
+}
+
+.compact-mode button.btn-lg {
+  @apply py-2 px-4;
+}
+
+/* Compact forms */
+.compact-mode input,
+.compact-mode select,
+.compact-mode textarea {
+  @apply text-sm py-1.5 px-2;
+}
+
+.compact-mode label {
+  @apply text-sm mb-1;
+}
+
+/* Compact tables */
+.compact-mode table {
+  @apply text-sm;
+}
+
+.compact-mode th,
+.compact-mode td {
+  @apply py-2 px-3;
+}
+
+/* Compact navigation */
+.compact-mode nav {
+  @apply text-sm;
+}
+
+.compact-mode [role="navigation"] a,
+.compact-mode [role="navigation"] button {
+  @apply py-1.5 px-2;
+}
+
+/* Compact sidebar */
+.compact-mode aside {
+  @apply text-sm;
+}
+
+/* Reduce icon sizes */
+.compact-mode svg {
+  @apply h-4 w-4;
+}
+
+.compact-mode [class*="icon-lg"] svg {
+  @apply h-5 w-5;
+}
+
+/* Compact alerts and notifications */
+.compact-mode [role="alert"] {
+  @apply text-sm p-3;
+}
+
+/* Compact badges */
+.compact-mode [class*="badge"] {
+  @apply text-xs py-0.5 px-1.5;
+}
+
+/* Compact dashboard cards */
+.compact-mode [data-dashboard-card] {
+  @apply p-3;
+}
+
+.compact-mode [data-dashboard-card] h3 {
+  @apply text-base;
+}
+
+.compact-mode [data-dashboard-card] p {
+  @apply text-xs;
+}
+
+/* Compact data tables */
+.compact-mode [data-table] th,
+.compact-mode [data-table] td {
+  @apply py-1.5 px-2 text-xs;
+}
+
+/* Compact modals/dialogs */
+.compact-mode [role="dialog"] [class*="header"] {
+  @apply p-4;
+}
+
+.compact-mode [role="dialog"] [class*="content"] {
+  @apply p-4;
+}
+
+.compact-mode [role="dialog"] [class*="footer"] {
+  @apply p-3;
+}
+
+/* Compact stats/metrics */
+.compact-mode [data-stat-value] {
+  @apply text-2xl;
+}
+
+.compact-mode [data-stat-label] {
+  @apply text-xs;
+}
+
+/* Maintain minimum sizes for critical elements */
+.compact-mode [data-no-compact],
+.compact-mode .no-compact {
+  font-size: inherit;
+  padding: inherit;
+}
+
+/* Responsive adjustments for mobile */
+@media (max-width: 768px) {
+  .compact-mode {
+    font-size: 13px;
+  }
+}

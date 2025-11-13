@@ -21,6 +21,7 @@ from app.models.models import (
     SalaryCalculation,
     CandidateStatus,
     RequestStatus,
+    YukyuRequest,
 )
 from app.schemas.dashboard import (
     DashboardStats,
@@ -31,6 +32,9 @@ from app.schemas.dashboard import (
     AdminDashboard,
     EmployeeDashboard,
     CoordinatorDashboard,
+    YukyuTrendMonth,
+    YukyuComplianceStatus,
+    YukyuComplianceDetail,
 )
 from app.services.auth_service import auth_service
 
@@ -249,9 +253,10 @@ async def get_factories_dashboard(
         
         # Current month data
         employee_ids = [e.id for e in employees]
-        
+        hakenmoto_ids = [e.hakenmoto_id for e in employees]
+
         timer_cards = db.query(TimerCard).filter(
-            TimerCard.employee_id.in_(employee_ids),
+            TimerCard.hakenmoto_id.in_(hakenmoto_ids),
             TimerCard.is_approved == True,
             extract('month', TimerCard.work_date) == current_month,
             extract('year', TimerCard.work_date) == current_year
@@ -444,7 +449,7 @@ async def get_employee_dashboard(
     # Current month hours
     now = datetime.now()
     timer_cards = db.query(TimerCard).filter(
-        TimerCard.employee_id == employee_id,
+        TimerCard.hakenmoto_id == employee.hakenmoto_id,
         extract('month', TimerCard.work_date) == now.month,
         extract('year', TimerCard.work_date) == now.year
     ).all()
@@ -472,4 +477,171 @@ async def get_employee_dashboard(
         last_payment_date=last_salary.paid_at.date() if last_salary and last_salary.paid_at else None,
         current_month_hours=current_hours,
         pending_requests=pending_requests
+    )
+
+
+# ============================================================================
+# FASE 5: Yukyu Dashboard Endpoints (KEITOSAN - Finance Manager)
+# ============================================================================
+
+
+@router.get("/yukyu-trends-monthly", response_model=list[YukyuTrendMonth])
+async def get_yukyu_trends_monthly(
+    months: int = Query(default=6, ge=1, le=24, description="Number of months to retrieve"),
+    current_user: User = Depends(auth_service.require_yukyu_access()),
+    db: Session = Depends(get_db)
+):
+    """
+    Get monthly yukyu trend data for yukyu dashboard.
+    Shows approved yukyu days and deduction amounts by month.
+
+    Access: All roles EXCEPT EMPLOYEE and CONTRACT_WORKER
+    (SUPER_ADMIN, ADMIN, COORDINATOR, KANRININSHA, KEITOSAN, TANTOSHA)
+
+    Args:
+        months: Number of previous months to retrieve (1-24)
+        current_user: Current authenticated user (with yukyu access)
+        db: Database session
+
+    Returns:
+        List of monthly trend data sorted chronologically
+    """
+    trends = []
+    now = datetime.now()
+
+    for i in range(months):
+        target_date = now - relativedelta(months=i)
+        month = target_date.month
+        year = target_date.year
+        month_str = f"{year}-{month:02d}"
+
+        # Query approved yukyu requests for this month
+        yukyu_requests = db.query(YukyuRequest).filter(
+            YukyuRequest.status == RequestStatus.APPROVED,
+            extract('month', YukyuRequest.start_date) == month,
+            extract('year', YukyuRequest.start_date) == year
+        ).all()
+
+        if not yukyu_requests:
+            trends.append(YukyuTrendMonth(
+                month=month_str,
+                total_approved_days=0.0,
+                employees_with_yukyu=0,
+                total_deduction_jpy=0.0,
+                avg_deduction_per_employee=0.0
+            ))
+            continue
+
+        # Calculate metrics
+        total_days = sum(float(r.days_requested) for r in yukyu_requests)
+        unique_employees = len(set(r.employee_id for r in yukyu_requests))
+
+        # Get employee payroll data to calculate deductions
+        total_deduction = 0.0
+        for yukyu_request in yukyu_requests:
+            employee = db.query(Employee).filter(Employee.id == yukyu_request.employee_id).first()
+            if employee:
+                # Calculate deduction: days * teiji_hours_per_day * base_hourly_rate
+                standard_hours_per_month = getattr(employee, 'standard_hours_per_month', 160)
+                teiji_hours_per_day = standard_hours_per_month / 20.0
+                deduction = yukyu_request.days_requested * teiji_hours_per_day * float(employee.jikyu or 0)
+                total_deduction += deduction
+
+        avg_deduction = total_deduction / unique_employees if unique_employees > 0 else 0.0
+
+        trends.append(YukyuTrendMonth(
+            month=month_str,
+            total_approved_days=total_days,
+            employees_with_yukyu=unique_employees,
+            total_deduction_jpy=round(total_deduction, 2),
+            avg_deduction_per_employee=round(avg_deduction, 2)
+        ))
+
+    # Sort chronologically (oldest first)
+    return list(reversed(trends))
+
+
+@router.get("/yukyu-compliance-status", response_model=YukyuComplianceStatus)
+async def get_yukyu_compliance_status(
+    period: str = Query(default="current", description="Period: 'current' for current fiscal year or YYYY-MM"),
+    current_user: User = Depends(auth_service.require_yukyu_access()),
+    db: Session = Depends(get_db)
+):
+    """
+    Get yukyu compliance status for all employees.
+    Checks compliance with Japanese labor law (Article 39).
+    Minimum requirement: 5 days yukyu per year.
+
+    Access: All roles EXCEPT EMPLOYEE and CONTRACT_WORKER
+    (SUPER_ADMIN, ADMIN, COORDINATOR, KANRININSHA, KEITOSAN, TANTOSHA)
+
+    Args:
+        period: Period to check ('current' for FY 2024-2025, or specific month 'YYYY-MM')
+        current_user: Current authenticated user (with yukyu access)
+        db: Database session
+
+    Returns:
+        Compliance status with detailed employee information
+    """
+    today = date.today()
+
+    # Determine fiscal year (April 1 - March 31 in Japan)
+    if today.month >= 4:
+        fy_start = date(today.year, 4, 1)
+        fy_end = date(today.year + 1, 3, 31)
+        period_str = f"{today.year}-FY"
+    else:
+        fy_start = date(today.year - 1, 4, 1)
+        fy_end = date(today.year, 3, 31)
+        period_str = f"{today.year - 1}-FY"
+
+    # Get all active employees
+    employees = db.query(Employee).filter(Employee.is_active == True).all()
+
+    compliant = 0
+    non_compliant = 0
+    employee_details = []
+
+    for employee in employees:
+        # Get approved yukyu requests for fiscal year
+        yukyu_requests = db.query(YukyuRequest).filter(
+            YukyuRequest.employee_id == employee.id,
+            YukyuRequest.status == RequestStatus.APPROVED,
+            YukyuRequest.start_date >= fy_start,
+            YukyuRequest.start_date <= fy_end
+        ).all()
+
+        total_used = sum(float(r.days_requested) for r in yukyu_requests)
+        total_remaining = float(employee.yukyu_remaining or 0)
+        legal_minimum = 5.0
+
+        is_compliant = (total_used + total_remaining) >= legal_minimum
+        warning = None
+
+        if not is_compliant:
+            non_compliant += 1
+            days_short = legal_minimum - (total_used + total_remaining)
+            warning = f"Not compliant with Japanese labor law. Short by {days_short:.1f} days"
+        else:
+            compliant += 1
+
+        employee_details.append(YukyuComplianceDetail(
+            employee_id=employee.id,
+            employee_name=employee.full_name_kanji or employee.full_name_roman,
+            total_used_this_year=round(total_used, 1),
+            total_remaining=round(total_remaining, 1),
+            legal_minimum=legal_minimum,
+            is_compliant=is_compliant,
+            warning=warning
+        ))
+
+    # Sort by compliance status (non-compliant first)
+    employee_details.sort(key=lambda x: (x.is_compliant, x.employee_name))
+
+    return YukyuComplianceStatus(
+        period=period_str,
+        total_employees=len(employees),
+        compliant_employees=compliant,
+        non_compliant_employees=non_compliant,
+        employees_details=employee_details
     )

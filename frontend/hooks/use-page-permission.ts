@@ -1,8 +1,25 @@
 'use client';
 
+/**
+ * @deprecated Consider using useCachedPagePermission from './use-cached-page-permission'
+ * for better performance with localStorage caching.
+ *
+ * This hook still works but makes API calls on every render.
+ * The cached version checks cache first and only calls API when needed.
+ */
+
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
 import api from '@/lib/api';
+
+// Re-export cached versions as recommended alternatives
+export {
+  useCachedPagePermission,
+  useCachedAllPagesPermission,
+  useCachedUserPermissions,
+  invalidateCurrentUserPermissions,
+  invalidateRolePermissions,
+} from './use-cached-page-permission';
 
 interface PagePermission {
   page_key: string;

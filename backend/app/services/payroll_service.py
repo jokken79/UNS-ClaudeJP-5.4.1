@@ -274,7 +274,8 @@ class PayrollService:
         employee_data: Optional[Dict[str, Any]] = None,
         timer_records: Optional[List[Dict[str, Any]]] = None,
         payroll_run_id: Optional[int] = None,
-        employee_id: Optional[int] = None
+        employee_id: Optional[int] = None,
+        yukyu_days_approved: float = 0
     ) -> Dict[str, Any]:
         """Calculate payroll for a single employee.
 
@@ -308,6 +309,42 @@ class PayrollService:
 
             # Calculate hours from timer records
             hours_breakdown = self._calculate_hours(timer_records)
+
+            # Reducir horas por días de yukyu aprobados
+            if yukyu_days_approved > 0:
+                # Calcular teiji (定時/horario estándar del empleado)
+                # teiji = horas_estándar_mes / días_laborales_mes (típicamente 20)
+                standard_hours_per_month = employee_data.get('standard_hours_per_month', 160)
+                teiji_hours_per_day = Decimal(str(standard_hours_per_month)) / Decimal('20')  # 20 días laborales típicos
+                yukyu_reduction_hours = Decimal(str(yukyu_days_approved)) * teiji_hours_per_day
+
+                total_worked_hours = (
+                    hours_breakdown['normal_hours'] +
+                    hours_breakdown['overtime_hours'] +
+                    hours_breakdown['night_hours'] +
+                    hours_breakdown['holiday_hours']
+                )
+
+                # Reducir de horas normales primero
+                if hours_breakdown['normal_hours'] >= yukyu_reduction_hours:
+                    hours_breakdown['normal_hours'] -= yukyu_reduction_hours
+                    yukyu_reduction_hours = 0
+                else:
+                    yukyu_reduction_hours -= hours_breakdown['normal_hours']
+                    hours_breakdown['normal_hours'] = 0
+
+                # Luego de overtime si queda
+                if yukyu_reduction_hours > 0 and hours_breakdown['overtime_hours'] > 0:
+                    if hours_breakdown['overtime_hours'] >= yukyu_reduction_hours:
+                        hours_breakdown['overtime_hours'] -= yukyu_reduction_hours
+                    else:
+                        yukyu_reduction_hours -= hours_breakdown['overtime_hours']
+                        hours_breakdown['overtime_hours'] = 0
+
+                logger.info(
+                    f"Employee {employee_data.get('employee_id')}: "
+                    f"Reduced hours by {yukyu_days_approved} days teiji={teiji_hours_per_day:.2f}h/day (¥{yukyu_days_approved * teiji_hours_per_day * Decimal(str(employee_data.get('base_hourly_rate', 0))):.2f})"
+                )
 
             # Calculate base hourly rate from employee data
             base_rate = employee_data.get('base_hourly_rate', 0)
@@ -371,9 +408,18 @@ class PayrollService:
             income_tax = int(float(gross_amount) * 0.05)
             resident_tax = int(float(gross_amount) * 0.10)
 
+            # Calcular deducción por yukyu
+            yukyu_deduction = 0
+            if yukyu_days_approved > 0:
+                base_rate = Decimal(str(employee_data.get('base_hourly_rate', 0)))
+                # Usar teiji (定時/horario estándar del empleado) en lugar de 8 horas fijas
+                standard_hours_per_month = employee_data.get('standard_hours_per_month', 160)
+                teiji_hours_per_day = Decimal(str(standard_hours_per_month)) / Decimal('20')
+                yukyu_deduction = int(yukyu_days_approved * teiji_hours_per_day * base_rate)
+
             total_deductions = (
                 apartment_rent + health_insurance + pension +
-                employment_insurance + income_tax + resident_tax
+                employment_insurance + income_tax + resident_tax + yukyu_deduction
             )
 
             net_amount = float(gross_amount) - total_deductions
@@ -417,7 +463,8 @@ class PayrollService:
                     'pension': pension,
                     'employment_insurance': employment_insurance,
                     'apartment': apartment_rent,
-                    'other': 0
+                    'other': 0,
+                    'yukyu_deduction': yukyu_deduction
                 },
                 'employee_info': {
                     'employee_id': employee_data.get('employee_id'),

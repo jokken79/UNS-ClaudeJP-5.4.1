@@ -18,6 +18,7 @@ from app.core.observability import (
     record_ocr_request,
     trace_ocr_operation,
 )
+from app.core.timeout_utils import timeout_executor, TimeoutException
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class HybridOCRService:
     """Servicio híbrido OCR que combina múltiples métodos para máxima precisión.
 
     Este servicio implementa una estrategia inteligente de procesamiento OCR que:
-    - Intenta múltiples proveedores OCR (Azure, EasyOCR)
+    - Intenta múltiples proveedores OCR (Azure, EasyOCR, Tesseract)
     - Combina resultados para máxima precisión
     - Maneja fallbacks automáticos
     - Proporciona scores de confianza
@@ -34,39 +35,43 @@ class HybridOCRService:
     Attributes:
         azure_available (bool): Indica si Azure OCR está disponible
         easyocr_available (bool): Indica si EasyOCR está disponible
+        tesseract_available (bool): Indica si Tesseract OCR está disponible
         azure_service: Instancia del servicio Azure OCR
         easyocr_service: Instancia del servicio EasyOCR
+        tesseract_service: Instancia del servicio Tesseract OCR
 
     Examples:
         >>> service = HybridOCRService()
         >>> result = service.process_document_hybrid(image_bytes, "zairyu_card")
-        >>> print(result['method_used'])  # 'hybrid', 'azure', or 'easyocr'
+        >>> print(result['method_used'])  # 'hybrid', 'azure', 'easyocr', or 'tesseract'
         >>> print(result['confidence_score'])  # 0.0 - 0.95
     """
 
     def __init__(self):
         """Inicializa el servicio híbrido OCR.
 
-        Intenta inicializar ambos servicios OCR (Azure y EasyOCR) y registra
+        Intenta inicializar todos los servicios OCR (Azure, EasyOCR, Tesseract) y registra
         cuáles están disponibles para su uso.
         """
         self.azure_available = False
         self.easyocr_available = False
+        self.tesseract_available = False
 
         # Inicializar servicios disponibles
         self._init_services()
 
-        logger.info(f"HybridOCRService inicializado - Azure: {self.azure_available}, EasyOCR: {self.easyocr_available}")
+        logger.info(f"HybridOCRService inicializado - Azure: {self.azure_available}, EasyOCR: {self.easyocr_available}, Tesseract: {self.tesseract_available}")
     
     def _init_services(self):
         """Inicializa los servicios OCR disponibles.
 
-        Intenta importar y configurar Azure OCR y EasyOCR. Si alguno falla,
+        Intenta importar y configurar Azure OCR, EasyOCR y Tesseract. Si alguno falla,
         registra un warning pero continúa con los servicios disponibles.
 
         Side Effects:
             - Establece self.azure_service y self.azure_available
             - Establece self.easyocr_service y self.easyocr_available
+            - Establece self.tesseract_service y self.tesseract_available
             - Registra mensajes de log sobre disponibilidad
         """
         # Inicializar Azure OCR
@@ -88,10 +93,261 @@ class HybridOCRService:
         except ImportError as e:
             logger.warning(f"EasyOCR no disponible: {e}")
             self.easyocr_service = None
+
+        # Inicializar Tesseract OCR
+        try:
+            from app.services.tesseract_ocr_service import tesseract_ocr_service
+            self.tesseract_service = tesseract_ocr_service
+            self.tesseract_available = tesseract_ocr_service.tesseract_available
+            logger.info("Tesseract OCR service disponible")
+        except ImportError as e:
+            logger.warning(f"Tesseract OCR no disponible: {e}")
+            self.tesseract_service = None
     
+    def _process_document_hybrid_internal(self, image_data: bytes, document_type: str,
+                                         preferred_method: str) -> Dict[str, Any]:
+        """Internal method for hybrid OCR processing (without timeout wrapper).
+
+        This method is called by process_document_hybrid with timeout protection.
+
+        Args:
+            image_data (bytes): Document image bytes
+            document_type (str): Document type
+            preferred_method (str): Processing strategy
+
+        Returns:
+            Dict[str, Any]: OCR processing results
+        """
+        try:
+            logger.info(f"Procesando documento con método híbrido: {document_type}, preferencia: {preferred_method}")
+            
+            results = {
+                "document_type": document_type,
+                "success": False,
+                "method_used": "none",
+                "confidence_score": 0.0,
+                "azure_result": None,
+                "easyocr_result": None,
+                "combined_data": {}
+            }
+            
+            # Estrategia de procesamiento según preferencia
+            if preferred_method == "azure" and self.azure_available:
+                # Azure primero, EasyOCR como fallback
+                azure_result = self._process_with_azure(image_data, document_type)
+                results["azure_result"] = azure_result
+                
+                if azure_result.get("success"):
+                    results["success"] = True
+                    results["method_used"] = "azure"
+                    results["combined_data"] = azure_result
+                    results["confidence_score"] = 0.8  # Confianza base para Azure
+                    
+                    # Intentar mejorar con EasyOCR si hay campos faltantes
+                    if self.easyocr_available and self._has_missing_fields(azure_result, document_type):
+                        logger.info("Campos faltantes detectados, complementando con EasyOCR")
+                        easyocr_result = self._process_with_easyocr(image_data, document_type)
+                        results["easyocr_result"] = easyocr_result
+                        
+                        if easyocr_result.get("success"):
+                            combined = self._combine_results(azure_result, easyocr_result, "azure")
+                            results["combined_data"] = combined
+                            results["confidence_score"] = 0.9  # Mayor confianza con combinación
+                else:
+                    # Si Azure falla, probar con EasyOCR
+                    if self.easyocr_available:
+                        easyocr_result = self._process_with_easyocr(image_data, document_type)
+                        results["easyocr_result"] = easyocr_result
+
+                        if easyocr_result.get("success"):
+                            results["success"] = True
+                            results["method_used"] = "easyocr"
+                            results["combined_data"] = easyocr_result
+                            results["confidence_score"] = 0.7
+                        else:
+                            # Si EasyOCR también falla, probar con Tesseract
+                            if self.tesseract_available:
+                                logger.info("Azure y EasyOCR fallaron, intentando con Tesseract")
+                                tesseract_result = self._process_with_tesseract(image_data, document_type)
+                                results["tesseract_result"] = tesseract_result
+
+                                if tesseract_result and tesseract_result.get("success"):
+                                    results["success"] = True
+                                    results["method_used"] = "tesseract"
+                                    results["combined_data"] = tesseract_result
+                                    results["confidence_score"] = 0.6
+                    else:
+                        # Si EasyOCR no está disponible, probar directamente con Tesseract
+                        if self.tesseract_available:
+                            logger.info("Azure falló y EasyOCR no disponible, intentando con Tesseract")
+                            tesseract_result = self._process_with_tesseract(image_data, document_type)
+                            results["tesseract_result"] = tesseract_result
+
+                            if tesseract_result and tesseract_result.get("success"):
+                                results["success"] = True
+                                results["method_used"] = "tesseract"
+                                results["combined_data"] = tesseract_result
+                                results["confidence_score"] = 0.6
+            
+            elif preferred_method == "easyocr" and self.easyocr_available:
+                # EasyOCR primero, Azure como fallback
+                easyocr_result = self._process_with_easyocr(image_data, document_type)
+                results["easyocr_result"] = easyocr_result
+                
+                if easyocr_result.get("success"):
+                    results["success"] = True
+                    results["method_used"] = "easyocr"
+                    results["combined_data"] = easyocr_result
+                    results["confidence_score"] = 0.8
+                    
+                    # Intentar mejorar con Azure si hay campos faltantes
+                    if self.azure_available and self._has_missing_fields(easyocr_result, document_type):
+                        logger.info("Campos faltantes detectados, complementando con Azure")
+                        azure_result = self._process_with_azure(image_data, document_type)
+                        results["azure_result"] = azure_result
+                        
+                        if azure_result.get("success"):
+                            combined = self._combine_results(easyocr_result, azure_result, "easyocr")
+                            results["combined_data"] = combined
+                            results["confidence_score"] = 0.9
+                else:
+                    # Si EasyOCR falla, probar con Azure
+                    if self.azure_available:
+                        azure_result = self._process_with_azure(image_data, document_type)
+                        results["azure_result"] = azure_result
+
+                        if azure_result.get("success"):
+                            results["success"] = True
+                            results["method_used"] = "azure"
+                            results["combined_data"] = azure_result
+                            results["confidence_score"] = 0.7
+                        else:
+                            # Si Azure también falla, probar con Tesseract
+                            if self.tesseract_available:
+                                logger.info("EasyOCR y Azure fallaron, intentando con Tesseract")
+                                tesseract_result = self._process_with_tesseract(image_data, document_type)
+                                results["tesseract_result"] = tesseract_result
+
+                                if tesseract_result and tesseract_result.get("success"):
+                                    results["success"] = True
+                                    results["method_used"] = "tesseract"
+                                    results["combined_data"] = tesseract_result
+                                    results["confidence_score"] = 0.6
+                    else:
+                        # Si Azure no está disponible, probar directamente con Tesseract
+                        if self.tesseract_available:
+                            logger.info("EasyOCR falló y Azure no disponible, intentando con Tesseract")
+                            tesseract_result = self._process_with_tesseract(image_data, document_type)
+                            results["tesseract_result"] = tesseract_result
+
+                            if tesseract_result and tesseract_result.get("success"):
+                                results["success"] = True
+                                results["method_used"] = "tesseract"
+                                results["combined_data"] = tesseract_result
+                                results["confidence_score"] = 0.6
+            
+            else:  # auto
+                # Estrategia automática: probar ambos y combinar los mejores resultados
+                azure_result = None
+                easyocr_result = None
+                
+                # Ejecutar ambos servicios en paralelo si es posible
+                if self.azure_available:
+                    azure_result = self._process_with_azure(image_data, document_type)
+                    results["azure_result"] = azure_result
+                
+                if self.easyocr_available:
+                    easyocr_result = self._process_with_easyocr(image_data, document_type)
+                    results["easyocr_result"] = easyocr_result
+                
+                # Evaluar resultados y seleccionar el mejor
+                azure_success = azure_result and azure_result.get("success")
+                easyocr_success = easyocr_result and easyocr_result.get("success")
+                
+                if azure_success and easyocr_success:
+                    # Ambos funcionaron, combinar resultados
+                    logger.info("Ambos métodos funcionaron, combinando resultados")
+                    combined = self._combine_results(azure_result, easyocr_result, "auto")
+                    results["success"] = True
+                    results["method_used"] = "hybrid"
+                    results["combined_data"] = combined
+                    results["confidence_score"] = 0.95  # Máxima confianza con híbrido
+                    
+                elif azure_success:
+                    # Solo Azure funcionó
+                    logger.info("Solo Azure funcionó")
+                    results["success"] = True
+                    results["method_used"] = "azure"
+                    results["combined_data"] = azure_result
+                    results["confidence_score"] = 0.8
+                    
+                elif easyocr_success:
+                    # Solo EasyOCR funcionó
+                    logger.info("Solo EasyOCR funcionó")
+                    results["success"] = True
+                    results["method_used"] = "easyocr"
+                    results["combined_data"] = easyocr_result
+                    results["confidence_score"] = 0.8
+                    
+                else:
+                    # Ninguno funcionó, intentar con Tesseract como último recurso
+                    logger.error("Azure y EasyOCR fallaron, intentando Tesseract como último recurso")
+                    if self.tesseract_available:
+                        tesseract_result = self._process_with_tesseract(image_data, document_type)
+                        results["tesseract_result"] = tesseract_result
+
+                        if tesseract_result and tesseract_result.get("success"):
+                            results["success"] = True
+                            results["method_used"] = "tesseract"
+                            results["combined_data"] = tesseract_result
+                            results["confidence_score"] = 0.6
+                        else:
+                            # Todos los métodos fallaron
+                            logger.error("Todos los métodos OCR fallaron (Azure, EasyOCR, Tesseract)")
+                            results["success"] = False
+                            results["method_used"] = "none"
+                            results["confidence_score"] = 0.0
+                    else:
+                        # No hay Tesseract disponible
+                        logger.error("Ningún método OCR funcionó y Tesseract no está disponible")
+                        results["success"] = False
+                        results["method_used"] = "none"
+                        results["confidence_score"] = 0.0
+            
+            # Extraer foto con el servicio mejorado de detección facial
+            if results["success"]:
+                try:
+                    from app.services.face_detection_service import face_detection_service
+                    photo_data = face_detection_service.extract_face_from_document(image_data, document_type)
+                    if photo_data:
+                        results["combined_data"]["photo"] = photo_data
+                        logger.info("Foto extraída exitosamente con servicio mejorado")
+                except Exception as e:
+                    logger.warning(f"Error extrayendo foto: {e}")
+                    # Usar método original como fallback
+                    try:
+                        if self.azure_available:
+                            photo_data = self.azure_service._extract_photo_from_document(image_data, document_type)
+                            if photo_data:
+                                results["combined_data"]["photo"] = photo_data
+                    except Exception as e2:
+                        logger.error(f"Error extrayendo foto con método original: {e2}")
+            
+            logger.info(f"Procesamiento híbrido completado - Método: {results['method_used']}, Éxito: {results['success']}")
+            return results
+
+        except Exception as e:
+            logger.error(f"Error en procesamiento híbrido: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e),
+                "method_used": "error",
+                "confidence_score": 0.0
+            }
+
     def process_document_hybrid(self, image_data: bytes, document_type: str = "zairyu_card",
                                preferred_method: str = "auto") -> Dict[str, Any]:
-        """Procesa un documento usando estrategia híbrida inteligente de OCR.
+        """Procesa un documento usando estrategia híbrida inteligente de OCR (with 90s timeout).
 
         Este método implementa una estrategia sofisticada que:
         1. Si preferred_method='azure': Usa Azure primero, EasyOCR como fallback
@@ -155,170 +411,65 @@ class HybridOCRService:
             - El score de confianza es mayor cuando se combinan múltiples métodos
             - La estrategia 'auto' es la más precisa pero más lenta
             - Si ningún método está disponible, success=False
+            - **TIMEOUT: 90 segundos total** - Prevents indefinite hanging (allows for both OCR methods + processing)
         """
         try:
-            logger.info(f"Procesando documento con método híbrido: {document_type}, preferencia: {preferred_method}")
-            
-            results = {
-                "document_type": document_type,
+            # Execute with 90 second total timeout (allows for both Azure 30s + EasyOCR 30s + overhead)
+            result = timeout_executor(
+                self._process_document_hybrid_internal,
+                timeout_seconds=90,
+                image_data=image_data,
+                document_type=document_type,
+                preferred_method=preferred_method
+            )
+            return result
+
+        except TimeoutException as e:
+            logger.error(f"Hybrid OCR processing timed out after 90 seconds: {e}")
+            return {
                 "success": False,
-                "method_used": "none",
+                "error": "Hybrid OCR processing timeout after 90 seconds",
+                "method_used": "timeout",
                 "confidence_score": 0.0,
-                "azure_result": None,
-                "easyocr_result": None,
-                "combined_data": {}
+                "document_type": document_type
             }
-            
-            # Estrategia de procesamiento según preferencia
-            if preferred_method == "azure" and self.azure_available:
-                # Azure primero, EasyOCR como fallback
-                azure_result = self._process_with_azure(image_data, document_type)
-                results["azure_result"] = azure_result
-                
-                if azure_result.get("success"):
-                    results["success"] = True
-                    results["method_used"] = "azure"
-                    results["combined_data"] = azure_result
-                    results["confidence_score"] = 0.8  # Confianza base para Azure
-                    
-                    # Intentar mejorar con EasyOCR si hay campos faltantes
-                    if self.easyocr_available and self._has_missing_fields(azure_result, document_type):
-                        logger.info("Campos faltantes detectados, complementando con EasyOCR")
-                        easyocr_result = self._process_with_easyocr(image_data, document_type)
-                        results["easyocr_result"] = easyocr_result
-                        
-                        if easyocr_result.get("success"):
-                            combined = self._combine_results(azure_result, easyocr_result, "azure")
-                            results["combined_data"] = combined
-                            results["confidence_score"] = 0.9  # Mayor confianza con combinación
-                else:
-                    # Si Azure falla, probar con EasyOCR
-                    if self.easyocr_available:
-                        easyocr_result = self._process_with_easyocr(image_data, document_type)
-                        results["easyocr_result"] = easyocr_result
-                        
-                        if easyocr_result.get("success"):
-                            results["success"] = True
-                            results["method_used"] = "easyocr"
-                            results["combined_data"] = easyocr_result
-                            results["confidence_score"] = 0.7
-            
-            elif preferred_method == "easyocr" and self.easyocr_available:
-                # EasyOCR primero, Azure como fallback
-                easyocr_result = self._process_with_easyocr(image_data, document_type)
-                results["easyocr_result"] = easyocr_result
-                
-                if easyocr_result.get("success"):
-                    results["success"] = True
-                    results["method_used"] = "easyocr"
-                    results["combined_data"] = easyocr_result
-                    results["confidence_score"] = 0.8
-                    
-                    # Intentar mejorar con Azure si hay campos faltantes
-                    if self.azure_available and self._has_missing_fields(easyocr_result, document_type):
-                        logger.info("Campos faltantes detectados, complementando con Azure")
-                        azure_result = self._process_with_azure(image_data, document_type)
-                        results["azure_result"] = azure_result
-                        
-                        if azure_result.get("success"):
-                            combined = self._combine_results(easyocr_result, azure_result, "easyocr")
-                            results["combined_data"] = combined
-                            results["confidence_score"] = 0.9
-                else:
-                    # Si EasyOCR falla, probar con Azure
-                    if self.azure_available:
-                        azure_result = self._process_with_azure(image_data, document_type)
-                        results["azure_result"] = azure_result
-                        
-                        if azure_result.get("success"):
-                            results["success"] = True
-                            results["method_used"] = "azure"
-                            results["combined_data"] = azure_result
-                            results["confidence_score"] = 0.7
-            
-            else:  # auto
-                # Estrategia automática: probar ambos y combinar los mejores resultados
-                azure_result = None
-                easyocr_result = None
-                
-                # Ejecutar ambos servicios en paralelo si es posible
-                if self.azure_available:
-                    azure_result = self._process_with_azure(image_data, document_type)
-                    results["azure_result"] = azure_result
-                
-                if self.easyocr_available:
-                    easyocr_result = self._process_with_easyocr(image_data, document_type)
-                    results["easyocr_result"] = easyocr_result
-                
-                # Evaluar resultados y seleccionar el mejor
-                azure_success = azure_result and azure_result.get("success")
-                easyocr_success = easyocr_result and easyocr_result.get("success")
-                
-                if azure_success and easyocr_success:
-                    # Ambos funcionaron, combinar resultados
-                    logger.info("Ambos métodos funcionaron, combinando resultados")
-                    combined = self._combine_results(azure_result, easyocr_result, "auto")
-                    results["success"] = True
-                    results["method_used"] = "hybrid"
-                    results["combined_data"] = combined
-                    results["confidence_score"] = 0.95  # Máxima confianza con híbrido
-                    
-                elif azure_success:
-                    # Solo Azure funcionó
-                    logger.info("Solo Azure funcionó")
-                    results["success"] = True
-                    results["method_used"] = "azure"
-                    results["combined_data"] = azure_result
-                    results["confidence_score"] = 0.8
-                    
-                elif easyocr_success:
-                    # Solo EasyOCR funcionó
-                    logger.info("Solo EasyOCR funcionó")
-                    results["success"] = True
-                    results["method_used"] = "easyocr"
-                    results["combined_data"] = easyocr_result
-                    results["confidence_score"] = 0.8
-                    
-                else:
-                    # Ninguno funcionó
-                    logger.error("Ningún método OCR funcionó")
-                    results["success"] = False
-                    results["method_used"] = "none"
-                    results["confidence_score"] = 0.0
-            
-            # Extraer foto con el servicio mejorado de detección facial
-            if results["success"]:
-                try:
-                    from app.services.face_detection_service import face_detection_service
-                    photo_data = face_detection_service.extract_face_from_document(image_data, document_type)
-                    if photo_data:
-                        results["combined_data"]["photo"] = photo_data
-                        logger.info("Foto extraída exitosamente con servicio mejorado")
-                except Exception as e:
-                    logger.warning(f"Error extrayendo foto: {e}")
-                    # Usar método original como fallback
-                    try:
-                        if self.azure_available:
-                            photo_data = self.azure_service._extract_photo_from_document(image_data, document_type)
-                            if photo_data:
-                                results["combined_data"]["photo"] = photo_data
-                    except Exception as e2:
-                        logger.error(f"Error extrayendo foto con método original: {e2}")
-            
-            logger.info(f"Procesamiento híbrido completado - Método: {results['method_used']}, Éxito: {results['success']}")
-            return results
-            
+
         except Exception as e:
-            logger.error(f"Error en procesamiento híbrido: {e}", exc_info=True)
+            logger.error(f"Error in process_document_hybrid: {e}", exc_info=True)
             return {
                 "success": False,
                 "error": str(e),
                 "method_used": "error",
-                "confidence_score": 0.0
+                "confidence_score": 0.0,
+                "document_type": document_type
             }
-    
+
+    def _process_with_azure_internal(self, image_data: bytes, document_type: str, temp_path: str) -> Dict[str, Any]:
+        """Internal method to process document with Azure OCR (without timeout wrapper).
+
+        This method is called by _process_with_azure with timeout protection.
+
+        Args:
+            image_data (bytes): Image bytes
+            document_type (str): Document type
+            temp_path (str): Temporary file path for Azure
+
+        Returns:
+            Dict[str, Any]: Azure OCR result
+        """
+        with open(temp_path, 'wb') as f:
+            f.write(image_data)
+
+        started = time.perf_counter()
+        with trace_ocr_operation("azure.process_document", document_type, "azure"):
+            result = self.azure_service.process_document(temp_path, document_type)
+        duration = time.perf_counter() - started
+        record_ocr_request(document_type=document_type, method="azure", duration_seconds=duration)
+
+        return result
+
     def _process_with_azure(self, image_data: bytes, document_type: str) -> Optional[Dict[str, Any]]:
-        """Procesa documento con Azure Computer Vision OCR.
+        """Procesa documento con Azure Computer Vision OCR (with 30s timeout).
 
         Args:
             image_data (bytes): Imagen del documento en bytes
@@ -341,35 +492,65 @@ class HybridOCRService:
             - Registra métricas de observabilidad (duración, errores)
             - Crea archivo temporal para Azure OCR
             - Limpia archivo temporal después del procesamiento
+            - **TIMEOUT: 30 segundos** - Prevents indefinite hanging
         """
         if not self.azure_available:
             return None
 
+        temp_path = "/tmp/temp_azure_image.jpg"
         try:
-            # Guardar imagen temporal para Azure
-            temp_path = "/tmp/temp_azure_image.jpg"
-            with open(temp_path, 'wb') as f:
-                f.write(image_data)
+            # Execute with 30 second timeout
+            result = timeout_executor(
+                self._process_with_azure_internal,
+                timeout_seconds=30,
+                image_data=image_data,
+                document_type=document_type,
+                temp_path=temp_path
+            )
 
-            started = time.perf_counter()
-            with trace_ocr_operation("azure.process_document", document_type, "azure"):
-                result = self.azure_service.process_document(temp_path, document_type)
-            duration = time.perf_counter() - started
-            record_ocr_request(document_type=document_type, method="azure", duration_seconds=duration)
-
-            # Limpiar archivo temporal
+            # Clean up temp file
             if os.path.exists(temp_path):
                 os.remove(temp_path)
 
             return result
 
+        except TimeoutException as e:
+            logger.error(f"Azure OCR timed out after 30 seconds: {e}")
+            record_ocr_failure(document_type=document_type, method="azure")
+            # Clean up temp file
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            return {"success": False, "error": "Azure OCR timeout after 30 seconds"}
+
         except Exception as e:
             logger.error(f"Error procesando con Azure: {e}")
             record_ocr_failure(document_type=document_type, method="azure")
+            # Clean up temp file
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
             return {"success": False, "error": str(e)}
 
+    def _process_with_easyocr_internal(self, image_data: bytes, document_type: str) -> Dict[str, Any]:
+        """Internal method to process document with EasyOCR (without timeout wrapper).
+
+        This method is called by _process_with_easyocr with timeout protection.
+
+        Args:
+            image_data (bytes): Image bytes
+            document_type (str): Document type
+
+        Returns:
+            Dict[str, Any]: EasyOCR result
+        """
+        started = time.perf_counter()
+        with trace_ocr_operation("easyocr.process_document", document_type, "easyocr"):
+            result = self.easyocr_service.process_document_with_easyocr(image_data, document_type)
+        duration = time.perf_counter() - started
+        record_ocr_request(document_type=document_type, method="easyocr", duration_seconds=duration)
+        return result
+
     def _process_with_easyocr(self, image_data: bytes, document_type: str) -> Optional[Dict[str, Any]]:
-        """Procesa documento con EasyOCR.
+        """Procesa documento con EasyOCR (with 30s timeout).
 
         Args:
             image_data (bytes): Imagen del documento en bytes
@@ -392,23 +573,72 @@ class HybridOCRService:
         Note:
             - Registra métricas de observabilidad (duración, errores)
             - No requiere archivo temporal (procesa bytes directamente)
+            - **TIMEOUT: 30 segundos** - Prevents indefinite hanging
         """
         if not self.easyocr_available:
             return None
 
         try:
-            started = time.perf_counter()
-            with trace_ocr_operation("easyocr.process_document", document_type, "easyocr"):
-                result = self.easyocr_service.process_document_with_easyocr(image_data, document_type)
-            duration = time.perf_counter() - started
-            record_ocr_request(document_type=document_type, method="easyocr", duration_seconds=duration)
+            # Execute with 30 second timeout
+            result = timeout_executor(
+                self._process_with_easyocr_internal,
+                timeout_seconds=30,
+                image_data=image_data,
+                document_type=document_type
+            )
             return result
+
+        except TimeoutException as e:
+            logger.error(f"EasyOCR timed out after 30 seconds: {e}")
+            record_ocr_failure(document_type=document_type, method="easyocr")
+            return {"success": False, "error": "EasyOCR timeout after 30 seconds"}
 
         except Exception as e:
             logger.error(f"Error procesando con EasyOCR: {e}")
             record_ocr_failure(document_type=document_type, method="easyocr")
             return {"success": False, "error": str(e)}
-    
+
+    def _process_with_tesseract(self, image_data: bytes, document_type: str) -> Optional[Dict[str, Any]]:
+        """Procesa documento con Tesseract OCR (fallback final).
+
+        Args:
+            image_data (bytes): Imagen del documento en bytes
+            document_type (str): Tipo de documento ("zairyu_card", "license", etc.)
+
+        Returns:
+            Optional[Dict[str, Any]]: Resultado de Tesseract OCR o None si no disponible.
+                Estructura del diccionario de éxito:
+                {
+                    "success": True,
+                    "raw_text": str,
+                    "ocr_method": "tesseract",
+                    # ... campos extraídos
+                }
+
+        Raises:
+            Exception: Si Tesseract OCR falla durante el procesamiento
+
+        Note:
+            - Registra métricas de observabilidad (duración, errores)
+            - No requiere archivo temporal (procesa bytes directamente)
+            - No usa timeout (es lo suficientemente rápido)
+        """
+        if not self.tesseract_available:
+            return None
+
+        try:
+            started = time.perf_counter()
+            with trace_ocr_operation("tesseract.process_document", document_type, "tesseract"):
+                result = self.tesseract_service.process_document(image_data, document_type)
+            duration = time.perf_counter() - started
+            record_ocr_request(document_type=document_type, method="tesseract", duration_seconds=duration)
+            return result
+
+        except Exception as e:
+            logger.error(f"Error procesando con Tesseract: {e}")
+            record_ocr_failure(document_type=document_type, method="tesseract")
+            return {"success": False, "error": str(e)}
+
     def _has_missing_fields(self, result: Dict[str, Any], document_type: str) -> bool:
         """Verifica si faltan campos críticos en el resultado OCR.
 

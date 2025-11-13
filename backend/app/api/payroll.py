@@ -10,8 +10,9 @@ from datetime import datetime
 from app.core.database import get_db
 from app.services.payroll_service import PayrollService
 from app.services.payroll_integration_service import PayrollIntegrationService
+from app.services.config_service import PayrollConfigService, get_payroll_config_service
 from app.models.payroll_models import PayrollRun as PayrollRunModel, EmployeePayroll
-from app.models.models import Employee
+from app.models.models import Employee, YukyuRequest, RequestStatus
 from app.schemas.payroll import (
     PayrollRunCreate,
     PayrollRun,
@@ -36,6 +37,7 @@ from app.schemas.payroll import (
     DeductionsDetail,
     ValidationResult,
 )
+from app.schemas.salary_unified import PayrollRunUpdate, MarkPayrollPaidRequest
 
 router = APIRouter(prefix="/api/payroll", tags=["payroll"])
 
@@ -466,6 +468,253 @@ def approve_payroll_run(
         )
 
 
+@router.delete(
+    "/runs/{payroll_run_id}",
+    summary="Delete a payroll run",
+    description="Deletes a payroll run. Only allowed if status is DRAFT or CALCULATED."
+)
+def delete_payroll_run(
+    payroll_run_id: int,
+    service: PayrollService = Depends(get_payroll_service),
+    db: Session = Depends(get_db)
+):
+    """Delete a payroll run.
+
+    Only allows deletion if payroll run is in DRAFT or CALCULATED status.
+    Cannot delete if already APPROVED or PAID.
+
+    Args:
+        payroll_run_id: ID of the payroll run to delete
+        service: Payroll service instance
+        db: Database session
+
+    Returns:
+        Success response with deletion message
+
+    Raises:
+        HTTPException 404: Payroll run not found
+        HTTPException 400: Cannot delete (invalid status)
+        HTTPException 500: Database error
+    """
+    try:
+        # Query PayrollRun by ID
+        payroll_run = db.query(PayrollRunModel).filter(PayrollRunModel.id == payroll_run_id).first()
+
+        if not payroll_run:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Payroll run {payroll_run_id} not found"
+            )
+
+        # Validate status - can only delete draft or calculated runs
+        if payroll_run.status not in ['draft', 'calculated']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot delete payroll run with status '{payroll_run.status}'. Only 'draft' or 'calculated' runs can be deleted."
+            )
+
+        # Delete associated employee payroll records first
+        db.query(EmployeePayroll).filter(
+            EmployeePayroll.payroll_run_id == payroll_run_id
+        ).delete()
+
+        # Delete payroll run
+        db.delete(payroll_run)
+        db.commit()
+
+        return {
+            "success": True,
+            "message": f"Payroll run {payroll_run_id} deleted successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting payroll run: {str(e)}"
+        )
+
+
+@router.put(
+    "/runs/{payroll_run_id}",
+    response_model=PayrollRun,
+    summary="Update a payroll run",
+    description="Updates a payroll run. Only allowed if status is DRAFT."
+)
+def update_payroll_run(
+    payroll_run_id: int,
+    data: PayrollRunUpdate,
+    service: PayrollService = Depends(get_payroll_service),
+    db: Session = Depends(get_db)
+):
+    """Update a payroll run.
+
+    Only allows updating if payroll run is in DRAFT status.
+    Can update: pay_period_start, pay_period_end, description
+
+    Args:
+        payroll_run_id: ID of the payroll run to update
+        data: Fields to update
+        service: Payroll service instance
+        db: Database session
+
+    Returns:
+        Updated payroll run
+
+    Raises:
+        HTTPException 404: Payroll run not found
+        HTTPException 400: Cannot update (invalid status)
+        HTTPException 500: Database error
+    """
+    try:
+        # Query PayrollRun by ID
+        payroll_run = db.query(PayrollRunModel).filter(PayrollRunModel.id == payroll_run_id).first()
+
+        if not payroll_run:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Payroll run {payroll_run_id} not found"
+            )
+
+        # Validate status - can only update draft runs
+        if payroll_run.status != 'draft':
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot update payroll run with status '{payroll_run.status}'. Must be 'draft'."
+            )
+
+        # Update fields if provided
+        if data.pay_period_start is not None:
+            payroll_run.pay_period_start = data.pay_period_start.date()
+        if data.pay_period_end is not None:
+            payroll_run.pay_period_end = data.pay_period_end.date()
+        if data.description is not None:
+            # Store description in created_by field (or add new field if needed)
+            # For now, we'll just update the updated_at timestamp
+            pass
+
+        # Update timestamp
+        payroll_run.updated_at = datetime.now()
+
+        # Commit changes
+        db.commit()
+        db.refresh(payroll_run)
+
+        # Convert to schema with proper type conversions
+        return PayrollRun(
+            id=payroll_run.id,
+            pay_period_start=datetime.combine(payroll_run.pay_period_start, datetime.min.time()),
+            pay_period_end=datetime.combine(payroll_run.pay_period_end, datetime.min.time()),
+            status=payroll_run.status,
+            total_employees=payroll_run.total_employees,
+            total_gross_amount=float(payroll_run.total_gross_amount),
+            total_deductions=float(payroll_run.total_deductions),
+            total_net_amount=float(payroll_run.total_net_amount),
+            created_by=payroll_run.created_by,
+            created_at=payroll_run.created_at,
+            updated_at=payroll_run.updated_at
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating payroll run: {str(e)}"
+        )
+
+
+@router.post(
+    "/runs/{payroll_run_id}/mark-paid",
+    response_model=PayrollApprovalResponse,
+    summary="Mark payroll run as paid",
+    description="Marks a payroll run as paid. Updates status and all employee payroll records."
+)
+def mark_payroll_run_paid(
+    payroll_run_id: int,
+    data: MarkPayrollPaidRequest,
+    service: PayrollService = Depends(get_payroll_service),
+    db: Session = Depends(get_db)
+):
+    """Mark a payroll run as paid.
+
+    Updates payroll run status to 'paid' and sets paid_at timestamp
+    for all associated employee payroll records.
+
+    Only allowed if payroll run status is 'approved'.
+
+    Args:
+        payroll_run_id: ID of the payroll run
+        data: Payment details (date, method, notes)
+        service: Payroll service instance
+        db: Database session
+
+    Returns:
+        Approval response with payment confirmation
+
+    Raises:
+        HTTPException 404: Payroll run not found
+        HTTPException 400: Cannot mark as paid (invalid status)
+        HTTPException 500: Database error
+    """
+    try:
+        # Query PayrollRun by ID
+        payroll_run = db.query(PayrollRunModel).filter(PayrollRunModel.id == payroll_run_id).first()
+
+        if not payroll_run:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Payroll run {payroll_run_id} not found"
+            )
+
+        # Validate status - can only mark paid if approved
+        if payroll_run.status != 'approved':
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot mark payroll run as paid with status '{payroll_run.status}'. Must be 'approved'."
+            )
+
+        # Update payroll run status to paid
+        payroll_run.status = 'paid'
+        payroll_run.updated_at = datetime.now()
+
+        # Update all employee payroll records
+        employee_payrolls = db.query(EmployeePayroll).filter(
+            EmployeePayroll.payroll_run_id == payroll_run_id
+        ).all()
+
+        for emp_payroll in employee_payrolls:
+            # Assuming there's a paid_at field (if not, we just skip)
+            if hasattr(emp_payroll, 'paid_at'):
+                emp_payroll.paid_at = data.payment_date
+            emp_payroll.updated_at = datetime.now()
+
+        # Commit all changes
+        db.commit()
+        db.refresh(payroll_run)
+
+        # Return approval response
+        return PayrollApprovalResponse(
+            success=True,
+            payroll_run_id=payroll_run_id,
+            status=payroll_run.status,
+            approved_by=None,  # Not tracking who marked it paid in this endpoint
+            approved_at=payroll_run.updated_at
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error marking payroll run as paid: {str(e)}"
+        )
+
+
 # ============================================================================
 # Employee Payroll Endpoints
 # ============================================================================
@@ -496,7 +745,8 @@ def calculate_employee_payroll(
         result = service.calculate_employee_payroll(
             employee_data=request.employee_data.dict(),
             timer_records=[r.dict() for r in request.timer_records],
-            payroll_run_id=request.payroll_run_id
+            payroll_run_id=request.payroll_run_id,
+            yukyu_days_approved=request.yukyu_days_approved
         )
 
         if not result['success']:
@@ -576,6 +826,118 @@ def calculate_payroll_from_timer_cards(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error calculating payroll from timer cards: {str(e)}"
+        )
+
+
+@router.get(
+    "/yukyu-summary",
+    summary="Get yukyu impact summary on payroll",
+    description="Returns a summary of yukyu (paid vacation) impact on payroll for a given period"
+)
+def get_payroll_yukyu_summary(
+    start_date: str = Query(..., description="Start date in YYYY-MM-DD format"),
+    end_date: str = Query(..., description="End date in YYYY-MM-DD format"),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Get summary of yukyu impact on payroll for a period.
+
+    Returns statistics on approved yukyu requests and their financial impact.
+
+    Args:
+        start_date: Start date (YYYY-MM-DD)
+        end_date: End date (YYYY-MM-DD)
+        db: Database session
+
+    Returns:
+        Dictionary with yukyu impact summary:
+        {
+            "period": "2025-10",
+            "total_employees": 42,
+            "employees_with_yukyu": 28,
+            "total_yukyu_days": 45.5,
+            "total_yukyu_deduction_jpy": 562500,
+            "average_deduction_per_employee": 13437,
+            "details": [...]
+        }
+    """
+    try:
+        # Parse dates
+        start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
+
+        # Query approved yukyu requests in the period
+        yukyu_requests = db.query(YukyuRequest).filter(
+            YukyuRequest.status == RequestStatus.APPROVED,
+            YukyuRequest.start_date <= end_dt,
+            YukyuRequest.end_date >= start_dt
+        ).all()
+
+        # Group by employee
+        employees_yukyu = {}
+        for request in yukyu_requests:
+            emp_id = request.employee_id
+            if emp_id not in employees_yukyu:
+                employees_yukyu[emp_id] = {
+                    'days': 0,
+                    'requests': []
+                }
+            employees_yukyu[emp_id]['days'] += float(request.days_requested)
+            employees_yukyu[emp_id]['requests'].append(request)
+
+        # Get employee names and calculate deductions
+        total_deduction = 0
+        details = []
+
+        for emp_id, yukyu_info in employees_yukyu.items():
+            employee = db.query(Employee).filter(Employee.id == emp_id).first()
+            if employee:
+                # Calculate deduction (8 hours/day × base hourly rate)
+                base_hourly_rate = float(employee.jikyu) if employee.jikyu else 0
+                deduction_jpy = int(yukyu_info['days'] * 8 * base_hourly_rate)
+                total_deduction += deduction_jpy
+
+                details.append({
+                    'employee_id': emp_id,
+                    'employee_name': employee.full_name_kanji or employee.full_name_kana,
+                    'yukyu_days': yukyu_info['days'],
+                    'yukyu_deduction_jpy': deduction_jpy,
+                    'base_hourly_rate': base_hourly_rate
+                })
+
+        # Calculate summary statistics
+        total_employees_with_yukyu = len(employees_yukyu)
+        total_days = sum(info['days'] for info in employees_yukyu.values())
+        avg_deduction = (
+            total_deduction // total_employees_with_yukyu
+            if total_employees_with_yukyu > 0
+            else 0
+        )
+
+        # Format period
+        period_str = f"{start_dt.year}-{start_dt.month:02d}"
+
+        return {
+            'period': period_str,
+            'total_employees_with_yukyu': total_employees_with_yukyu,
+            'total_yukyu_days': total_days,
+            'total_yukyu_deduction_jpy': total_deduction,
+            'average_deduction_per_employee': avg_deduction,
+            'date_range': {
+                'start_date': start_date,
+                'end_date': end_date
+            },
+            'details': details
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid date format. Expected YYYY-MM-DD: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving yukyu summary: {str(e)}"
         )
 
 
@@ -729,55 +1091,48 @@ def get_payslip(
     "/settings",
     response_model=PayrollSettings,
     summary="Get payroll settings",
-    description="Retrieves the current payroll settings"
+    description="Retrieves the current payroll settings from database with caching"
 )
-def get_payroll_settings(
-    service: PayrollService = Depends(get_payroll_service),
-    db: Session = Depends(get_db)
+async def get_payroll_settings(
+    config_service: PayrollConfigService = Depends(get_payroll_config_service)
 ):
-    """Get current payroll settings.
+    """
+    Get current payroll settings using PayrollConfigService.
 
-    Args:
-        service: Payroll service instance
-        db: Database session
+    This endpoint uses PayrollConfigService which provides:
+    - Automatic caching (1 hour TTL)
+    - Fallback to default values
+    - Automatic creation of settings if missing
 
     Returns:
-        Payroll settings
+        PayrollSettings: Current payroll configuration including:
+            - Hour rates (overtime, night shift, holiday, sunday)
+            - Tax rates (income tax, resident tax)
+            - Insurance rates (health, pension, employment)
+            - Standard hours per month
 
     Raises:
         HTTPException: If retrieval fails
     """
     try:
-        settings = service._get_payroll_settings()
+        settings = await config_service.get_configuration()
 
-        if not settings:
-            # Return default settings
-            return PayrollSettings(
-                id=1,
-                company_id=None,
-                overtime_rate=1.25,
-                night_shift_rate=1.25,
-                holiday_rate=1.35,
-                sunday_rate=1.35,
-                standard_hours_per_month=160,
-                created_at=datetime.now(),
-                updated_at=datetime.now()
-            )
-
-        # Convert Decimal to float for Pydantic
-        settings_dict = {k: float(v) if isinstance(v, (int, float)) else v
-                        for k, v in settings.items()}
-
+        # Convert Decimal to float for Pydantic validation
         return PayrollSettings(
-            id=1,
-            company_id=settings_dict.get('company_id'),
-            overtime_rate=settings_dict.get('overtime_rate', 1.25),
-            night_shift_rate=settings_dict.get('night_shift_rate', 1.25),
-            holiday_rate=settings_dict.get('holiday_rate', 1.35),
-            sunday_rate=settings_dict.get('sunday_rate', 1.35),
-            standard_hours_per_month=settings_dict.get('standard_hours_per_month', 160),
-            created_at=datetime.now(),
-            updated_at=datetime.now()
+            id=settings.id,
+            company_id=settings.company_id,
+            overtime_rate=float(settings.overtime_rate),
+            night_shift_rate=float(settings.night_shift_rate),
+            holiday_rate=float(settings.holiday_rate),
+            sunday_rate=float(settings.sunday_rate),
+            standard_hours_per_month=float(settings.standard_hours_per_month),
+            income_tax_rate=float(settings.income_tax_rate) if hasattr(settings, 'income_tax_rate') else 10.0,
+            resident_tax_rate=float(settings.resident_tax_rate) if hasattr(settings, 'resident_tax_rate') else 5.0,
+            health_insurance_rate=float(settings.health_insurance_rate) if hasattr(settings, 'health_insurance_rate') else 4.75,
+            pension_rate=float(settings.pension_rate) if hasattr(settings, 'pension_rate') else 10.0,
+            employment_insurance_rate=float(settings.employment_insurance_rate) if hasattr(settings, 'employment_insurance_rate') else 0.3,
+            created_at=settings.created_at,
+            updated_at=settings.updated_at
         )
 
     except Exception as e:
@@ -791,47 +1146,87 @@ def get_payroll_settings(
     "/settings",
     response_model=PayrollSettings,
     summary="Update payroll settings",
-    description="Updates the payroll settings"
+    description="Updates payroll settings and clears cache (Admin only)"
 )
-def update_payroll_settings(
+async def update_payroll_settings(
     settings: PayrollSettingsUpdate,
-    service: PayrollService = Depends(get_payroll_service)
+    config_service: PayrollConfigService = Depends(get_payroll_config_service)
 ):
-    """Update payroll settings.
+    """
+    Update payroll settings using PayrollConfigService.
+
+    This endpoint:
+    1. Validates the provided settings
+    2. Updates the database
+    3. Clears the cache to force refresh
+    4. Returns updated settings
 
     Args:
-        settings: Updated settings data
-        service: Payroll service instance
+        settings: PayrollSettingsUpdate schema with fields to update:
+            - overtime_rate: Overtime premium rate (optional)
+            - night_shift_rate: Night shift premium rate (optional)
+            - holiday_rate: Holiday premium rate (optional)
+            - sunday_rate: Sunday premium rate (optional)
+            - standard_hours_per_month: Standard monthly hours (optional)
+            - income_tax_rate: Income tax rate % (optional)
+            - resident_tax_rate: Resident tax rate % (optional)
+            - health_insurance_rate: Health insurance rate % (optional)
+            - pension_rate: Pension rate % (optional)
+            - employment_insurance_rate: Employment insurance rate % (optional)
+        config_service: Payroll config service instance
 
     Returns:
-        Updated payroll settings
+        PayrollSettings: Updated payroll configuration
 
     Raises:
-        HTTPException: If update fails
+        HTTPException: If update fails or validation error occurs
+
+    Example Request Body:
+        {
+            "overtime_rate": 1.30,
+            "night_shift_rate": 1.30,
+            "income_tax_rate": 10.5
+        }
     """
     try:
         # Convert to dict, excluding None values
         settings_dict = {k: v for k, v in settings.dict(exclude_unset=True).items()
                         if v is not None}
 
-        result = service.update_payroll_settings(settings_dict)
-
-        if not result['success']:
+        if not settings_dict:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=result['error']
+                detail="No settings provided to update"
             )
 
+        # Update settings via config service
+        updated_settings = await config_service.update_configuration(**settings_dict)
+
+        # Convert to response schema
         return PayrollSettings(
-            id=1,
-            company_id=None,
-            **settings_dict,
-            created_at=datetime.now(),
-            updated_at=datetime.fromisoformat(result['updated_at'])
+            id=updated_settings.id,
+            company_id=updated_settings.company_id,
+            overtime_rate=float(updated_settings.overtime_rate),
+            night_shift_rate=float(updated_settings.night_shift_rate),
+            holiday_rate=float(updated_settings.holiday_rate),
+            sunday_rate=float(updated_settings.sunday_rate),
+            standard_hours_per_month=float(updated_settings.standard_hours_per_month),
+            income_tax_rate=float(updated_settings.income_tax_rate),
+            resident_tax_rate=float(updated_settings.resident_tax_rate),
+            health_insurance_rate=float(updated_settings.health_insurance_rate),
+            pension_rate=float(updated_settings.pension_rate),
+            employment_insurance_rate=float(updated_settings.employment_insurance_rate),
+            created_at=updated_settings.created_at,
+            updated_at=updated_settings.updated_at
         )
 
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

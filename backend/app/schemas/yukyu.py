@@ -101,12 +101,12 @@ class YukyuRequestUpdate(BaseModel):
 
 
 class YukyuRequestApprove(BaseModel):
-    """Approve yukyu request (by KEIRI)"""
+    """Approve yukyu request (by KEITOSAN - Finance Manager)"""
     notes: Optional[str] = None
 
 
 class YukyuRequestReject(BaseModel):
-    """Reject yukyu request (by KEIRI)"""
+    """Reject yukyu request (by KEITOSAN - Finance Manager)"""
     rejection_reason: str
 
 

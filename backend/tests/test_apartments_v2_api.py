@@ -239,7 +239,7 @@ class TestApartmentManagement:
     def test_list_apartments_success(self, client, auth_headers, test_apartment):
         """Test listing all apartments."""
         response = client.get(
-            "/api/apartments",
+            "/api/apartments-v2/apartments",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -252,7 +252,7 @@ class TestApartmentManagement:
     def test_list_apartments_with_filters(self, client, auth_headers, test_apartment):
         """Test list apartments with various filters."""
         response = client.get(
-            "/api/apartments?available_only=false&min_rent=40000&max_rent=60000",
+            "/api/apartments-v2/apartments?available_only=false&min_rent=40000&max_rent=60000",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -281,7 +281,7 @@ class TestApartmentManagement:
             "status": "active"
         }
         response = client.post(
-            "/api/apartments",
+            "/api/apartments-v2/apartments",
             json=payload,
             headers=auth_headers
         )
@@ -297,7 +297,7 @@ class TestApartmentManagement:
             "base_rent": -1000,  # Invalid: negative rent
         }
         response = client.post(
-            "/api/apartments",
+            "/api/apartments-v2/apartments",
             json=payload,
             headers=auth_headers
         )
@@ -306,7 +306,7 @@ class TestApartmentManagement:
     def test_get_apartment_success(self, client, auth_headers, test_apartment):
         """Test getting apartment details."""
         response = client.get(
-            f"/api/apartments/{test_apartment.id}",
+            f"/api/apartments-v2/apartments/{test_apartment.id}",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -317,7 +317,7 @@ class TestApartmentManagement:
     def test_get_apartment_not_found(self, client, auth_headers):
         """Test getting non-existent apartment."""
         response = client.get(
-            "/api/apartments/999999",
+            "/api/apartments-v2/apartments/999999",
             headers=auth_headers
         )
         assert response.status_code == 404
@@ -329,7 +329,7 @@ class TestApartmentManagement:
             "base_rent": 55000
         }
         response = client.put(
-            f"/api/apartments/{test_apartment.id}",
+            f"/api/apartments-v2/apartments/{test_apartment.id}",
             json=payload,
             headers=auth_headers
         )
@@ -344,7 +344,7 @@ class TestApartmentManagement:
             "default_cleaning_fee": 30000
         }
         response = client.put(
-            f"/api/apartments/{test_apartment.id}",
+            f"/api/apartments-v2/apartments/{test_apartment.id}",
             json=payload,
             headers=auth_headers
         )
@@ -367,7 +367,7 @@ class TestApartmentManagement:
         apt_id = apt.id
 
         response = client.delete(
-            f"/api/apartments/{apt_id}",
+            f"/api/apartments-v2/apartments/{apt_id}",
             headers=auth_headers
         )
         assert response.status_code == 204
@@ -375,7 +375,7 @@ class TestApartmentManagement:
     def test_search_apartments_advanced(self, client, auth_headers, test_apartment):
         """Test advanced apartment search."""
         response = client.get(
-            "/api/apartments/search/advanced?room_types=1K&prefectures=東京都",
+            "/api/apartments-v2/apartments/search/advanced?room_types=1K&prefectures=東京都",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -385,7 +385,7 @@ class TestApartmentManagement:
     def test_search_apartments_by_cost(self, client, auth_headers, test_apartment):
         """Test apartment search by cost."""
         response = client.get(
-            "/api/apartments/search/advanced?max_total_cost=60000",
+            "/api/apartments-v2/apartments/search/advanced?max_total_cost=60000",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -414,7 +414,7 @@ class TestAssignments:
             "total_deduction": 35000
         }
         response = client.post(
-            "/api/apartments/assignments",
+            "/api/apartments-v2/assignments",
             json=payload,
             headers=auth_headers
         )
@@ -426,7 +426,7 @@ class TestAssignments:
     def test_list_assignments_success(self, client, auth_headers, test_assignment):
         """Test listing assignments."""
         response = client.get(
-            "/api/apartments/assignments",
+            "/api/apartments-v2/assignments",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -437,7 +437,7 @@ class TestAssignments:
     def test_list_assignments_with_filters(self, client, auth_headers, test_assignment):
         """Test listing assignments with filters."""
         response = client.get(
-            f"/api/apartments/assignments?employee_id={test_assignment.employee_id}",
+            f"/api/apartments-v2/assignments?employee_id={test_assignment.employee_id}",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -447,7 +447,7 @@ class TestAssignments:
     def test_get_assignment_success(self, client, auth_headers, test_assignment):
         """Test getting assignment details."""
         response = client.get(
-            f"/api/apartments/assignments/{test_assignment.id}",
+            f"/api/apartments-v2/assignments/{test_assignment.id}",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -457,7 +457,7 @@ class TestAssignments:
     def test_get_assignment_not_found(self, client, auth_headers):
         """Test getting non-existent assignment."""
         response = client.get(
-            "/api/apartments/assignments/999999",
+            "/api/apartments-v2/assignments/999999",
             headers=auth_headers
         )
         assert response.status_code == 404
@@ -465,7 +465,7 @@ class TestAssignments:
     def test_get_active_assignments(self, client, auth_headers, test_assignment):
         """Test getting active assignments."""
         response = client.get(
-            "/api/apartments/assignments/active",
+            "/api/apartments-v2/assignments/active",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -480,7 +480,7 @@ class TestAssignments:
             "cleaning_fee": 20000
         }
         response = client.put(
-            f"/api/apartments/assignments/{test_assignment.id}/end",
+            f"/api/apartments-v2/assignments/{test_assignment.id}/end",
             json=payload,
             headers=auth_headers
         )
@@ -517,7 +517,7 @@ class TestAssignments:
             "transfer_date": "2025-11-20"
         }
         response = client.post(
-            "/api/apartments/assignments/transfer",
+            "/api/apartments-v2/assignments/transfer",
             json=payload,
             headers=auth_headers
         )
@@ -541,7 +541,7 @@ class TestCalculations:
             "month": 11
         }
         response = client.post(
-            "/api/apartments/calculate/prorated",
+            "/api/apartments-v2/apartments/calculate/prorated",
             json=payload,
             headers=auth_headers
         )
@@ -563,7 +563,7 @@ class TestCalculations:
             "month": 11
         }
         response = client.post(
-            "/api/apartments/calculate/prorated",
+            "/api/apartments-v2/apartments/calculate/prorated",
             json=payload,
             headers=auth_headers
         )
@@ -582,7 +582,7 @@ class TestCalculations:
             "month": 11
         }
         response = client.post(
-            "/api/apartments/calculate/prorated",
+            "/api/apartments-v2/apartments/calculate/prorated",
             json=payload,
             headers=auth_headers
         )
@@ -591,7 +591,7 @@ class TestCalculations:
     def test_get_cleaning_fee(self, client, auth_headers, test_apartment):
         """Test getting cleaning fee."""
         response = client.get(
-            f"/api/apartments/calculate/cleaning-fee/{test_apartment.id}",
+            f"/api/apartments-v2/apartments/calculate/cleaning-fee/{test_apartment.id}",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -601,7 +601,7 @@ class TestCalculations:
     def test_get_cleaning_fee_custom_amount(self, client, auth_headers, test_apartment):
         """Test getting cleaning fee with custom amount."""
         response = client.get(
-            f"/api/apartments/calculate/cleaning-fee/{test_apartment.id}?custom_amount=30000",
+            f"/api/apartments-v2/apartments/calculate/cleaning-fee/{test_apartment.id}?custom_amount=30000",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -625,7 +625,7 @@ class TestCalculations:
             ]
         }
         response = client.post(
-            "/api/apartments/calculate/total",
+            "/api/apartments-v2/apartments/calculate/total",
             json=payload,
             headers=auth_headers
         )
@@ -655,7 +655,7 @@ class TestAdditionalCharges:
             "charge_date": "2025-11-30"
         }
         response = client.post(
-            "/api/apartments/charges",
+            "/api/apartments-v2/charges",
             json=payload,
             headers=auth_headers
         )
@@ -676,7 +676,7 @@ class TestAdditionalCharges:
             "charge_date": "2025-11-25"
         }
         response = client.post(
-            "/api/apartments/charges",
+            "/api/apartments-v2/charges",
             json=payload,
             headers=auth_headers
         )
@@ -700,7 +700,7 @@ class TestAdditionalCharges:
         db.commit()
 
         response = client.get(
-            "/api/apartments/charges",
+            "/api/apartments-v2/charges",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -710,7 +710,7 @@ class TestAdditionalCharges:
     def test_list_charges_with_filters(self, client, auth_headers, test_assignment):
         """Test listing charges with filters."""
         response = client.get(
-            f"/api/apartments/charges?assignment_id={test_assignment.id}",
+            f"/api/apartments-v2/charges?assignment_id={test_assignment.id}",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -735,7 +735,7 @@ class TestAdditionalCharges:
         db.refresh(charge)
 
         response = client.get(
-            f"/api/apartments/charges/{charge.id}",
+            f"/api/apartments-v2/charges/{charge.id}",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -764,7 +764,7 @@ class TestAdditionalCharges:
             "notes": "Aprobado - daño verificado"
         }
         response = client.put(
-            f"/api/apartments/charges/{charge.id}/approve",
+            f"/api/apartments-v2/charges/{charge.id}/approve",
             json=payload,
             headers=auth_headers
         )
@@ -792,7 +792,7 @@ class TestAdditionalCharges:
             "notes": "Cancelado - no requerido"
         }
         response = client.put(
-            f"/api/apartments/charges/{charge.id}/cancel",
+            f"/api/apartments-v2/charges/{charge.id}/cancel",
             json=payload,
             headers=auth_headers
         )
@@ -816,7 +816,7 @@ class TestAdditionalCharges:
         charge_id = charge.id
 
         response = client.delete(
-            f"/api/apartments/charges/{charge_id}",
+            f"/api/apartments-v2/charges/{charge_id}",
             headers=auth_headers
         )
         assert response.status_code == 204
@@ -832,7 +832,7 @@ class TestDeductions:
     def test_get_monthly_deductions(self, client, auth_headers):
         """Test getting monthly deductions."""
         response = client.get(
-            "/api/apartments/deductions/2025/11",
+            "/api/apartments-v2/deductions/2025/11",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -842,7 +842,7 @@ class TestDeductions:
     def test_get_monthly_deductions_with_filters(self, client, auth_headers, test_apartment):
         """Test monthly deductions with filters."""
         response = client.get(
-            f"/api/apartments/deductions/2025/11?apartment_id={test_apartment.id}",
+            f"/api/apartments-v2/deductions/2025/11?apartment_id={test_apartment.id}",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -852,7 +852,7 @@ class TestDeductions:
     def test_generate_monthly_deductions(self, client, auth_headers):
         """Test generating monthly deductions."""
         response = client.post(
-            "/api/apartments/deductions/generate?year=2025&month=11",
+            "/api/apartments-v2/deductions/generate?year=2025&month=11",
             headers=auth_headers
         )
         assert response.status_code in [201, 200]  # May be 200 if empty month
@@ -878,7 +878,7 @@ class TestDeductions:
         db.refresh(deduction)
 
         response = client.get(
-            f"/api/apartments/deductions/{deduction.id}",
+            f"/api/apartments-v2/deductions/{deduction.id}",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -908,7 +908,7 @@ class TestDeductions:
             "processed_date": "2025-11-30"
         }
         response = client.put(
-            f"/api/apartments/deductions/{deduction.id}/status",
+            f"/api/apartments-v2/deductions/{deduction.id}/status",
             json=payload,
             headers=auth_headers
         )
@@ -936,7 +936,7 @@ class TestDeductions:
             "status": "paid"
         }
         response = client.put(
-            f"/api/apartments/deductions/{deduction.id}/status",
+            f"/api/apartments-v2/deductions/{deduction.id}/status",
             json=payload,
             headers=auth_headers
         )
@@ -953,7 +953,7 @@ class TestReports:
     def test_get_occupancy_report(self, client, auth_headers):
         """Test getting occupancy report."""
         response = client.get(
-            "/api/apartments/reports/occupancy",
+            "/api/apartments-v2/reports/occupancy",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -964,7 +964,7 @@ class TestReports:
     def test_get_occupancy_report_by_prefecture(self, client, auth_headers):
         """Test occupancy report filtered by prefecture."""
         response = client.get(
-            "/api/apartments/reports/occupancy?prefecture=東京都",
+            "/api/apartments-v2/reports/occupancy?prefecture=東京都",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -974,7 +974,7 @@ class TestReports:
     def test_get_arrears_report(self, client, auth_headers):
         """Test getting arrears report."""
         response = client.get(
-            "/api/apartments/reports/arrears?year=2025&month=11",
+            "/api/apartments-v2/reports/arrears?year=2025&month=11",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -984,7 +984,7 @@ class TestReports:
     def test_get_maintenance_report(self, client, auth_headers):
         """Test getting maintenance report."""
         response = client.get(
-            "/api/apartments/reports/maintenance",
+            "/api/apartments-v2/reports/maintenance",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -994,7 +994,7 @@ class TestReports:
     def test_get_cost_analysis_report(self, client, auth_headers):
         """Test getting cost analysis report."""
         response = client.get(
-            "/api/apartments/reports/costs?year=2025",
+            "/api/apartments-v2/reports/costs?year=2025",
             headers=auth_headers
         )
         assert response.status_code == 200
@@ -1011,13 +1011,13 @@ class TestAuthentication:
 
     def test_unauthenticated_access_denied(self, client, test_apartment):
         """Test that endpoints require authentication."""
-        response = client.get("/api/apartments")
+        response = client.get("/api/apartments-v2/apartments")
         assert response.status_code == 401
 
     def test_invalid_token_denied(self, client):
         """Test that invalid token is rejected."""
         headers = {"Authorization": "Bearer invalid_token"}
-        response = client.get("/api/apartments", headers=headers)
+        response = client.get("/api/apartments-v2/apartments", headers=headers)
         assert response.status_code == 401
 
 
@@ -1045,7 +1045,7 @@ class TestEdgeCases:
             "base_rent": 50000
         }
         response = client.post(
-            "/api/apartments",
+            "/api/apartments-v2/apartments",
             json=payload,
             headers=auth_headers
         )
@@ -1064,7 +1064,7 @@ class TestEdgeCases:
             "total_deduction": 35000
         }
         response = client.post(
-            "/api/apartments/assignments",
+            "/api/apartments-v2/assignments",
             json=payload,
             headers=auth_headers
         )
@@ -1073,7 +1073,7 @@ class TestEdgeCases:
     def test_invalid_month_in_deductions(self, client, auth_headers):
         """Test deductions with invalid month."""
         response = client.get(
-            "/api/apartments/deductions/2025/13",  # Invalid month
+            "/api/apartments-v2/deductions/2025/13",  # Invalid month
             headers=auth_headers
         )
         assert response.status_code == 422
@@ -1081,13 +1081,13 @@ class TestEdgeCases:
     def test_pagination_limits(self, client, auth_headers, test_apartment):
         """Test pagination with various limits."""
         response = client.get(
-            "/api/apartments?skip=0&limit=10",
+            "/api/apartments-v2/apartments?skip=0&limit=10",
             headers=auth_headers
         )
         assert response.status_code == 200
 
         response = client.get(
-            "/api/apartments?skip=0&limit=500",
+            "/api/apartments-v2/apartments?skip=0&limit=500",
             headers=auth_headers
         )
         assert response.status_code == 200

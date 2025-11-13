@@ -8,7 +8,7 @@ Features:
 - Automatic calculation based on employment duration (6mo=10d, 18mo=11d, etc.)
 - LIFO deduction (newest yukyus used first)
 - Automatic expiration after 2 years (時効 - jikou)
-- Request workflow: TANTOSHA creates → KEIRI approves
+- Request workflow: TANTOSHA creates → KEITOSAN approves
 - Support for hannichi (半休 - half day = 0.5)
 - Alerts for 5-day minimum usage requirement
 
@@ -411,7 +411,7 @@ class YukyuService:
         }
 
     # -------------------------------------------------------------------------
-    # YUKYU REQUESTS (TANTOSHA → KEIRI workflow)
+    # YUKYU REQUESTS (TANTOSHA (HR) → KEITOSAN (Finance Manager) workflow)
     # -------------------------------------------------------------------------
 
     async def create_request(
@@ -447,6 +447,56 @@ class YukyuService:
         ).first()
         if not employee:
             raise HTTPException(status_code=404, detail="Employee not found")
+
+        # VALIDACIÓN 1: Validar fechas
+        # =============================
+        today = date.today()
+        if request_data.start_date < today:
+            raise HTTPException(
+                status_code=400,
+                detail=f"start_date no puede ser en el pasado (hoy es {today})"
+            )
+        if request_data.start_date > request_data.end_date:
+            raise HTTPException(
+                status_code=400,
+                detail="start_date debe ser menor o igual a end_date"
+            )
+
+        # VALIDACIÓN 2: Validar relación TANTOSHA-Factory
+        # ===============================================
+        if user_id:  # Obtener el usuario creador
+            user = self.db.query(User).filter(User.id == user_id).first()
+            if user and user.role == UserRole.TANTOSHA:
+                # TANTOSHA debe especificar factory_id
+                if not request_data.factory_id:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="TANTOSHA debe especificar factory_id"
+                    )
+                # TANTOSHA debe pertenecer a la factory especificada
+                tantosha_employee = self.db.query(Employee).filter(
+                    Employee.user_id == user_id,
+                    Employee.factory_id == request_data.factory_id
+                ).first()
+                if not tantosha_employee:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="No tienes permisos para crear solicitudes en esa factory"
+                    )
+
+        # VALIDACIÓN 3: Validar overlap de solicitudes
+        # ============================================
+        overlapping = self.db.query(YukyuRequest).filter(
+            YukyuRequest.employee_id == request_data.employee_id,
+            YukyuRequest.status.in_([RequestStatus.PENDING, RequestStatus.APPROVED]),
+            YukyuRequest.start_date <= request_data.end_date,
+            YukyuRequest.end_date >= request_data.start_date
+        ).first()
+        if overlapping:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ya existe una solicitud para este empleado en el período {request_data.start_date} a {request_data.end_date}"
+            )
 
         # Calculate total available yukyus
         total_available = self.db.query(
@@ -490,7 +540,7 @@ class YukyuService:
         user_id: int
     ) -> YukyuRequestResponse:
         """
-        Approve yukyu request (by KEIRI).
+        Approve yukyu request (by KEITOSAN).
 
         Workflow:
         1. Get request and validate status is PENDING
@@ -502,7 +552,7 @@ class YukyuService:
         Args:
             request_id: Request ID
             approval_data: Approval data
-            user_id: ID of user approving (KEIRI)
+            user_id: ID of user approving (KEITOSAN)
 
         Returns:
             Approved request
@@ -571,12 +621,12 @@ class YukyuService:
         user_id: int
     ) -> YukyuRequestResponse:
         """
-        Reject yukyu request (by KEIRI).
+        Reject yukyu request (by KEITOSAN).
 
         Args:
             request_id: Request ID
             rejection_data: Rejection data with reason
-            user_id: ID of user rejecting (KEIRI)
+            user_id: ID of user rejecting (KEITOSAN)
 
         Returns:
             Rejected request
@@ -641,7 +691,7 @@ class YukyuService:
         List yukyu requests with filtering based on user role.
 
         TANTOSHA: Can only see requests for their factory
-        KEIRI/ADMIN: Can see all requests
+        KEITOSAN/ADMIN: Can see all requests
 
         Args:
             user: Current user
@@ -669,7 +719,7 @@ class YukyuService:
                 )
             query = query.filter(YukyuRequest.factory_id == factory_id)
         elif factory_id:
-            # KEIRI/ADMIN can optionally filter by factory
+            # KEITOSAN/ADMIN can optionally filter by factory
             query = query.filter(YukyuRequest.factory_id == factory_id)
 
         # Additional filters
@@ -710,65 +760,79 @@ class YukyuService:
             end_date: End date of yukyu
 
         Raises:
-            HTTPException: If not enough yukyus available
+            HTTPException: If not enough yukyus available or transaction fails
         """
         from fastapi import HTTPException
 
-        # Get active balances, newest first (LIFO)
-        balances = self.db.query(YukyuBalance).filter(
-            YukyuBalance.employee_id == employee_id,
-            YukyuBalance.status == YukyuStatus.ACTIVE,
-            YukyuBalance.days_available > 0
-        ).order_by(YukyuBalance.assigned_date.desc()).all()
+        try:
+            # Get active balances, newest first (LIFO)
+            balances = self.db.query(YukyuBalance).filter(
+                YukyuBalance.employee_id == employee_id,
+                YukyuBalance.status == YukyuStatus.ACTIVE,
+                YukyuBalance.days_available > 0
+            ).order_by(YukyuBalance.assigned_date.desc()).all()
 
-        if not balances:
-            raise HTTPException(
-                status_code=400,
-                detail="No yukyu balances available"
-            )
-
-        remaining_to_deduct = Decimal(str(days_to_deduct))
-
-        # Generate dates for usage tracking
-        usage_dates = []
-        current = start_date
-        while current <= end_date:
-            usage_dates.append(current)
-            current += timedelta(days=1)
-
-        # Deduct from newest balances first
-        for balance in balances:
-            if remaining_to_deduct <= 0:
-                break
-
-            available = Decimal(str(balance.days_available))
-            to_deduct_from_this = min(remaining_to_deduct, available)
-
-            # Update balance
-            balance.days_used += int(to_deduct_from_this) if to_deduct_from_this == int(to_deduct_from_this) else float(to_deduct_from_this)
-            balance.days_remaining = balance.days_total - balance.days_used
-            balance.days_available = balance.days_remaining - balance.days_expired
-
-            # Create usage details
-            days_per_date = to_deduct_from_this / len(usage_dates) if usage_dates else to_deduct_from_this
-            for usage_date in usage_dates:
-                detail = YukyuUsageDetail(
-                    request_id=request_id,
-                    balance_id=balance.id,
-                    usage_date=usage_date,
-                    days_deducted=days_per_date
+            if not balances:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No yukyu balances available"
                 )
-                self.db.add(detail)
 
-            remaining_to_deduct -= to_deduct_from_this
+            remaining_to_deduct = Decimal(str(days_to_deduct))
 
-        if remaining_to_deduct > 0:
+            # Generate dates for usage tracking
+            usage_dates = []
+            current = start_date
+            while current <= end_date:
+                usage_dates.append(current)
+                current += timedelta(days=1)
+
+            # Deduct from newest balances first
+            for balance in balances:
+                if remaining_to_deduct <= 0:
+                    break
+
+                available = Decimal(str(balance.days_available))
+                to_deduct_from_this = min(remaining_to_deduct, available)
+
+                # Update balance
+                balance.days_used += int(to_deduct_from_this) if to_deduct_from_this == int(to_deduct_from_this) else float(to_deduct_from_this)
+                balance.days_remaining = balance.days_total - balance.days_used
+                balance.days_available = balance.days_remaining - balance.days_expired
+
+                # Create usage details
+                days_per_date = to_deduct_from_this / len(usage_dates) if usage_dates else to_deduct_from_this
+                for usage_date in usage_dates:
+                    detail = YukyuUsageDetail(
+                        request_id=request_id,
+                        balance_id=balance.id,
+                        usage_date=usage_date,
+                        days_deducted=days_per_date
+                    )
+                    self.db.add(detail)
+
+                remaining_to_deduct -= to_deduct_from_this
+
+            if remaining_to_deduct > 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Not enough yukyus available. Missing {remaining_to_deduct} days."
+                )
+
+            # Transacción atómica: commit solo si todo es éxito
+            self.db.commit()
+
+        except HTTPException:
+            # Rollback en caso de error de validación HTTP
+            self.db.rollback()
+            raise
+        except Exception as e:
+            # Rollback en caso de cualquier otra excepción
+            self.db.rollback()
             raise HTTPException(
-                status_code=400,
-                detail=f"Not enough yukyus available. Missing {remaining_to_deduct} days."
+                status_code=500,
+                detail=f"Error deduciendo días de yukyu: {str(e)}"
             )
-
-        self.db.commit()
 
     # -------------------------------------------------------------------------
     # EXPIRATION & MAINTENANCE

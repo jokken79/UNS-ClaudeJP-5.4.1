@@ -26,6 +26,7 @@ import {
   Search
 } from 'lucide-react';
 import api from '@/lib/api';
+import { DevModeAlert } from '@/components/dev-mode-alert';
 
 interface Employee {
   id: number;
@@ -191,6 +192,14 @@ export default function AdminYukyuManagementPage() {
         <p className="text-gray-600 dark:text-gray-400">
           Gestión administrativa de yukyus - Cálculo, expiración y monitoreo
         </p>
+      </div>
+
+      {/* Development Alert */}
+      <div className="mb-6">
+        <DevModeAlert
+          pageName="Yukyu Management (Admin)"
+          message="Some statistics calculations are incomplete (Total Used and Total Expired). These features are currently being implemented."
+        />
       </div>
 
       {/* Stats Grid */}

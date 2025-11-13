@@ -130,7 +130,9 @@ class Settings(BaseSettings):
     FACTORY_ID_PREFIX: str = "Factory-"
     FACTORY_ID_START: int = 1
     
-    # Salary Calculation
+    # Salary Calculation (DEPRECATED - Use PayrollSettings from database)
+    # These values are kept for backward compatibility and as fallbacks only
+    # The system now uses PayrollSettings table in the database for dynamic configuration
     OVERTIME_RATE_25: float = 0.25
     OVERTIME_RATE_35: float = 0.35
     NIGHT_SHIFT_PREMIUM: float = 0.25
@@ -195,3 +197,75 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+class PayrollConfig:
+    """
+    Payroll Configuration - Dynamic values from database.
+
+    These are DEFAULT values used as fallbacks when:
+    1. Database is not available
+    2. PayrollSettings table is empty
+    3. Initial system setup
+
+    The actual system uses PayrollSettings table from the database,
+    managed by PayrollConfigService (backend/app/services/config_service.py).
+
+    DO NOT change these values directly. Use the database settings instead:
+    - Access via: PayrollConfigService.get_configuration()
+    - Update via: PayrollConfigService.update_configuration(**kwargs)
+
+    These default values follow Japanese labor law:
+    - Overtime (時間外): 125% (1.25)
+    - Night shift (深夜): 125% (1.25)
+    - Holiday (休日): 135% (1.35)
+    - Sunday (日曜): 135% (1.35)
+    - Standard hours: 160 per month
+    """
+
+    # ==================== Hour Rates (時間単価) ====================
+    # These rates are multipliers for base hourly wage
+
+    DEFAULT_OVERTIME_RATE: float = 1.25  # 125% - 時間外割増 (Overtime premium)
+    DEFAULT_NIGHT_RATE: float = 1.25     # 125% - 深夜割増 (Night shift premium)
+    DEFAULT_HOLIDAY_RATE: float = 1.35   # 135% - 休日割増 (Holiday premium)
+    DEFAULT_SUNDAY_RATE: float = 1.35    # 135% - 日曜割増 (Sunday premium)
+
+    # Standard working hours per month (標準労働時間)
+    DEFAULT_STANDARD_HOURS: int = 160    # 160 hours/month (8h/day × 20 days)
+
+    # ==================== Tax & Insurance Rates (%) ====================
+    # These are percentage rates applied to gross salary
+
+    DEFAULT_INCOME_TAX_RATE: float = 10.0           # 所得税 (Income tax)
+    DEFAULT_RESIDENT_TAX_RATE: float = 5.0          # 住民税 (Resident tax)
+    DEFAULT_HEALTH_INSURANCE_RATE: float = 4.75     # 健康保険 (Health insurance)
+    DEFAULT_PENSION_RATE: float = 10.0              # 厚生年金 (Pension insurance)
+    DEFAULT_EMPLOYMENT_INSURANCE_RATE: float = 0.3  # 雇用保険 (Employment insurance)
+
+    # ==================== Documentation ====================
+    @classmethod
+    def get_all_defaults(cls) -> dict:
+        """
+        Get all default configuration values as a dictionary.
+
+        Returns:
+            dict: All default configuration values
+
+        Example:
+            >>> defaults = PayrollConfig.get_all_defaults()
+            >>> print(defaults['DEFAULT_OVERTIME_RATE'])
+            1.25
+        """
+        return {
+            'overtime_rate': cls.DEFAULT_OVERTIME_RATE,
+            'night_shift_rate': cls.DEFAULT_NIGHT_RATE,
+            'holiday_rate': cls.DEFAULT_HOLIDAY_RATE,
+            'sunday_rate': cls.DEFAULT_SUNDAY_RATE,
+            'standard_hours_per_month': cls.DEFAULT_STANDARD_HOURS,
+            'income_tax_rate': cls.DEFAULT_INCOME_TAX_RATE,
+            'resident_tax_rate': cls.DEFAULT_RESIDENT_TAX_RATE,
+            'health_insurance_rate': cls.DEFAULT_HEALTH_INSURANCE_RATE,
+            'pension_rate': cls.DEFAULT_PENSION_RATE,
+            'employment_insurance_rate': cls.DEFAULT_EMPLOYMENT_INSURANCE_RATE
+        }

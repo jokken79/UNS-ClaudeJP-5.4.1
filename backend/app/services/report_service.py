@@ -4,7 +4,7 @@ Automatic report generation with Excel and charts
 """
 import logging
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
 from pathlib import Path
 from decimal import Decimal
 
@@ -444,12 +444,14 @@ class ReportService:
     # APARTMENT MODULE REPORTS
     # =========================================================================
 
-    def get_occupancy_report(self, filters: dict = None) -> dict:
+    def get_occupancy_report(self, prefecture: Optional[str] = None,
+                            building_name: Optional[str] = None) -> dict:
         """
         Reporte de ocupación de apartamentos
 
         Args:
-            filters: Filtros opcionales (prefecture, city, etc.)
+            prefecture: Prefectura a filtrar (opcional)
+            building_name: Nombre del edificio a filtrar (opcional)
 
         Returns:
             Dict con métricas de ocupación
@@ -466,11 +468,11 @@ class ReportService:
             query = db.query(Apartment).filter(Apartment.deleted_at.is_(None))
 
             # Aplicar filtros si se proporcionan
-            if filters:
-                if filters.get('prefecture'):
-                    query = query.filter(Apartment.prefecture == filters['prefecture'])
-                if filters.get('city'):
-                    query = query.filter(Apartment.city == filters['city'])
+            if prefecture:
+                query = query.filter(Apartment.prefecture == prefecture)
+
+            if building_name:
+                query = query.filter(Apartment.building_name == building_name)
 
             # Métricas principales
             total_apartments = query.count()
@@ -737,7 +739,7 @@ class ReportService:
         finally:
             db.close()
 
-    def get_cost_analysis(self, year: int, month: int) -> dict:
+    def get_cost_analysis_report(self, year: int, month: int) -> dict:
         """
         Análisis de costos (solo ADMIN)
 

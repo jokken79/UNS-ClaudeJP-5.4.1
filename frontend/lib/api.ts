@@ -47,6 +47,10 @@ import type {
   DeductionListParams,
   ProratedCalculationRequest,
   ProratedCalculationResponse,
+  OccupancyReport,
+  ArrearsReport,
+  MaintenanceReport,
+  CostAnalysisReport,
 } from '@/types/apartments-v2';
 
 // Normalize base URL to ensure it includes `/api` and no trailing slash
@@ -314,6 +318,40 @@ export const salaryService = {
 
   calculateSalary: async (data: SalaryCalculationCreateData): Promise<SalaryCalculation> => {
     const response = await api.post<SalaryCalculation>('/salary/calculate/', data);
+    return response.data;
+  },
+
+  updateSalary: async (id: string | number, data: Partial<SalaryCalculation>): Promise<SalaryCalculation> => {
+    const response = await api.put<SalaryCalculation>(`/salary/${id}/`, data);
+    return response.data;
+  },
+
+  deleteSalary: async (id: string | number): Promise<void> => {
+    await api.delete(`/salary/${id}/`);
+  },
+
+  markSalaryPaid: async (id: string | number): Promise<SalaryCalculation> => {
+    const response = await api.put<SalaryCalculation>(`/salary/${id}/mark-paid/`);
+    return response.data;
+  },
+
+  generatePayslip: async (id: string | number): Promise<Blob> => {
+    const response = await api.post(`/salary/${id}/payslip/`, {}, { responseType: 'blob' });
+    return response.data;
+  },
+
+  getSalaryReport: async (filters?: any): Promise<any> => {
+    const response = await api.get('/salary/reports/', { params: filters });
+    return response.data;
+  },
+
+  exportSalaryExcel: async (filters?: any): Promise<Blob> => {
+    const response = await api.post('/salary/export/excel/', filters, { responseType: 'blob' });
+    return response.data;
+  },
+
+  exportSalaryPdf: async (filters?: any): Promise<Blob> => {
+    const response = await api.post('/salary/export/pdf/', filters, { responseType: 'blob' });
     return response.data;
   }
 };
@@ -610,6 +648,190 @@ export const apartmentsV2Service = {
     breakdown: Record<string, any>;
   }> => {
     const response = await api.post('/apartments-v2/calculate/transfer', data);
+    return response.data;
+  },
+
+  // -----------------------------------------------------------------------------
+  // REPORTS
+  // -----------------------------------------------------------------------------
+
+  /**
+   * Get occupancy report
+   *
+   * @param prefecture - Optional filter by prefecture
+   * @param building_name - Optional filter by building name
+   * @returns Occupancy report with summary, trends, and apartment details
+   */
+  getOccupancyReport: async (
+    prefecture?: string,
+    building_name?: string
+  ): Promise<OccupancyReport> => {
+    const response = await api.get<OccupancyReport>('/apartments-v2/reports/occupancy', {
+      params: {
+        prefecture,
+        building_name,
+      },
+    });
+    return response.data;
+  },
+
+  /**
+   * Get arrears (pending payments) report
+   *
+   * @param year - Year for the report
+   * @param month - Month for the report (1-12)
+   * @returns Arrears report with payment status and debtor details
+   */
+  getArrearsReport: async (
+    year: number,
+    month: number
+  ): Promise<ArrearsReport> => {
+    const response = await api.get<ArrearsReport>('/apartments-v2/reports/arrears', {
+      params: { year, month },
+    });
+    return response.data;
+  },
+
+  /**
+   * Get maintenance and charges report
+   *
+   * @param period - Time period (e.g., '1month', '3months', '6months', '1year')
+   * @param chargeType - Optional filter by charge type (cleaning, repair, etc.)
+   * @returns Maintenance report with costs and incident details
+   */
+  getMaintenanceReport: async (
+    period?: string,
+    chargeType?: string
+  ): Promise<MaintenanceReport> => {
+    const response = await api.get<MaintenanceReport>('/apartments-v2/reports/maintenance', {
+      params: {
+        period,
+        charge_type: chargeType,
+      },
+    });
+    return response.data;
+  },
+
+  /**
+   * Get cost analysis and profitability report
+   *
+   * @param year - Year for the report
+   * @param month - Month for the report (1-12)
+   * @returns Cost analysis report with revenue, expenses, and profit details
+   */
+  getCostAnalysisReport: async (
+    year: number,
+    month: number
+  ): Promise<CostAnalysisReport> => {
+    const response = await api.get<CostAnalysisReport>('/apartments-v2/reports/costs', {
+      params: { year, month },
+    });
+    return response.data;
+  },
+};
+
+// =============================================================================
+// ADMIN CONTROL PANEL SERVICES
+// =============================================================================
+
+export interface AuditLogEntry {
+  id: number;
+  admin_username: string;
+  action_type: 'enable' | 'disable' | 'bulk_enable' | 'bulk_disable' | 'update';
+  target_type: 'page' | 'role_permission' | 'global';
+  target_name: string;
+  role_key?: string;
+  details?: string;
+  timestamp: string;
+  created_at: string;
+}
+
+export interface RoleStatsResponse {
+  role_key: string;
+  role_name: string;
+  total_pages: number;
+  enabled_pages: number;
+  disabled_pages: number;
+  percentage: number;
+}
+
+export const adminControlPanelService = {
+  /**
+   * Get recent audit log entries
+   */
+  getRecentAuditLog: async (limit: number = 10): Promise<AuditLogEntry[]> => {
+    const response = await api.get<AuditLogEntry[]>('/admin/audit-log/recent', {
+      params: { limit },
+    });
+    return response.data;
+  },
+
+  /**
+   * Get all audit log entries with pagination
+   */
+  getAllAuditLog: async (params?: { skip?: number; limit?: number }): Promise<PaginatedResponse<AuditLogEntry>> => {
+    const response = await api.get<PaginatedResponse<AuditLogEntry>>('/admin/audit-log', { params });
+    return response.data;
+  },
+
+  /**
+   * Get role statistics (access percentages)
+   */
+  getRoleStats: async (): Promise<RoleStatsResponse[]> => {
+    const response = await api.get<RoleStatsResponse[]>('/admin/role-stats');
+    return response.data;
+  },
+};
+
+// =============================================================================
+// ADMIN CONTROL PANEL SERVICES
+// =============================================================================
+
+export interface AuditLogEntry {
+  id: number;
+  admin_username: string;
+  action_type: 'enable' | 'disable' | 'bulk_enable' | 'bulk_disable' | 'update';
+  target_type: 'page' | 'role_permission' | 'global';
+  target_name: string;
+  role_key?: string;
+  details?: string;
+  timestamp: string;
+  created_at: string;
+}
+
+export interface RoleStatsResponse {
+  role_key: string;
+  role_name: string;
+  total_pages: number;
+  enabled_pages: number;
+  disabled_pages: number;
+  percentage: number;
+}
+
+export const adminControlPanelService = {
+  /**
+   * Get recent audit log entries
+   */
+  getRecentAuditLog: async (limit: number = 10): Promise<AuditLogEntry[]> => {
+    const response = await api.get<AuditLogEntry[]>('/admin/audit-log/recent', {
+      params: { limit },
+    });
+    return response.data;
+  },
+
+  /**
+   * Get all audit log entries with pagination
+   */
+  getAllAuditLog: async (params?: { skip?: number; limit?: number }): Promise<PaginatedResponse<AuditLogEntry>> => {
+    const response = await api.get<PaginatedResponse<AuditLogEntry>>('/admin/audit-log', { params });
+    return response.data;
+  },
+
+  /**
+   * Get role statistics (access percentages)
+   */
+  getRoleStats: async (): Promise<RoleStatsResponse[]> => {
+    const response = await api.get<RoleStatsResponse[]>('/admin/role-stats');
     return response.data;
   },
 };

@@ -72,7 +72,7 @@ export default function TransferAssignmentPage() {
   const { data: apartments = [] } = useQuery({
     queryKey: ['available-apartments-for-transfer'],
     queryFn: async () => {
-      const response = await api.get('/apartments/');
+      const response = await api.get('/apartments-v2/apartments');
       return response.data as Apartment[];
     },
   });
