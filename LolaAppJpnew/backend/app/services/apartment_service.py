@@ -10,10 +10,10 @@ Intelligent apartment assignment with weighted scoring algorithm:
 """
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 import math
 
-from app.models.models import Apartment, Employee, Plant, Line, Company
+from app.models.models import Apartment, Employee, Plant, Line, Company, EmployeeStatus
 
 
 # Scoring weights (must sum to 100)
@@ -38,14 +38,20 @@ class ApartmentService:
         lon1: Optional[float],
         lat2: Optional[float],
         lon2: Optional[float]
-    ) -> float:
+    ) -> Optional[float]:
         """
         Calculate distance between two coordinates using Haversine formula
 
-        Returns distance in kilometers
+        Returns distance in kilometers, or None if coordinates are missing
         """
         if not all([lat1, lon1, lat2, lon2]):
-            return 999999.0  # Very large distance if coordinates missing
+            return None  # Cannot calculate distance if coordinates missing
+
+        # Validate coordinate ranges
+        if not (-90 <= lat1 <= 90) or not (-90 <= lat2 <= 90):
+            raise ValueError(f"Invalid latitude: must be between -90 and 90 (got {lat1}, {lat2})")
+        if not (-180 <= lon1 <= 180) or not (-180 <= lon2 <= 180):
+            raise ValueError(f"Invalid longitude: must be between -180 and 180 (got {lon1}, {lon2})")
 
         # Earth radius in kilometers
         R = 6371.0
@@ -87,6 +93,10 @@ class ApartmentService:
             plant.latitude,
             plant.longitude
         )
+
+        # If distance cannot be calculated (missing coordinates), exclude from recommendations
+        if distance is None:
+            return 0.0
 
         # Score based on distance (inverse relationship)
         # < 5km = 1.0, 5-10km = 0.8, 10-20km = 0.5, 20-30km = 0.3, >30km = 0.1
@@ -157,7 +167,7 @@ class ApartmentService:
         residents = self.db.query(Employee).filter(
             and_(
                 Employee.apartment_id == apartment.id,
-                Employee.status == 'ACTIVE'
+                Employee.status == EmployeeStatus.ACTIVE
             )
         ).all()
 
@@ -222,6 +232,10 @@ class ApartmentService:
             plant.latitude,
             plant.longitude
         )
+
+        # If distance cannot be calculated, return neutral score
+        if distance is None:
+            return 0.5
 
         # Simple scoring based on distance
         if distance < 2:

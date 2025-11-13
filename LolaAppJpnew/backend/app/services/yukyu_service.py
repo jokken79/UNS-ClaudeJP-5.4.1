@@ -110,6 +110,7 @@ class YukyuService:
         )
 
         self.db.add(balance)
+        self.db.flush()  # Assign ID to balance before creating transaction
 
         # Create grant transaction
         transaction = YukyuTransaction(

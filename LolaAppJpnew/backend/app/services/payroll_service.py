@@ -6,11 +6,27 @@ Calculates monthly payroll based on:
 - Yukyu days used
 - Apartment rent deductions
 - Social insurance and tax deductions
-"""
+
+IMPORTANT - Hour Categories Logic:
+====================================
+Hour categories are MUTUALLY EXCLUSIVE (no overlap):
+- regular_hours: Normal working hours (not overtime, not night, not holiday)
+- overtime_hours: Hours beyond regular schedule (daytime only)
+- night_hours: Hours during night shift 22:00-06:00 (regular schedule only)
+- holiday_hours: Hours worked on statutory holidays (any time)
+
+For NIGHT OVERTIME (働き過ぎ深夜, 22:00-06:00 beyond regular hours):
+- Japanese labor law requires ADDITIVE premiums: base × (1 + 0.25 overtime + 0.25 night) = base × 1.5
+- Timer card processing MUST separate night overtime into a distinct category
+- Current implementation treats categories as separate, not additive
+- TODO: Add 'night_overtime_hours' category with 1.5 multiplier (base × 0.50 premium)
+
+Reference: Labor Standards Act Article 37 (割増賃金)
+
 from datetime import date
 from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func
+from sqlalchemy import and_, or_, func
 
 from app.models.models import (
     Employee, TimerCard, PayrollRecord,
@@ -140,6 +156,15 @@ class PayrollService:
     ) -> Dict[str, float]:
         """
         Calculate gross pay breakdown
+
+        IMPORTANT: Hour categories are MUTUALLY EXCLUSIVE
+        - regular_hours: Normal daytime hours (no premium)
+        - overtime_hours: Daytime overtime only (25% premium)
+        - night_hours: Night shift regular hours only (25% premium)
+        - holiday_hours: Any holiday work (35% premium)
+
+        Night overtime hours should be tracked separately if needed.
+        See module docstring for details on Japanese labor law requirements.
 
         Returns dict with individual pay components
         """

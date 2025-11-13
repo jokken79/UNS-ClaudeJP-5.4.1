@@ -14,6 +14,8 @@ Supported documents:
 """
 import base64
 import io
+import re
+import time
 from typing import Optional, Dict, Any, List
 from PIL import Image
 import logging
@@ -135,13 +137,19 @@ class OCRService:
         operation_location = read_response.headers["Operation-Location"]
         operation_id = operation_location.split("/")[-1]
 
-        # Wait for result
-        import time
-        while True:
+        # Wait for result (with timeout)
+        max_attempts = 30  # 30 seconds timeout
+        attempts = 0
+
+        while attempts < max_attempts:
             result = client.get_read_result(operation_id)
             if result.status.lower() not in ['notstarted', 'running']:
                 break
             time.sleep(1)
+            attempts += 1
+
+        if attempts >= max_attempts:
+            raise TimeoutError("Azure OCR timeout after 30 seconds")
 
         # Extract text
         text_lines = []
@@ -248,14 +256,12 @@ class OCRService:
             # Look for phone (電話, TEL)
             if "電話" in line or "TEL" in line_lower:
                 # Extract phone number pattern
-                import re
                 phone_match = re.search(r'[\d\-]{10,}', line)
                 if phone_match:
                     fields["phone"] = phone_match.group()
 
             # Look for email
             if "@" in line:
-                import re
                 email_match = re.search(r'[\w\.-]+@[\w\.-]+', line)
                 if email_match:
                     fields["email"] = email_match.group()
@@ -276,7 +282,6 @@ class OCRService:
         lines = ocr_result.get("lines", [])
         records = []
 
-        import re
         for line in lines:
             # Look for date pattern (YYYY/MM/DD or MM/DD)
             date_match = re.search(r'(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2})', line)
