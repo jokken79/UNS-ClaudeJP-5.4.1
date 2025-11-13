@@ -1,0 +1,4 @@
+ trigger_schema | trigger_name | event_manipulation | event_object_table | action_statement 
+----------------+--------------+--------------------+--------------------+------------------
+(0 rows)
+

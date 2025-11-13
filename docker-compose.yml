@@ -370,12 +370,14 @@ services:
       - "4317:4317"
       - "4318:4318"
       - "13133:13133"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:13133 || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+    # Health check disabled: otel-collector image is minimal (distroless) and has no shell/utilities
+    # Service health can be verified through logs and telemetry data collection
+    # healthcheck:
+    #   test: ["CMD", "wget", "-qO-", "http://localhost:13133"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 30s
     logging: *logging-verbose
     networks:
       - uns-network

@@ -1,0 +1,746 @@
+       table_name       |          column_name           |          data_type          | is_nullable |                   column_default                   
+------------------------+--------------------------------+-----------------------------+-------------+----------------------------------------------------
+ additional_charges     | id                             | integer                     | NO          | nextval('additional_charges_id_seq'::regclass)
+ additional_charges     | assignment_id                  | integer                     | NO          | 
+ additional_charges     | employee_id                    | integer                     | NO          | 
+ additional_charges     | apartment_id                   | integer                     | NO          | 
+ additional_charges     | charge_type                    | USER-DEFINED                | NO          | 
+ additional_charges     | description                    | character varying           | NO          | 
+ additional_charges     | amount                         | integer                     | NO          | 
+ additional_charges     | charge_date                    | date                        | NO          | 
+ additional_charges     | status                         | USER-DEFINED                | NO          | 
+ additional_charges     | approved_by                    | integer                     | YES         | 
+ additional_charges     | approved_at                    | timestamp with time zone    | YES         | 
+ additional_charges     | notes                          | text                        | YES         | 
+ additional_charges     | created_at                     | timestamp with time zone    | YES         | now()
+ additional_charges     | updated_at                     | timestamp with time zone    | YES         | 
+ additional_charges     | deleted_at                     | timestamp without time zone | YES         | 
+ admin_audit_logs       | id                             | integer                     | NO          | nextval('admin_audit_logs_id_seq'::regclass)
+ admin_audit_logs       | admin_user_id                  | integer                     | NO          | 
+ admin_audit_logs       | action_type                    | USER-DEFINED                | NO          | 
+ admin_audit_logs       | resource_type                  | USER-DEFINED                | NO          | 
+ admin_audit_logs       | resource_key                   | character varying           | YES         | 
+ admin_audit_logs       | previous_value                 | text                        | YES         | 
+ admin_audit_logs       | new_value                      | text                        | YES         | 
+ admin_audit_logs       | ip_address                     | character varying           | YES         | 
+ admin_audit_logs       | user_agent                     | text                        | YES         | 
+ admin_audit_logs       | description                    | text                        | YES         | 
+ admin_audit_logs       | audit_metadata                 | jsonb                       | YES         | 
+ admin_audit_logs       | created_at                     | timestamp with time zone    | NO          | now()
+ admin_audit_logs       | updated_at                     | timestamp with time zone    | YES         | 
+ alembic_version        | version_num                    | character varying           | NO          | 
+ apartment_assignments  | id                             | integer                     | NO          | nextval('apartment_assignments_id_seq'::regclass)
+ apartment_assignments  | apartment_id                   | integer                     | NO          | 
+ apartment_assignments  | employee_id                    | integer                     | NO          | 
+ apartment_assignments  | start_date                     | date                        | NO          | 
+ apartment_assignments  | end_date                       | date                        | YES         | 
+ apartment_assignments  | monthly_rent                   | integer                     | NO          | 
+ apartment_assignments  | days_in_month                  | integer                     | YES         | 
+ apartment_assignments  | days_occupied                  | integer                     | YES         | 
+ apartment_assignments  | prorated_rent                  | integer                     | YES         | 
+ apartment_assignments  | is_prorated                    | boolean                     | YES         | 
+ apartment_assignments  | total_deduction                | integer                     | NO          | 
+ apartment_assignments  | pays_parking                   | boolean                     | NO          | 
+ apartment_assignments  | contract_type                  | character varying           | YES         | 
+ apartment_assignments  | status                         | USER-DEFINED                | NO          | 
+ apartment_assignments  | notes                          | text                        | YES         | 
+ apartment_assignments  | created_at                     | timestamp with time zone    | YES         | now()
+ apartment_assignments  | updated_at                     | timestamp with time zone    | YES         | 
+ apartment_assignments  | deleted_at                     | timestamp without time zone | YES         | 
+ apartment_factory      | id                             | integer                     | NO          | nextval('apartment_factory_id_seq'::regclass)
+ apartment_factory      | apartment_id                   | integer                     | NO          | 
+ apartment_factory      | factory_id                     | integer                     | NO          | 
+ apartment_factory      | is_primary                     | boolean                     | YES         | 
+ apartment_factory      | priority                       | integer                     | YES         | 
+ apartment_factory      | distance_km                    | numeric                     | YES         | 
+ apartment_factory      | commute_minutes                | integer                     | YES         | 
+ apartment_factory      | effective_from                 | date                        | YES         | 
+ apartment_factory      | effective_until                | date                        | YES         | 
+ apartment_factory      | notes                          | text                        | YES         | 
+ apartment_factory      | created_at                     | timestamp with time zone    | YES         | now()
+ apartment_factory      | updated_at                     | timestamp with time zone    | YES         | now()
+ apartments             | id                             | integer                     | NO          | nextval('apartments_id_seq'::regclass)
+ apartments             | apartment_code                 | character varying           | YES         | 
+ apartments             | name                           | character varying           | NO          | 
+ apartments             | building_name                  | character varying           | YES         | 
+ apartments             | room_number                    | character varying           | YES         | 
+ apartments             | floor_number                   | integer                     | YES         | 
+ apartments             | postal_code                    | character varying           | YES         | 
+ apartments             | prefecture                     | character varying           | YES         | 
+ apartments             | city                           | character varying           | YES         | 
+ apartments             | address                        | text                        | YES         | 
+ apartments             | address_line1                  | character varying           | YES         | 
+ apartments             | address_line2                  | character varying           | YES         | 
+ apartments             | region_id                      | integer                     | YES         | 
+ apartments             | zone                           | character varying           | YES         | 
+ apartments             | room_type                      | USER-DEFINED                | YES         | 
+ apartments             | size_sqm                       | numeric                     | YES         | 
+ apartments             | capacity                       | integer                     | YES         | 
+ apartments             | property_type                  | character varying           | YES         | 
+ apartments             | base_rent                      | integer                     | NO          | 
+ apartments             | monthly_rent                   | integer                     | YES         | 
+ apartments             | management_fee                 | integer                     | YES         | 
+ apartments             | deposit                        | integer                     | YES         | 
+ apartments             | key_money                      | integer                     | YES         | 
+ apartments             | default_cleaning_fee           | integer                     | YES         | 
+ apartments             | parking_spaces                 | integer                     | YES         | 
+ apartments             | parking_price_per_unit         | integer                     | YES         | 
+ apartments             | initial_plus                   | integer                     | YES         | 
+ apartments             | contract_start_date            | date                        | YES         | 
+ apartments             | contract_end_date              | date                        | YES         | 
+ apartments             | landlord_name                  | character varying           | YES         | 
+ apartments             | landlord_contact               | character varying           | YES         | 
+ apartments             | real_estate_agency             | character varying           | YES         | 
+ apartments             | emergency_contact              | character varying           | YES         | 
+ apartments             | status                         | USER-DEFINED                | YES         | 
+ apartments             | is_available                   | boolean                     | YES         | 
+ apartments             | notes                          | text                        | YES         | 
+ apartments             | created_at                     | timestamp with time zone    | YES         | now()
+ apartments             | updated_at                     | timestamp with time zone    | YES         | 
+ apartments             | deleted_at                     | timestamp without time zone | YES         | 
+ audit_log              | id                             | integer                     | NO          | nextval('audit_log_id_seq'::regclass)
+ audit_log              | user_id                        | integer                     | YES         | 
+ audit_log              | action                         | character varying           | NO          | 
+ audit_log              | table_name                     | character varying           | YES         | 
+ audit_log              | record_id                      | integer                     | YES         | 
+ audit_log              | old_values                     | json                        | YES         | 
+ audit_log              | new_values                     | json                        | YES         | 
+ audit_log              | ip_address                     | character varying           | YES         | 
+ audit_log              | user_agent                     | text                        | YES         | 
+ audit_log              | created_at                     | timestamp with time zone    | YES         | now()
+ candidate_forms        | id                             | integer                     | NO          | nextval('candidate_forms_id_seq'::regclass)
+ candidate_forms        | candidate_id                   | integer                     | YES         | 
+ candidate_forms        | rirekisho_id                   | character varying           | YES         | 
+ candidate_forms        | applicant_id                   | character varying           | YES         | 
+ candidate_forms        | form_data                      | json                        | NO          | 
+ candidate_forms        | photo_data_url                 | text                        | YES         | 
+ candidate_forms        | azure_metadata                 | json                        | YES         | 
+ candidate_forms        | created_at                     | timestamp with time zone    | YES         | now()
+ candidate_forms        | updated_at                     | timestamp with time zone    | YES         | 
+ candidates             | id                             | integer                     | NO          | nextval('candidates_id_seq'::regclass)
+ candidates             | rirekisho_id                   | character varying           | NO          | 
+ candidates             | reception_date                 | date                        | YES         | 
+ candidates             | arrival_date                   | date                        | YES         | 
+ candidates             | full_name_kanji                | character varying           | YES         | 
+ candidates             | full_name_kana                 | character varying           | YES         | 
+ candidates             | full_name_roman                | character varying           | YES         | 
+ candidates             | gender                         | character varying           | YES         | 
+ candidates             | date_of_birth                  | date                        | YES         | 
+ candidates             | photo_url                      | character varying           | YES         | 
+ candidates             | photo_data_url                 | text                        | YES         | 
+ candidates             | nationality                    | character varying           | YES         | 
+ candidates             | marital_status                 | character varying           | YES         | 
+ candidates             | hire_date                      | date                        | YES         | 
+ candidates             | postal_code                    | character varying           | YES         | 
+ candidates             | current_address                | text                        | YES         | 
+ candidates             | address                        | text                        | YES         | 
+ candidates             | address_banchi                 | character varying           | YES         | 
+ candidates             | address_building               | character varying           | YES         | 
+ candidates             | registered_address             | text                        | YES         | 
+ candidates             | phone                          | character varying           | YES         | 
+ candidates             | mobile                         | character varying           | YES         | 
+ candidates             | passport_number                | character varying           | YES         | 
+ candidates             | passport_expiry                | date                        | YES         | 
+ candidates             | residence_status               | character varying           | YES         | 
+ candidates             | residence_expiry               | date                        | YES         | 
+ candidates             | residence_card_number          | character varying           | YES         | 
+ candidates             | license_number                 | character varying           | YES         | 
+ candidates             | license_expiry                 | date                        | YES         | 
+ candidates             | car_ownership                  | character varying           | YES         | 
+ candidates             | voluntary_insurance            | character varying           | YES         | 
+ candidates             | forklift_license               | character varying           | YES         | 
+ candidates             | tama_kake                      | character varying           | YES         | 
+ candidates             | mobile_crane_under_5t          | character varying           | YES         | 
+ candidates             | mobile_crane_over_5t           | character varying           | YES         | 
+ candidates             | gas_welding                    | character varying           | YES         | 
+ candidates             | family_name_1                  | character varying           | YES         | 
+ candidates             | family_relation_1              | character varying           | YES         | 
+ candidates             | family_age_1                   | integer                     | YES         | 
+ candidates             | family_residence_1             | character varying           | YES         | 
+ candidates             | family_separate_address_1      | text                        | YES         | 
+ candidates             | family_dependent_1             | character varying           | YES         | 
+ candidates             | family_name_2                  | character varying           | YES         | 
+ candidates             | family_relation_2              | character varying           | YES         | 
+ candidates             | family_age_2                   | integer                     | YES         | 
+ candidates             | family_residence_2             | character varying           | YES         | 
+ candidates             | family_separate_address_2      | text                        | YES         | 
+ candidates             | family_dependent_2             | character varying           | YES         | 
+ candidates             | family_name_3                  | character varying           | YES         | 
+ candidates             | family_relation_3              | character varying           | YES         | 
+ candidates             | family_age_3                   | integer                     | YES         | 
+ candidates             | family_residence_3             | character varying           | YES         | 
+ candidates             | family_separate_address_3      | text                        | YES         | 
+ candidates             | family_dependent_3             | character varying           | YES         | 
+ candidates             | family_name_4                  | character varying           | YES         | 
+ candidates             | family_relation_4              | character varying           | YES         | 
+ candidates             | family_age_4                   | integer                     | YES         | 
+ candidates             | family_residence_4             | character varying           | YES         | 
+ candidates             | family_separate_address_4      | text                        | YES         | 
+ candidates             | family_dependent_4             | character varying           | YES         | 
+ candidates             | family_name_5                  | character varying           | YES         | 
+ candidates             | family_relation_5              | character varying           | YES         | 
+ candidates             | family_age_5                   | integer                     | YES         | 
+ candidates             | family_residence_5             | character varying           | YES         | 
+ candidates             | family_separate_address_5      | text                        | YES         | 
+ candidates             | family_dependent_5             | character varying           | YES         | 
+ candidates             | work_history_company_7         | character varying           | YES         | 
+ candidates             | work_history_entry_company_7   | character varying           | YES         | 
+ candidates             | work_history_exit_company_7    | character varying           | YES         | 
+ candidates             | exp_nc_lathe                   | boolean                     | YES         | 
+ candidates             | exp_lathe                      | boolean                     | YES         | 
+ candidates             | exp_press                      | boolean                     | YES         | 
+ candidates             | exp_forklift                   | boolean                     | YES         | 
+ candidates             | exp_packing                    | boolean                     | YES         | 
+ candidates             | exp_welding                    | boolean                     | YES         | 
+ candidates             | exp_car_assembly               | boolean                     | YES         | 
+ candidates             | exp_car_line                   | boolean                     | YES         | 
+ candidates             | exp_car_inspection             | boolean                     | YES         | 
+ candidates             | exp_electronic_inspection      | boolean                     | YES         | 
+ candidates             | exp_food_processing            | boolean                     | YES         | 
+ candidates             | exp_casting                    | boolean                     | YES         | 
+ candidates             | exp_line_leader                | boolean                     | YES         | 
+ candidates             | exp_painting                   | boolean                     | YES         | 
+ candidates             | exp_other                      | text                        | YES         | 
+ candidates             | bento_lunch_dinner             | character varying           | YES         | 
+ candidates             | bento_lunch_only               | character varying           | YES         | 
+ candidates             | bento_dinner_only              | character varying           | YES         | 
+ candidates             | bento_bring_own                | character varying           | YES         | 
+ candidates             | lunch_preference               | character varying           | YES         | 
+ candidates             | commute_method                 | character varying           | YES         | 
+ candidates             | commute_time_oneway            | integer                     | YES         | 
+ candidates             | interview_result               | character varying           | YES         | 
+ candidates             | antigen_test_kit               | character varying           | YES         | 
+ candidates             | antigen_test_date              | date                        | YES         | 
+ candidates             | covid_vaccine_status           | character varying           | YES         | 
+ candidates             | language_skill_exists          | character varying           | YES         | 
+ candidates             | language_skill_1               | character varying           | YES         | 
+ candidates             | language_skill_2               | character varying           | YES         | 
+ candidates             | japanese_qualification         | character varying           | YES         | 
+ candidates             | japanese_level                 | character varying           | YES         | 
+ candidates             | jlpt_taken                     | character varying           | YES         | 
+ candidates             | jlpt_date                      | date                        | YES         | 
+ candidates             | jlpt_score                     | integer                     | YES         | 
+ candidates             | jlpt_scheduled                 | character varying           | YES         | 
+ candidates             | qualification_1                | character varying           | YES         | 
+ candidates             | qualification_2                | character varying           | YES         | 
+ candidates             | qualification_3                | character varying           | YES         | 
+ candidates             | major                          | character varying           | YES         | 
+ candidates             | height                         | double precision            | YES         | 
+ candidates             | weight                         | double precision            | YES         | 
+ candidates             | clothing_size                  | character varying           | YES         | 
+ candidates             | waist                          | integer                     | YES         | 
+ candidates             | shoe_size                      | double precision            | YES         | 
+ candidates             | blood_type                     | character varying           | YES         | 
+ candidates             | vision_right                   | double precision            | YES         | 
+ candidates             | vision_left                    | double precision            | YES         | 
+ candidates             | dominant_hand                  | character varying           | YES         | 
+ candidates             | allergy_exists                 | character varying           | YES         | 
+ candidates             | glasses                        | character varying           | YES         | 
+ candidates             | listening_level                | character varying           | YES         | 
+ candidates             | speaking_level                 | character varying           | YES         | 
+ candidates             | emergency_contact_name         | character varying           | YES         | 
+ candidates             | emergency_contact_relation     | character varying           | YES         | 
+ candidates             | emergency_contact_phone        | character varying           | YES         | 
+ candidates             | safety_shoes                   | character varying           | YES         | 
+ candidates             | read_katakana                  | character varying           | YES         | 
+ candidates             | read_hiragana                  | character varying           | YES         | 
+ candidates             | read_kanji                     | character varying           | YES         | 
+ candidates             | write_katakana                 | character varying           | YES         | 
+ candidates             | write_hiragana                 | character varying           | YES         | 
+ candidates             | write_kanji                    | character varying           | YES         | 
+ candidates             | can_speak                      | character varying           | YES         | 
+ candidates             | can_understand                 | character varying           | YES         | 
+ candidates             | can_read_kana                  | character varying           | YES         | 
+ candidates             | can_write_kana                 | character varying           | YES         | 
+ candidates             | email                          | character varying           | YES         | 
+ candidates             | ocr_notes                      | text                        | YES         | 
+ candidates             | status                         | character varying           | YES         | 'pending'::character varying
+ candidates             | created_at                     | timestamp with time zone    | YES         | now()
+ candidates             | updated_at                     | timestamp with time zone    | YES         | 
+ candidates             | approved_by                    | integer                     | YES         | 
+ candidates             | approved_at                    | timestamp with time zone    | YES         | 
+ candidates             | deleted_at                     | timestamp without time zone | YES         | 
+ contract_workers       | deleted_at                     | timestamp without time zone | YES         | 
+ contract_workers       | id                             | integer                     | NO          | nextval('contract_workers_id_seq'::regclass)
+ contract_workers       | hakenmoto_id                   | integer                     | NO          | 
+ contract_workers       | rirekisho_id                   | character varying           | YES         | 
+ contract_workers       | factory_id                     | character varying           | YES         | 
+ contract_workers       | company_name                   | character varying           | YES         | 
+ contract_workers       | plant_name                     | character varying           | YES         | 
+ contract_workers       | hakensaki_shain_id             | character varying           | YES         | 
+ contract_workers       | full_name_kanji                | character varying           | NO          | 
+ contract_workers       | full_name_kana                 | character varying           | YES         | 
+ contract_workers       | photo_url                      | character varying           | YES         | 
+ contract_workers       | photo_data_url                 | text                        | YES         | 
+ contract_workers       | date_of_birth                  | date                        | YES         | 
+ contract_workers       | gender                         | character varying           | YES         | 
+ contract_workers       | nationality                    | character varying           | YES         | 
+ contract_workers       | zairyu_card_number             | character varying           | YES         | 
+ contract_workers       | zairyu_expire_date             | date                        | YES         | 
+ contract_workers       | address                        | text                        | YES         | 
+ contract_workers       | phone                          | character varying           | YES         | 
+ contract_workers       | email                          | character varying           | YES         | 
+ contract_workers       | emergency_contact_name         | character varying           | YES         | 
+ contract_workers       | emergency_contact_phone        | character varying           | YES         | 
+ contract_workers       | emergency_contact_relationship | character varying           | YES         | 
+ contract_workers       | hire_date                      | date                        | YES         | 
+ contract_workers       | current_hire_date              | date                        | YES         | 
+ contract_workers       | jikyu                          | integer                     | YES         | 
+ contract_workers       | jikyu_revision_date            | date                        | YES         | 
+ contract_workers       | position                       | character varying           | YES         | 
+ contract_workers       | contract_type                  | character varying           | YES         | 
+ contract_workers       | assignment_location            | character varying           | YES         | 
+ contract_workers       | assignment_line                | character varying           | YES         | 
+ contract_workers       | job_description                | text                        | YES         | 
+ contract_workers       | hourly_rate_charged            | integer                     | YES         | 
+ contract_workers       | billing_revision_date          | date                        | YES         | 
+ contract_workers       | profit_difference              | integer                     | YES         | 
+ contract_workers       | standard_compensation          | integer                     | YES         | 
+ contract_workers       | health_insurance               | integer                     | YES         | 
+ contract_workers       | nursing_insurance              | integer                     | YES         | 
+ contract_workers       | pension_insurance              | integer                     | YES         | 
+ contract_workers       | social_insurance_date          | date                        | YES         | 
+ contract_workers       | visa_type                      | character varying           | YES         | 
+ contract_workers       | license_type                   | character varying           | YES         | 
+ contract_workers       | license_expire_date            | date                        | YES         | 
+ contract_workers       | commute_method                 | character varying           | YES         | 
+ contract_workers       | optional_insurance_expire      | date                        | YES         | 
+ contract_workers       | japanese_level                 | character varying           | YES         | 
+ contract_workers       | career_up_5years               | boolean                     | YES         | 
+ contract_workers       | entry_request_date             | date                        | YES         | 
+ contract_workers       | notes                          | text                        | YES         | 
+ contract_workers       | postal_code                    | character varying           | YES         | 
+ contract_workers       | apartment_id                   | integer                     | YES         | 
+ contract_workers       | apartment_start_date           | date                        | YES         | 
+ contract_workers       | apartment_move_out_date        | date                        | YES         | 
+ contract_workers       | apartment_rent                 | integer                     | YES         | 
+ contract_workers       | is_corporate_housing           | boolean                     | NO          | 
+ contract_workers       | housing_subsidy                | integer                     | YES         | 
+ contract_workers       | is_active                      | boolean                     | YES         | 
+ contract_workers       | termination_date               | date                        | YES         | 
+ contract_workers       | termination_reason             | text                        | YES         | 
+ contract_workers       | created_at                     | timestamp with time zone    | YES         | now()
+ contract_workers       | updated_at                     | timestamp with time zone    | YES         | 
+ contracts              | id                             | integer                     | NO          | nextval('contracts_id_seq'::regclass)
+ contracts              | employee_id                    | integer                     | NO          | 
+ contracts              | contract_type                  | character varying           | NO          | 
+ contracts              | contract_number                | character varying           | YES         | 
+ contracts              | start_date                     | date                        | NO          | 
+ contracts              | end_date                       | date                        | YES         | 
+ contracts              | pdf_path                       | character varying           | YES         | 
+ contracts              | signed                         | boolean                     | YES         | 
+ contracts              | signed_at                      | timestamp with time zone    | YES         | 
+ contracts              | signature_data                 | text                        | YES         | 
+ contracts              | created_at                     | timestamp with time zone    | YES         | now()
+ contracts              | deleted_at                     | timestamp without time zone | YES         | 
+ departments            | id                             | integer                     | NO          | nextval('departments_id_seq'::regclass)
+ departments            | name                           | character varying           | NO          | 
+ departments            | description                    | text                        | YES         | 
+ departments            | is_active                      | boolean                     | YES         | 
+ departments            | created_at                     | timestamp with time zone    | YES         | now()
+ departments            | updated_at                     | timestamp with time zone    | YES         | 
+ documents              | id                             | integer                     | NO          | nextval('documents_id_seq'::regclass)
+ documents              | candidate_id                   | integer                     | YES         | 
+ documents              | employee_id                    | integer                     | YES         | 
+ documents              | document_type                  | USER-DEFINED                | NO          | 
+ documents              | file_name                      | character varying           | NO          | 
+ documents              | file_path                      | character varying           | NO          | 
+ documents              | file_size                      | integer                     | YES         | 
+ documents              | mime_type                      | character varying           | YES         | 
+ documents              | ocr_data                       | json                        | YES         | 
+ documents              | uploaded_at                    | timestamp with time zone    | YES         | now()
+ documents              | uploaded_by                    | integer                     | YES         | 
+ employee_payroll       | id                             | integer                     | NO          | nextval('employee_payroll_id_seq'::regclass)
+ employee_payroll       | payroll_run_id                 | integer                     | NO          | 
+ employee_payroll       | employee_id                    | integer                     | NO          | 
+ employee_payroll       | pay_period_start               | date                        | NO          | 
+ employee_payroll       | pay_period_end                 | date                        | NO          | 
+ employee_payroll       | regular_hours                  | numeric                     | YES         | 
+ employee_payroll       | overtime_hours                 | numeric                     | YES         | 
+ employee_payroll       | night_shift_hours              | numeric                     | YES         | 
+ employee_payroll       | holiday_hours                  | numeric                     | YES         | 
+ employee_payroll       | sunday_hours                   | numeric                     | YES         | 
+ employee_payroll       | base_rate                      | numeric                     | NO          | 
+ employee_payroll       | overtime_rate                  | numeric                     | NO          | 
+ employee_payroll       | night_shift_rate               | numeric                     | NO          | 
+ employee_payroll       | holiday_rate                   | numeric                     | NO          | 
+ employee_payroll       | base_amount                    | numeric                     | YES         | 
+ employee_payroll       | overtime_amount                | numeric                     | YES         | 
+ employee_payroll       | night_shift_amount             | numeric                     | YES         | 
+ employee_payroll       | holiday_amount                 | numeric                     | YES         | 
+ employee_payroll       | gross_amount                   | numeric                     | YES         | 
+ employee_payroll       | income_tax                     | numeric                     | YES         | 
+ employee_payroll       | resident_tax                   | numeric                     | YES         | 
+ employee_payroll       | health_insurance               | numeric                     | YES         | 
+ employee_payroll       | pension                        | numeric                     | YES         | 
+ employee_payroll       | employment_insurance           | numeric                     | YES         | 
+ employee_payroll       | total_deductions               | numeric                     | YES         | 
+ employee_payroll       | net_amount                     | numeric                     | YES         | 
+ employee_payroll       | yukyu_days_approved            | numeric                     | YES         | 
+ employee_payroll       | yukyu_deduction_jpy            | numeric                     | YES         | 
+ employee_payroll       | yukyu_request_ids              | text                        | YES         | 
+ employee_payroll       | timer_card_period_id           | integer                     | YES         | 
+ employee_payroll       | payslip_generated              | boolean                     | YES         | 
+ employee_payroll       | payslip_pdf_path               | character varying           | YES         | 
+ employee_payroll       | created_at                     | timestamp with time zone    | YES         | now()
+ employee_payroll       | updated_at                     | timestamp with time zone    | YES         | now()
+ employees              | current_address                | character varying           | YES         | 
+ employees              | address_banchi                 | character varying           | YES         | 
+ employees              | address_building               | character varying           | YES         | 
+ employees              | workplace_id                   | integer                     | YES         | 
+ employees              | current_region_id              | integer                     | YES         | 
+ employees              | current_factory_id             | integer                     | YES         | 
+ employees              | current_department_id          | integer                     | YES         | 
+ employees              | residence_type_id              | integer                     | YES         | 
+ employees              | residence_status_id            | integer                     | YES         | 
+ employees              | residence_address              | text                        | YES         | 
+ employees              | residence_monthly_cost         | integer                     | YES         | 
+ employees              | residence_start_date           | date                        | YES         | 
+ employees              | assigned_regionally_at         | timestamp with time zone    | YES         | 
+ employees              | visa_renewal_alert             | boolean                     | YES         | 
+ employees              | visa_alert_days                | integer                     | YES         | 
+ employees              | yukyu_total                    | integer                     | YES         | 
+ employees              | yukyu_used                     | integer                     | YES         | 
+ employees              | yukyu_remaining                | integer                     | YES         | 
+ employees              | current_status                 | character varying           | YES         | 
+ employees              | deleted_at                     | timestamp without time zone | YES         | 
+ employees              | id                             | integer                     | NO          | nextval('employees_id_seq'::regclass)
+ employees              | hakenmoto_id                   | integer                     | NO          | 
+ employees              | rirekisho_id                   | character varying           | YES         | 
+ employees              | factory_id                     | character varying           | YES         | 
+ employees              | company_name                   | character varying           | YES         | 
+ employees              | plant_name                     | character varying           | YES         | 
+ employees              | hakensaki_shain_id             | character varying           | YES         | 
+ employees              | full_name_kanji                | character varying           | NO          | 
+ employees              | full_name_kana                 | character varying           | YES         | 
+ employees              | photo_url                      | character varying           | YES         | 
+ employees              | photo_data_url                 | text                        | YES         | 
+ employees              | date_of_birth                  | date                        | YES         | 
+ employees              | gender                         | character varying           | YES         | 
+ employees              | nationality                    | character varying           | YES         | 
+ employees              | zairyu_card_number             | character varying           | YES         | 
+ employees              | zairyu_expire_date             | date                        | YES         | 
+ employees              | address                        | text                        | YES         | 
+ employees              | phone                          | character varying           | YES         | 
+ employees              | email                          | character varying           | YES         | 
+ employees              | emergency_contact_name         | character varying           | YES         | 
+ employees              | emergency_contact_phone        | character varying           | YES         | 
+ employees              | emergency_contact_relationship | character varying           | YES         | 
+ employees              | hire_date                      | date                        | YES         | 
+ employees              | current_hire_date              | date                        | YES         | 
+ employees              | jikyu                          | integer                     | YES         | 
+ employees              | jikyu_revision_date            | date                        | YES         | 
+ employees              | position                       | character varying           | YES         | 
+ employees              | contract_type                  | character varying           | YES         | 
+ employees              | assignment_location            | character varying           | YES         | 
+ employees              | assignment_line                | character varying           | YES         | 
+ employees              | job_description                | text                        | YES         | 
+ employees              | hourly_rate_charged            | integer                     | YES         | 
+ employees              | billing_revision_date          | date                        | YES         | 
+ employees              | profit_difference              | integer                     | YES         | 
+ employees              | standard_compensation          | integer                     | YES         | 
+ employees              | health_insurance               | integer                     | YES         | 
+ employees              | nursing_insurance              | integer                     | YES         | 
+ employees              | pension_insurance              | integer                     | YES         | 
+ employees              | social_insurance_date          | date                        | YES         | 
+ employees              | visa_type                      | character varying           | YES         | 
+ employees              | license_type                   | character varying           | YES         | 
+ employees              | license_expire_date            | date                        | YES         | 
+ employees              | commute_method                 | character varying           | YES         | 
+ employees              | optional_insurance_expire      | date                        | YES         | 
+ employees              | japanese_level                 | character varying           | YES         | 
+ employees              | career_up_5years               | boolean                     | YES         | 
+ employees              | entry_request_date             | date                        | YES         | 
+ employees              | notes                          | text                        | YES         | 
+ employees              | postal_code                    | character varying           | YES         | 
+ employees              | apartment_id                   | integer                     | YES         | 
+ employees              | apartment_start_date           | date                        | YES         | 
+ employees              | apartment_move_out_date        | date                        | YES         | 
+ employees              | apartment_rent                 | integer                     | YES         | 
+ employees              | is_corporate_housing           | boolean                     | NO          | 
+ employees              | housing_subsidy                | integer                     | YES         | 
+ employees              | is_active                      | boolean                     | YES         | 
+ employees              | termination_date               | date                        | YES         | 
+ employees              | termination_reason             | text                        | YES         | 
+ employees              | created_at                     | timestamp with time zone    | YES         | now()
+ employees              | updated_at                     | timestamp with time zone    | YES         | 
+ factories              | id                             | integer                     | NO          | nextval('factories_id_seq'::regclass)
+ factories              | factory_id                     | character varying           | NO          | 
+ factories              | company_name                   | character varying           | YES         | 
+ factories              | plant_name                     | character varying           | YES         | 
+ factories              | name                           | character varying           | NO          | 
+ factories              | address                        | text                        | YES         | 
+ factories              | phone                          | character varying           | YES         | 
+ factories              | contact_person                 | character varying           | YES         | 
+ factories              | config                         | json                        | YES         | 
+ factories              | is_active                      | boolean                     | YES         | 
+ factories              | created_at                     | timestamp with time zone    | YES         | now()
+ factories              | updated_at                     | timestamp with time zone    | YES         | 
+ factories              | deleted_at                     | timestamp without time zone | YES         | 
+ page_visibility        | id                             | integer                     | NO          | nextval('page_visibility_id_seq'::regclass)
+ page_visibility        | page_key                       | character varying           | NO          | 
+ page_visibility        | page_name                      | character varying           | NO          | 
+ page_visibility        | page_name_en                   | character varying           | YES         | 
+ page_visibility        | is_enabled                     | boolean                     | NO          | 
+ page_visibility        | path                           | character varying           | NO          | 
+ page_visibility        | description                    | text                        | YES         | 
+ page_visibility        | disabled_message               | character varying           | YES         | 
+ page_visibility        | last_toggled_by                | integer                     | YES         | 
+ page_visibility        | last_toggled_at                | timestamp with time zone    | YES         | 
+ page_visibility        | updated_at                     | timestamp with time zone    | YES         | now()
+ page_visibility        | created_at                     | timestamp with time zone    | YES         | now()
+ payroll_runs           | id                             | integer                     | NO          | nextval('payroll_runs_id_seq'::regclass)
+ payroll_runs           | pay_period_start               | date                        | NO          | 
+ payroll_runs           | pay_period_end                 | date                        | NO          | 
+ payroll_runs           | status                         | character varying           | YES         | 
+ payroll_runs           | total_employees                | integer                     | YES         | 
+ payroll_runs           | total_gross_amount             | numeric                     | YES         | 
+ payroll_runs           | total_deductions               | numeric                     | YES         | 
+ payroll_runs           | total_net_amount               | numeric                     | YES         | 
+ payroll_runs           | created_by                     | character varying           | YES         | 
+ payroll_runs           | created_at                     | timestamp with time zone    | YES         | now()
+ payroll_runs           | updated_at                     | timestamp with time zone    | YES         | now()
+ payroll_settings       | id                             | integer                     | NO          | nextval('payroll_settings_id_seq'::regclass)
+ payroll_settings       | company_id                     | integer                     | YES         | 
+ payroll_settings       | overtime_rate                  | numeric                     | NO          | 
+ payroll_settings       | night_shift_rate               | numeric                     | NO          | 
+ payroll_settings       | holiday_rate                   | numeric                     | NO          | 
+ payroll_settings       | sunday_rate                    | numeric                     | NO          | 
+ payroll_settings       | standard_hours_per_month       | numeric                     | NO          | 
+ payroll_settings       | income_tax_rate                | numeric                     | NO          | 
+ payroll_settings       | resident_tax_rate              | numeric                     | NO          | 
+ payroll_settings       | health_insurance_rate          | numeric                     | NO          | 
+ payroll_settings       | pension_rate                   | numeric                     | NO          | 
+ payroll_settings       | employment_insurance_rate      | numeric                     | NO          | 
+ payroll_settings       | updated_by_id                  | integer                     | YES         | 
+ payroll_settings       | updated_at                     | timestamp with time zone    | YES         | now()
+ payroll_settings       | created_at                     | timestamp with time zone    | YES         | now()
+ refresh_tokens         | id                             | integer                     | NO          | nextval('refresh_tokens_id_seq'::regclass)
+ refresh_tokens         | token                          | character varying           | NO          | 
+ refresh_tokens         | user_id                        | integer                     | NO          | 
+ refresh_tokens         | expires_at                     | timestamp with time zone    | NO          | 
+ refresh_tokens         | created_at                     | timestamp with time zone    | YES         | now()
+ refresh_tokens         | revoked                        | boolean                     | YES         | 
+ refresh_tokens         | revoked_at                     | timestamp with time zone    | YES         | 
+ refresh_tokens         | user_agent                     | character varying           | YES         | 
+ refresh_tokens         | ip_address                     | character varying           | YES         | 
+ regions                | id                             | integer                     | NO          | nextval('regions_id_seq'::regclass)
+ regions                | name                           | character varying           | NO          | 
+ regions                | description                    | text                        | YES         | 
+ regions                | is_active                      | boolean                     | YES         | 
+ regions                | created_at                     | timestamp with time zone    | YES         | now()
+ regions                | updated_at                     | timestamp with time zone    | YES         | 
+ rent_deductions        | id                             | integer                     | NO          | nextval('rent_deductions_id_seq'::regclass)
+ rent_deductions        | assignment_id                  | integer                     | NO          | 
+ rent_deductions        | employee_id                    | integer                     | NO          | 
+ rent_deductions        | apartment_id                   | integer                     | NO          | 
+ rent_deductions        | year                           | integer                     | NO          | 
+ rent_deductions        | month                          | integer                     | NO          | 
+ rent_deductions        | base_rent                      | integer                     | NO          | 
+ rent_deductions        | additional_charges             | integer                     | YES         | 
+ rent_deductions        | total_deduction                | integer                     | NO          | 
+ rent_deductions        | status                         | USER-DEFINED                | NO          | 
+ rent_deductions        | processed_date                 | date                        | YES         | 
+ rent_deductions        | paid_date                      | date                        | YES         | 
+ rent_deductions        | notes                          | text                        | YES         | 
+ rent_deductions        | created_at                     | timestamp with time zone    | YES         | now()
+ rent_deductions        | updated_at                     | timestamp with time zone    | YES         | 
+ rent_deductions        | deleted_at                     | timestamp without time zone | YES         | 
+ requests               | id                             | integer                     | NO          | nextval('requests_id_seq'::regclass)
+ requests               | hakenmoto_id                   | integer                     | YES         | 
+ requests               | candidate_id                   | integer                     | YES         | 
+ requests               | request_type                   | USER-DEFINED                | NO          | 
+ requests               | status                         | USER-DEFINED                | YES         | 
+ requests               | start_date                     | date                        | NO          | 
+ requests               | end_date                       | date                        | NO          | 
+ requests               | reason                         | text                        | YES         | 
+ requests               | notes                          | text                        | YES         | 
+ requests               | employee_data                  | jsonb                       | YES         | 
+ requests               | approved_by                    | integer                     | YES         | 
+ requests               | approved_at                    | timestamp with time zone    | YES         | 
+ requests               | created_at                     | timestamp with time zone    | YES         | now()
+ requests               | updated_at                     | timestamp with time zone    | YES         | 
+ residence_statuses     | id                             | integer                     | NO          | nextval('residence_statuses_id_seq'::regclass)
+ residence_statuses     | name                           | character varying           | NO          | 
+ residence_statuses     | code                           | character varying           | YES         | 
+ residence_statuses     | description                    | text                        | YES         | 
+ residence_statuses     | max_duration_months            | integer                     | YES         | 
+ residence_statuses     | is_active                      | boolean                     | YES         | 
+ residence_statuses     | created_at                     | timestamp with time zone    | YES         | now()
+ residence_statuses     | updated_at                     | timestamp with time zone    | YES         | 
+ residence_types        | id                             | integer                     | NO          | nextval('residence_types_id_seq'::regclass)
+ residence_types        | name                           | character varying           | NO          | 
+ residence_types        | description                    | text                        | YES         | 
+ residence_types        | is_active                      | boolean                     | YES         | 
+ residence_types        | created_at                     | timestamp with time zone    | YES         | now()
+ residence_types        | updated_at                     | timestamp with time zone    | YES         | 
+ role_page_permissions  | id                             | integer                     | NO          | nextval('role_page_permissions_id_seq'::regclass)
+ role_page_permissions  | role_key                       | character varying           | NO          | 
+ role_page_permissions  | page_key                       | character varying           | NO          | 
+ role_page_permissions  | is_enabled                     | boolean                     | NO          | 
+ role_page_permissions  | created_at                     | timestamp with time zone    | YES         | now()
+ role_page_permissions  | updated_at                     | timestamp with time zone    | YES         | now()
+ salary_calculations    | id                             | integer                     | NO          | nextval('salary_calculations_id_seq'::regclass)
+ salary_calculations    | employee_id                    | integer                     | NO          | 
+ salary_calculations    | month                          | integer                     | NO          | 
+ salary_calculations    | year                           | integer                     | NO          | 
+ salary_calculations    | total_regular_hours            | numeric                     | YES         | 
+ salary_calculations    | total_overtime_hours           | numeric                     | YES         | 
+ salary_calculations    | total_night_hours              | numeric                     | YES         | 
+ salary_calculations    | total_holiday_hours            | numeric                     | YES         | 
+ salary_calculations    | base_salary                    | integer                     | YES         | 
+ salary_calculations    | overtime_pay                   | integer                     | YES         | 
+ salary_calculations    | night_pay                      | integer                     | YES         | 
+ salary_calculations    | holiday_pay                    | integer                     | YES         | 
+ salary_calculations    | bonus                          | integer                     | YES         | 
+ salary_calculations    | gasoline_allowance             | integer                     | YES         | 
+ salary_calculations    | apartment_deduction            | integer                     | YES         | 
+ salary_calculations    | other_deductions               | integer                     | YES         | 
+ salary_calculations    | gross_salary                   | integer                     | YES         | 
+ salary_calculations    | net_salary                     | integer                     | YES         | 
+ salary_calculations    | factory_payment                | integer                     | YES         | 
+ salary_calculations    | company_profit                 | integer                     | YES         | 
+ salary_calculations    | is_paid                        | boolean                     | YES         | 
+ salary_calculations    | paid_at                        | timestamp with time zone    | YES         | 
+ salary_calculations    | created_at                     | timestamp with time zone    | YES         | now()
+ social_insurance_rates | id                             | integer                     | NO          | nextval('social_insurance_rates_id_seq'::regclass)
+ social_insurance_rates | min_compensation               | integer                     | NO          | 
+ social_insurance_rates | max_compensation               | integer                     | NO          | 
+ social_insurance_rates | standard_compensation          | integer                     | NO          | 
+ social_insurance_rates | health_insurance_total         | integer                     | YES         | 
+ social_insurance_rates | health_insurance_employee      | integer                     | YES         | 
+ social_insurance_rates | health_insurance_employer      | integer                     | YES         | 
+ social_insurance_rates | nursing_insurance_total        | integer                     | YES         | 
+ social_insurance_rates | nursing_insurance_employee     | integer                     | YES         | 
+ social_insurance_rates | nursing_insurance_employer     | integer                     | YES         | 
+ social_insurance_rates | pension_insurance_total        | integer                     | YES         | 
+ social_insurance_rates | pension_insurance_employee     | integer                     | YES         | 
+ social_insurance_rates | pension_insurance_employer     | integer                     | YES         | 
+ social_insurance_rates | effective_date                 | date                        | NO          | 
+ social_insurance_rates | prefecture                     | character varying           | YES         | 
+ social_insurance_rates | notes                          | text                        | YES         | 
+ social_insurance_rates | created_at                     | timestamp with time zone    | YES         | now()
+ staff                  | id                             | integer                     | NO          | nextval('staff_id_seq'::regclass)
+ staff                  | staff_id                       | integer                     | NO          | 
+ staff                  | rirekisho_id                   | character varying           | YES         | 
+ staff                  | full_name_kanji                | character varying           | NO          | 
+ staff                  | full_name_kana                 | character varying           | YES         | 
+ staff                  | photo_url                      | character varying           | YES         | 
+ staff                  | photo_data_url                 | text                        | YES         | 
+ staff                  | date_of_birth                  | date                        | YES         | 
+ staff                  | gender                         | character varying           | YES         | 
+ staff                  | nationality                    | character varying           | YES         | 
+ staff                  | address                        | text                        | YES         | 
+ staff                  | phone                          | character varying           | YES         | 
+ staff                  | email                          | character varying           | YES         | 
+ staff                  | emergency_contact_name         | character varying           | YES         | 
+ staff                  | emergency_contact_phone        | character varying           | YES         | 
+ staff                  | emergency_contact_relationship | character varying           | YES         | 
+ staff                  | postal_code                    | character varying           | YES         | 
+ staff                  | hire_date                      | date                        | YES         | 
+ staff                  | position                       | character varying           | YES         | 
+ staff                  | department                     | character varying           | YES         | 
+ staff                  | monthly_salary                 | integer                     | YES         | 
+ staff                  | health_insurance               | integer                     | YES         | 
+ staff                  | nursing_insurance              | integer                     | YES         | 
+ staff                  | pension_insurance              | integer                     | YES         | 
+ staff                  | social_insurance_date          | date                        | YES         | 
+ staff                  | yukyu_total                    | integer                     | YES         | 
+ staff                  | yukyu_used                     | integer                     | YES         | 
+ staff                  | is_corporate_housing           | boolean                     | NO          | 
+ staff                  | housing_subsidy                | integer                     | YES         | 
+ staff                  | yukyu_remaining                | integer                     | YES         | 
+ staff                  | is_active                      | boolean                     | YES         | 
+ staff                  | termination_date               | date                        | YES         | 
+ staff                  | termination_reason             | text                        | YES         | 
+ staff                  | notes                          | text                        | YES         | 
+ staff                  | created_at                     | timestamp with time zone    | YES         | now()
+ staff                  | updated_at                     | timestamp with time zone    | YES         | 
+ staff                  | deleted_at                     | timestamp without time zone | YES         | 
+ system_settings        | id                             | integer                     | NO          | nextval('system_settings_id_seq'::regclass)
+ system_settings        | key                            | character varying           | NO          | 
+ system_settings        | value                          | character varying           | YES         | 
+ system_settings        | description                    | text                        | YES         | 
+ system_settings        | updated_at                     | timestamp with time zone    | YES         | now()
+ system_settings        | created_at                     | timestamp with time zone    | YES         | now()
+ timer_cards            | id                             | integer                     | NO          | nextval('timer_cards_id_seq'::regclass)
+ timer_cards            | hakenmoto_id                   | integer                     | YES         | 
+ timer_cards            | factory_id                     | character varying           | YES         | 
+ timer_cards            | work_date                      | date                        | NO          | 
+ timer_cards            | shift_type                     | USER-DEFINED                | YES         | 
+ timer_cards            | clock_in                       | time without time zone      | YES         | 
+ timer_cards            | clock_out                      | time without time zone      | YES         | 
+ timer_cards            | break_minutes                  | integer                     | YES         | 
+ timer_cards            | overtime_minutes               | integer                     | YES         | 
+ timer_cards            | regular_hours                  | numeric                     | YES         | 
+ timer_cards            | overtime_hours                 | numeric                     | YES         | 
+ timer_cards            | night_hours                    | numeric                     | YES         | 
+ timer_cards            | holiday_hours                  | numeric                     | YES         | 
+ timer_cards            | notes                          | text                        | YES         | 
+ timer_cards            | is_approved                    | boolean                     | YES         | 
+ timer_cards            | approved_by                    | integer                     | YES         | 
+ timer_cards            | approved_at                    | timestamp with time zone    | YES         | 
+ timer_cards            | created_at                     | timestamp with time zone    | YES         | now()
+ timer_cards            | updated_at                     | timestamp with time zone    | YES         | 
+ users                  | id                             | integer                     | NO          | nextval('users_id_seq'::regclass)
+ users                  | username                       | character varying           | NO          | 
+ users                  | email                          | character varying           | NO          | 
+ users                  | password_hash                  | character varying           | NO          | 
+ users                  | role                           | USER-DEFINED                | NO          | 
+ users                  | full_name                      | character varying           | YES         | 
+ users                  | is_active                      | boolean                     | YES         | 
+ users                  | created_at                     | timestamp with time zone    | YES         | now()
+ users                  | updated_at                     | timestamp with time zone    | YES         | 
+ workplaces             | id                             | integer                     | NO          | nextval('workplaces_id_seq'::regclass)
+ workplaces             | name                           | character varying           | NO          | 
+ workplaces             | workplace_type                 | character varying           | YES         | 
+ workplaces             | company_name                   | character varying           | YES         | 
+ workplaces             | location_name                  | character varying           | YES         | 
+ workplaces             | region_id                      | integer                     | YES         | 
+ workplaces             | address                        | text                        | YES         | 
+ workplaces             | description                    | text                        | YES         | 
+ workplaces             | is_active                      | boolean                     | YES         | 
+ workplaces             | created_at                     | timestamp with time zone    | YES         | now()
+ workplaces             | updated_at                     | timestamp with time zone    | YES         | 
+ yukyu_balances         | id                             | integer                     | NO          | nextval('yukyu_balances_id_seq'::regclass)
+ yukyu_balances         | employee_id                    | integer                     | NO          | 
+ yukyu_balances         | fiscal_year                    | integer                     | NO          | 
+ yukyu_balances         | assigned_date                  | date                        | NO          | 
+ yukyu_balances         | months_worked                  | integer                     | NO          | 
+ yukyu_balances         | days_assigned                  | integer                     | NO          | 
+ yukyu_balances         | days_carried_over              | integer                     | NO          | 
+ yukyu_balances         | days_total                     | integer                     | NO          | 
+ yukyu_balances         | days_used                      | integer                     | NO          | 
+ yukyu_balances         | days_remaining                 | integer                     | NO          | 
+ yukyu_balances         | days_expired                   | integer                     | NO          | 
+ yukyu_balances         | days_available                 | integer                     | NO          | 
+ yukyu_balances         | expires_on                     | date                        | NO          | 
+ yukyu_balances         | status                         | USER-DEFINED                | NO          | 
+ yukyu_balances         | created_at                     | timestamp with time zone    | YES         | now()
+ yukyu_balances         | updated_at                     | timestamp with time zone    | YES         | 
+ yukyu_balances         | notes                          | text                        | YES         | 
+ yukyu_requests         | id                             | integer                     | NO          | nextval('yukyu_requests_id_seq'::regclass)
+ yukyu_requests         | employee_id                    | integer                     | NO          | 
+ yukyu_requests         | requested_by_user_id           | integer                     | NO          | 
+ yukyu_requests         | factory_id                     | integer                     | YES         | 
+ yukyu_requests         | request_type                   | USER-DEFINED                | NO          | 
+ yukyu_requests         | start_date                     | date                        | NO          | 
+ yukyu_requests         | end_date                       | date                        | NO          | 
+ yukyu_requests         | days_requested                 | numeric                     | NO          | 
+ yukyu_requests         | yukyu_available_at_request     | integer                     | NO          | 
+ yukyu_requests         | request_date                   | timestamp with time zone    | NO          | now()
+ yukyu_requests         | status                         | USER-DEFINED                | NO          | 
+ yukyu_requests         | approved_by_user_id            | integer                     | YES         | 
+ yukyu_requests         | approval_date                  | timestamp with time zone    | YES         | 
+ yukyu_requests         | rejection_reason               | text                        | YES         | 
+ yukyu_requests         | notes                          | text                        | YES         | 
+ yukyu_requests         | created_at                     | timestamp with time zone    | YES         | now()
+ yukyu_requests         | updated_at                     | timestamp with time zone    | YES         | 
+ yukyu_usage_details    | id                             | integer                     | NO          | nextval('yukyu_usage_details_id_seq'::regclass)
+ yukyu_usage_details    | request_id                     | integer                     | NO          | 
+ yukyu_usage_details    | balance_id                     | integer                     | NO          | 
+ yukyu_usage_details    | usage_date                     | date                        | NO          | 
+ yukyu_usage_details    | days_deducted                  | numeric                     | NO          | 
+ yukyu_usage_details    | created_at                     | timestamp with time zone    | YES         | now()
+(742 rows)
+
