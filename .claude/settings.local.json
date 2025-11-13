@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(until docker compose ps:*)",
-      "Bash(do echo \"Waiting for frontend...\")"
+      "Bash(do echo \"Waiting for frontend...\")",
+      "Bash(do echo \"Waiting...\")"
     ],
     "deny": [],
     "ask": []

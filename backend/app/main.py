@@ -90,6 +90,7 @@ Todas las respuestas retornan JSON estructurado con mensajes y códigos claros.
         {"url": "https://api.uns-kikaku.com", "description": "Production"},
     ],
     lifespan=lifespan,
+    redirect_slashes=False,  # Disable automatic trailing slash redirects
 )
 
 configure_observability(app)
