@@ -278,6 +278,7 @@ services:
     env_file: .env
     environment:
       NEXT_PUBLIC_API_URL: /api
+      NEXT_PUBLIC_OTEL_ENABLED: 'false'
       NEXT_PUBLIC_APP_VERSION: ${APP_VERSION:-5.4.1}
       NEXT_PUBLIC_APP_NAME: ${APP_NAME:-UNS-ClaudeJP 5.4.1}
       NEXT_PUBLIC_OTEL_EXPORTER_URL: ${NEXT_PUBLIC_OTEL_EXPORTER_URL:-http://otel-collector:4318/v1/traces}
