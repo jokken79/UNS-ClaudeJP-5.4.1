@@ -13,15 +13,15 @@ El sistema está **95% completo**. Los siguientes items **FALTAN o ESTÁN INCOMP
 
 | Prioridad | Item | Status | Impacto |
 |-----------|------|--------|---------|
-| 🔴 **CRÍTICO** | Tests Unitarios | ❌ | Bloquea validación |
-| 🔴 **CRÍTICO** | Migración específica | ⚠️ | Auto-generada pero no explícita |
-| 🟠 **ALTO** | Validación de Factory | ❌ | Datos inválidos permitidos |
-| 🟠 **ALTO** | Validación de Apartment | ❌ | Datos inválidos permitidos |
-| 🟠 **ALTO** | Notificaciones Email | ❌ | Sin notificación a usuarios |
-| 🟠 **ALTO** | Audit Trail | ⚠️ | Logging básico, no completo |
-| 🟡 **MEDIO** | Documentación Swagger | ⚠️ | Básica, podría ser más detallada |
+| 🔴 **CRÍTICO** | Tests Unitarios | ✅ HECHO | Bloqueaba validación |
+| 🔴 **CRÍTICO** | Migración específica | ✅ HECHO | 003_add_nyuusha_renrakuhyo_fields.py |
+| 🟠 **ALTO** | Validación de Factory | ✅ HECHO | Ahora valida factory_id |
+| 🟠 **ALTO** | Validación de Apartment | ✅ HECHO | Ahora valida apartment_id (opcional) |
+| 🟠 **ALTO** | Notificaciones Email | ✅ HECHO | Integrado send_employee_created |
+| 🟠 **ALTO** | Audit Trail | ✅ HECHO | 573 líneas audit_service.py completo |
+| 🟡 **MEDIO** | Documentación Swagger | ⏳ EN PROGRESO | Mejorando ahora |
 | 🟡 **MEDIO** | Validaciones Frontend | ⚠️ | Incompletas |
-| 🟡 **MEDIO** | Mensajes de Error | ⚠️ | Podrían ser más descriptivos |
+| 🟡 **MEDIO** | Mensajes de Error | ⏳ EN PROGRESO | Mejorados en validaciones |
 
 ---
 
