@@ -118,7 +118,7 @@ async def get_audit_log_by_id(
 
 @router.get("/recent/{limit}", response_model=list[AdminAuditLogResponse])
 async def get_recent_audit_logs(
-    limit: int = Query(10, ge=1, le=100, description="Number of recent logs to retrieve"),
+    limit: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin)
 ):

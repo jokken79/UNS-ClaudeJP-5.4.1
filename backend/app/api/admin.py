@@ -55,6 +55,21 @@ class SystemSettingResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class PageVisibilityResponse(BaseModel):
+    page_key: str
+    is_visible: bool
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class PageVisibilityUpdate(BaseModel):
+    is_visible: bool
+
+class BulkPageToggle(BaseModel):
+    page_keys: List[str]
+    is_visible: bool
+
 class MaintenanceModeRequest(BaseModel):
     enabled: bool
 

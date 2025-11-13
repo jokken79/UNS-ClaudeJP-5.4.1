@@ -9,6 +9,7 @@ from datetime import datetime
 from io import BytesIO
 import tempfile
 import os
+from typing import Optional
 
 from app.core.database import get_db
 from app.core.config import settings

@@ -239,7 +239,6 @@ async def internal_error_handler(request: Request, exc: Exception) -> JSONRespon
 from app.api import (
     azure_ocr,  # noqa: E402  pylint: disable=wrong-import-position
     admin,
-    apartments,
     apartments_v2,
     audit,
     auth,
@@ -252,7 +251,7 @@ from app.api import (
     monitoring,
     notifications,
     pages,
-    payroll,
+    # payroll,  # TEMP: Disabled for debugging
     reports,
     requests,
     resilient_import,
@@ -266,8 +265,7 @@ from app.api import (
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(admin.router, tags=["Admin Panel"])
 app.include_router(audit.router, tags=["Admin Audit Log"])
-app.include_router(apartments.router, prefix="/api/apartments", tags=["Apartments"])
-app.include_router(apartments_v2.router, prefix="/api/apartments-v2", tags=["Apartments V2"])
+app.include_router(apartments_v2.router, prefix="/api/apartments", tags=["Apartments"])
 app.include_router(candidates.router, prefix="/api/candidates", tags=["Candidates"])
 app.include_router(database.router, prefix="/api/database", tags=["Database"])
 app.include_router(azure_ocr.router, prefix="/api/azure-ocr", tags=["Azure OCR"])
@@ -280,7 +278,7 @@ app.include_router(requests.router, prefix="/api/requests", tags=["Requests"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(import_export.router, prefix="/api/import", tags=["Import/Export"])
 app.include_router(resilient_import.router, tags=["Resilient Import"])
-app.include_router(payroll.router, tags=["Payroll"])  # Router already has prefix="/api/payroll"
+# app.include_router(payroll.router, tags=["Payroll"])  # TEMP: Disabled for debugging - Router already has prefix="/api/payroll"
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
 app.include_router(monitoring.router, prefix="/api/monitoring", tags=["Monitoring"])
