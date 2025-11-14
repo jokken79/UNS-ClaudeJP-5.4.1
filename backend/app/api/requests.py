@@ -740,10 +740,12 @@ async def approve_nyuusha_request(
     # Send notification about employee creation
     try:
         notification_service = NotificationService()
+        # Use current_user.email if available, otherwise use a default admin email
+        admin_email = current_user.email or "admin@unsclaudejp.jp"
         await notification_service.send_employee_created(
             employee_name=new_employee.full_name_roman,
             hakenmoto_id=new_hakenmoto_id,
-            admin_email=current_user.email
+            admin_email=admin_email
         )
     except Exception as e:
         logger.warning(f"Failed to send notification: {str(e)}")
