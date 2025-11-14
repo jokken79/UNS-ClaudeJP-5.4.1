@@ -64,9 +64,17 @@ async def create_timercard(
         )
 
     db_timercard = TimerCard(**timercard.dict())
-    db.add(db_timercard)
-    db.commit()
-    db.refresh(db_timercard)
+
+    try:
+        db.add(db_timercard)
+        db.commit()
+        db.refresh(db_timercard)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return db_timercard
 
@@ -198,8 +206,15 @@ async def update_timercard(
     for field, value in timercard_update.dict(exclude_unset=True).items():
         setattr(timercard, field, value)
 
-    db.commit()
-    db.refresh(timercard)
+    try:
+        db.commit()
+        db.refresh(timercard)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return timercard
 
@@ -223,7 +238,15 @@ async def delete_timercard(
         )
 
     timercard.is_deleted = True
-    db.commit()
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return None
 

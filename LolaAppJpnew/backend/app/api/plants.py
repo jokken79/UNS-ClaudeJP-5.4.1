@@ -56,9 +56,17 @@ async def create_plant(
         )
 
     db_plant = Plant(**plant.dict())
-    db.add(db_plant)
-    db.commit()
-    db.refresh(db_plant)
+
+    try:
+        db.add(db_plant)
+        db.commit()
+        db.refresh(db_plant)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return db_plant
 
@@ -162,8 +170,15 @@ async def update_plant(
     for field, value in plant_update.dict(exclude_unset=True).items():
         setattr(plant, field, value)
 
-    db.commit()
-    db.refresh(plant)
+    try:
+        db.commit()
+        db.refresh(plant)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return plant
 
@@ -194,7 +209,14 @@ async def delete_plant(
             detail=f"Cannot delete plant: {lines} line(s) still reference this plant"
         )
 
-    db.delete(plant)
-    db.commit()
+    try:
+        db.delete(plant)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return None

@@ -91,9 +91,16 @@ async def create_request(
         notes=request.notes
     )
 
-    db.add(db_request)
-    db.commit()
-    db.refresh(db_request)
+    try:
+        db.add(db_request)
+        db.commit()
+        db.refresh(db_request)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return db_request
 
@@ -197,8 +204,15 @@ async def update_request(
                 )
         setattr(request, field, value)
 
-    db.commit()
-    db.refresh(request)
+    try:
+        db.commit()
+        db.refresh(request)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return request
 
@@ -224,8 +238,15 @@ async def delete_request(
             detail=f"Cannot delete request with status {request.status.value}. Only DRAFT requests can be deleted."
         )
 
-    db.delete(request)
-    db.commit()
+    try:
+        db.delete(request)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return None
 
@@ -252,8 +273,16 @@ async def submit_request(
         )
 
     request.status = RequestStatus.PENDING
-    db.commit()
-    db.refresh(request)
+
+    try:
+        db.commit()
+        db.refresh(request)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return request
 
@@ -406,7 +435,14 @@ async def reject_request(
     request.approved_at = date.today()
     request.rejection_reason = approval_request.reason
 
-    db.commit()
-    db.refresh(request)
+    try:
+        db.commit()
+        db.refresh(request)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return request

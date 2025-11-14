@@ -43,9 +43,17 @@ async def create_company(
         )
 
     db_company = Company(**company.dict())
-    db.add(db_company)
-    db.commit()
-    db.refresh(db_company)
+
+    try:
+        db.add(db_company)
+        db.commit()
+        db.refresh(db_company)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return db_company
 
@@ -132,8 +140,15 @@ async def update_company(
     for field, value in company_update.dict(exclude_unset=True).items():
         setattr(company, field, value)
 
-    db.commit()
-    db.refresh(company)
+    try:
+        db.commit()
+        db.refresh(company)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return company
 
@@ -164,7 +179,14 @@ async def delete_company(
             detail=f"Cannot delete company: {plants} plant(s) still reference this company"
         )
 
-    db.delete(company)
-    db.commit()
+    try:
+        db.delete(company)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return None

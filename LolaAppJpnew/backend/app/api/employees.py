@@ -79,9 +79,16 @@ async def create_employee(
         status=EmployeeStatus.ACTIVE
     )
 
-    db.add(db_employee)
-    db.commit()
-    db.refresh(db_employee)
+    try:
+        db.add(db_employee)
+        db.commit()
+        db.refresh(db_employee)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return db_employee
 
@@ -185,8 +192,15 @@ async def update_employee(
         else:
             setattr(employee, field, value)
 
-    db.commit()
-    db.refresh(employee)
+    try:
+        db.commit()
+        db.refresh(employee)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return employee
 
@@ -211,7 +225,15 @@ async def delete_employee(
 
     employee.is_deleted = True
     employee.status = EmployeeStatus.RESIGNED
-    db.commit()
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return None
 
@@ -244,8 +266,16 @@ async def assign_factory(
         )
 
     employee.line_id = request.line_id
-    db.commit()
-    db.refresh(employee)
+
+    try:
+        db.commit()
+        db.refresh(employee)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return {
         "success": True,
@@ -295,8 +325,16 @@ async def assign_apartment(
         score = recommendations[0]["score"]
 
         employee.apartment_id = best_apartment.id
-        db.commit()
-        db.refresh(employee)
+
+        try:
+            db.commit()
+            db.refresh(employee)
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database error: {str(e)}"
+            )
 
         return {
             "success": True,
@@ -329,8 +367,16 @@ async def assign_apartment(
 
         employee.apartment_id = apartment.id
         apartment.current_occupancy += 1
-        db.commit()
-        db.refresh(employee)
+
+        try:
+            db.commit()
+            db.refresh(employee)
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database error: {str(e)}"
+            )
 
         return {
             "success": True,

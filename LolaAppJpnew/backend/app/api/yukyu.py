@@ -315,9 +315,16 @@ async def adjust_yukyu(
     balance.granted_days += adjustment_days
     balance.remaining_days += adjustment_days
 
-    db.add(transaction)
-    db.commit()
-    db.refresh(balance)
+    try:
+        db.add(transaction)
+        db.commit()
+        db.refresh(balance)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return {
         "success": True,

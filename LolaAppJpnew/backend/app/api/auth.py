@@ -68,7 +68,15 @@ async def login(
     # Update last login
     from datetime import datetime
     user.last_login = datetime.utcnow()
-    db.commit()
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     # Create tokens
     access_token = create_access_token(
@@ -206,9 +214,16 @@ async def register_user(
         is_active=True
     )
 
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    try:
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return UserResponse(
         id=new_user.id,
@@ -238,7 +253,15 @@ async def change_password(
 
     # Update password
     current_user.hashed_password = get_password_hash(request.new_password)
-    db.commit()
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return {"message": "Password changed successfully"}
 
@@ -294,8 +317,15 @@ async def update_user(
     if user_data.is_active is not None:
         user.is_active = user_data.is_active
 
-    db.commit()
-    db.refresh(user)
+    try:
+        db.commit()
+        db.refresh(user)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return UserResponse(
         id=user.id,
@@ -331,7 +361,14 @@ async def delete_user(
             detail="User not found",
         )
 
-    db.delete(user)
-    db.commit()
+    try:
+        db.delete(user)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return {"message": "User deleted successfully"}

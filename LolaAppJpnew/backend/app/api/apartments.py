@@ -39,9 +39,16 @@ async def create_apartment(
     db_apartment.current_occupancy = 0
     db_apartment.is_available = True
 
-    db.add(db_apartment)
-    db.commit()
-    db.refresh(db_apartment)
+    try:
+        db.add(db_apartment)
+        db.commit()
+        db.refresh(db_apartment)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return db_apartment
 
@@ -125,8 +132,15 @@ async def update_apartment(
     for field, value in apartment_update.dict(exclude_unset=True).items():
         setattr(apartment, field, value)
 
-    db.commit()
-    db.refresh(apartment)
+    try:
+        db.commit()
+        db.refresh(apartment)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return apartment
 
@@ -151,7 +165,15 @@ async def delete_apartment(
 
     apartment.is_deleted = True
     apartment.is_available = False
-    db.commit()
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return None
 
@@ -258,9 +280,16 @@ async def assign_apartment_to_employee(
     employee.apartment_id = apartment_id
     apartment.current_occupancy += 1
 
-    db.commit()
-    db.refresh(employee)
-    db.refresh(apartment)
+    try:
+        db.commit()
+        db.refresh(employee)
+        db.refresh(apartment)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return {
         "success": True,

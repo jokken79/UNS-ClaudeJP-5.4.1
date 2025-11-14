@@ -156,8 +156,15 @@ async def update_candidate(
         else:
             setattr(candidate, field, value)
 
-    db.commit()
-    db.refresh(candidate)
+    try:
+        db.commit()
+        db.refresh(candidate)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return candidate
 
@@ -181,7 +188,15 @@ async def delete_candidate(
         )
 
     candidate.is_deleted = True
-    db.commit()
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return None
 
@@ -234,8 +249,16 @@ async def process_candidate_ocr(
                     setattr(candidate, field, value)
 
         candidate.ocr_data = result
-        db.commit()
-        db.refresh(candidate)
+
+        try:
+            db.commit()
+            db.refresh(candidate)
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database error: {str(e)}"
+            )
 
         return {
             "success": True,

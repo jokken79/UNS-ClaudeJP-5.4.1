@@ -43,9 +43,17 @@ async def create_line(
         )
 
     db_line = Line(**line.dict())
-    db.add(db_line)
-    db.commit()
-    db.refresh(db_line)
+
+    try:
+        db.add(db_line)
+        db.commit()
+        db.refresh(db_line)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return db_line
 
@@ -139,8 +147,15 @@ async def update_line(
     for field, value in line_update.dict(exclude_unset=True).items():
         setattr(line, field, value)
 
-    db.commit()
-    db.refresh(line)
+    try:
+        db.commit()
+        db.refresh(line)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return line
 
@@ -177,6 +192,14 @@ async def delete_line(
         )
 
     line.is_deleted = True
-    db.commit()
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
 
     return None
