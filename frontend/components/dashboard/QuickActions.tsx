@@ -21,7 +21,7 @@ export interface QuickAction {
   description: string;
   href: string;
   icon: React.ElementType;
-  color: 'blue' | 'green' | 'purple' | 'orange' | 'indigo' | 'pink' | 'red' | 'yellow';
+  color: 'primary' | 'secondary' | 'accent' | 'success' | 'warning' | 'destructive' | 'info';
   badge?: string | number;
 }
 
@@ -32,62 +32,57 @@ export interface QuickActionsProps {
   loading?: boolean;
 }
 
+// Color classes using CSS variables (respecting theme preferences)
+// NO hardcoded colors - all colors come from theme variables
 const colorClasses = {
-  blue: {
-    bg: 'bg-blue-50',
-    border: 'border-blue-200',
-    icon: 'bg-blue-500',
-    text: 'text-blue-700',
-    hover: 'hover:bg-blue-100'
+  primary: {
+    bg: 'bg-primary/5',
+    border: 'border-primary/20',
+    icon: 'bg-primary',
+    text: 'text-primary',
+    hover: 'hover:bg-primary/10'
   },
-  green: {
-    bg: 'bg-green-50',
-    border: 'border-green-200',
-    icon: 'bg-green-500',
-    text: 'text-green-700',
-    hover: 'hover:bg-green-100'
+  secondary: {
+    bg: 'bg-secondary/5',
+    border: 'border-secondary/20',
+    icon: 'bg-secondary',
+    text: 'text-secondary',
+    hover: 'hover:bg-secondary/10'
   },
-  purple: {
-    bg: 'bg-purple-50',
-    border: 'border-purple-200',
-    icon: 'bg-purple-500',
-    text: 'text-purple-700',
-    hover: 'hover:bg-purple-100'
+  accent: {
+    bg: 'bg-accent/5',
+    border: 'border-accent/20',
+    icon: 'bg-accent',
+    text: 'text-accent',
+    hover: 'hover:bg-accent/10'
   },
-  orange: {
-    bg: 'bg-orange-50',
-    border: 'border-orange-200',
-    icon: 'bg-orange-500',
-    text: 'text-orange-700',
-    hover: 'hover:bg-orange-100'
+  success: {
+    bg: 'bg-success/5',
+    border: 'border-success/20',
+    icon: 'bg-success',
+    text: 'text-success',
+    hover: 'hover:bg-success/10'
   },
-  indigo: {
-    bg: 'bg-indigo-50',
-    border: 'border-indigo-200',
-    icon: 'bg-indigo-500',
-    text: 'text-indigo-700',
-    hover: 'hover:bg-indigo-100'
+  warning: {
+    bg: 'bg-warning/5',
+    border: 'border-warning/20',
+    icon: 'bg-warning',
+    text: 'text-warning',
+    hover: 'hover:bg-warning/10'
   },
-  pink: {
-    bg: 'bg-pink-50',
-    border: 'border-pink-200',
-    icon: 'bg-pink-500',
-    text: 'text-pink-700',
-    hover: 'hover:bg-pink-100'
+  destructive: {
+    bg: 'bg-destructive/5',
+    border: 'border-destructive/20',
+    icon: 'bg-destructive',
+    text: 'text-destructive',
+    hover: 'hover:bg-destructive/10'
   },
-  red: {
-    bg: 'bg-red-50',
-    border: 'border-red-200',
-    icon: 'bg-red-500',
-    text: 'text-red-700',
-    hover: 'hover:bg-red-100'
-  },
-  yellow: {
-    bg: 'bg-yellow-50',
-    border: 'border-yellow-200',
-    icon: 'bg-yellow-500',
-    text: 'text-yellow-700',
-    hover: 'hover:bg-yellow-100'
+  info: {
+    bg: 'bg-info/5',
+    border: 'border-info/20',
+    icon: 'bg-info',
+    text: 'text-info',
+    hover: 'hover:bg-info/10'
   }
 };
 
@@ -99,7 +94,7 @@ const defaultActions: QuickAction[] = [
     description: 'Register new candidate',
     href: '/dashboard/candidates/new',
     icon: UserPlusIcon,
-    color: 'blue'
+    color: 'primary'
   },
   {
     id: 'add-employee',
@@ -107,7 +102,7 @@ const defaultActions: QuickAction[] = [
     description: 'Register new employee',
     href: '/dashboard/employees/new',
     icon: UserGroupIcon,
-    color: 'green'
+    color: 'success'
   },
   {
     id: 'create-payroll',
@@ -115,7 +110,7 @@ const defaultActions: QuickAction[] = [
     description: 'Start new payroll run',
     href: '/dashboard/payroll/new',
     icon: BanknotesIcon,
-    color: 'purple'
+    color: 'accent'
   },
   {
     id: 'add-timer-card',
@@ -123,7 +118,7 @@ const defaultActions: QuickAction[] = [
     description: 'Record attendance',
     href: '/dashboard/timercards/new',
     icon: ClockIcon,
-    color: 'orange'
+    color: 'warning'
   },
   {
     id: 'apartment-assignment',
@@ -131,7 +126,7 @@ const defaultActions: QuickAction[] = [
     description: 'Assign employee to apartment',
     href: '/dashboard/apartments/assignments/new',
     icon: BuildingOfficeIcon,
-    color: 'indigo'
+    color: 'secondary'
   },
   {
     id: 'create-request',
@@ -139,7 +134,7 @@ const defaultActions: QuickAction[] = [
     description: 'Submit employee request',
     href: '/dashboard/requests/new',
     icon: DocumentPlusIcon,
-    color: 'pink'
+    color: 'info'
   },
   {
     id: 'view-reports',
@@ -147,7 +142,7 @@ const defaultActions: QuickAction[] = [
     description: 'Access system reports',
     href: '/dashboard/reports',
     icon: ChartBarIcon,
-    color: 'yellow'
+    color: 'accent'
   },
   {
     id: 'settings',
@@ -155,7 +150,7 @@ const defaultActions: QuickAction[] = [
     description: 'System configuration',
     href: '/dashboard/settings',
     icon: Cog6ToothIcon,
-    color: 'red'
+    color: 'destructive'
   }
 ];
 
@@ -220,7 +215,7 @@ export function QuickActions({
             >
               {/* Badge */}
               {action.badge && (
-                <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
+                <div className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center">
                   {action.badge}
                 </div>
               )}

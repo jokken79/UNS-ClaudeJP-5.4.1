@@ -101,9 +101,11 @@ class EmployeeDataInput(BaseModel):
     position: str
     contract_type: str
     hakensaki_shain_id: Optional[str] = None  # 派遣先社員ID
+    is_shatak: bool = False  # 社宅 (Company housing) - Yes/No checkbox
     apartment_id: Optional[str] = None
     bank_name: Optional[str] = None
     bank_account: Optional[str] = None
     emergency_contact_name: Optional[str] = None
     emergency_contact_phone: Optional[str] = None
+    created_by_user: Optional[str] = None  # User who created/filled this NYUUSHA document
     notes: Optional[str] = None

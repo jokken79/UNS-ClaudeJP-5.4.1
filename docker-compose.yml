@@ -99,7 +99,7 @@ services:
       APP_NAME: ${APP_NAME:-UNS-ClaudeJP 5.4.1}
       APP_VERSION: ${APP_VERSION:-5.4.1}
       ENVIRONMENT: ${ENVIRONMENT:-development}
-      DEBUG: ${DEBUG:-true}
+      DEBUG: ${DEBUG:-false}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     volumes:
       - ./backend:/app
@@ -134,8 +134,8 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
       APP_NAME: ${APP_NAME:-UNS-ClaudeJP 5.4.1}
       APP_VERSION: ${APP_VERSION:-5.4.1}
-      ENVIRONMENT: ${ENVIRONMENT:-development}
-      DEBUG: ${DEBUG:-true}
+      ENVIRONMENT: ${ENVIRONMENT}
+      DEBUG: ${DEBUG}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       UPLOAD_DIR: /app/uploads
       MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-10485760}
@@ -426,8 +426,8 @@ services:
     image: grafana/grafana:11.2.0
     container_name: uns-claudejp-grafana
     environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: "false"
     ports:
       - "3001:3000"

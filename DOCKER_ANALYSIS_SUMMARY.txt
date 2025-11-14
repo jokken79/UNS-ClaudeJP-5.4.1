@@ -1,0 +1,377 @@
+================================================================================
+UNS-ClaudeJP 5.4.1 - DOCKER COMPOSE ANALYSIS SUMMARY
+================================================================================
+
+OVERALL STATUS: ⚠️ PASS WITH CRITICAL WARNINGS
+File: /home/user/UNS-ClaudeJP-5.4.1/DOCKER_COMPOSE_ANALYSIS.md (1,341 lines)
+
+================================================================================
+KEY FINDINGS
+================================================================================
+
+✅ STRENGTHS:
+  - All 12 core services properly configured (db, redis, importer, backend, 
+    frontend, adminer, otel-collector, tempo, prometheus, grafana, nginx, backup)
+  - Comprehensive health checks (11/12 services)
+  - Proper service dependencies with wait conditions
+  - Correct startup order (no circular dependencies)
+  - Full observability stack integrated (OpenTelemetry + Prometheus + Grafana + Tempo)
+  - Automated database backups with retention policy
+  - Proper logging configuration with rotation
+  - Horizontal scaling ready (nginx load balancing)
+  - Good volume management (5 named volumes for persistence)
+  - Network isolation via bridge network
+
+❌ CRITICAL ISSUES (Must fix for production):
+  1. REDIS_PASSWORD not documented in .env.example
+     → Redis will start without authentication if env var is empty
+     
+  2. TWO INCOMPATIBLE PRODUCTION ARCHITECTURES
+     → docker-compose.yml uses Nginx
+     → docker-compose.prod.yml uses Traefik
+     → They are NOT compatible - unclear which to use
+     
+  3. Default credentials in code
+     → Grafana: admin/admin (lines 429-430)
+     → Demo user: admin/admin123 in .env.example
+     
+  4. ENVIRONMENT variable mismatch
+     → backend: ENVIRONMENT=development
+     → backend-prod: ENVIRONMENT=production
+     → But .env.example shows ENVIRONMENT=development
+     → Risk: Production deployment might run in dev mode
+
+⚠️ WARNINGS (Need attention):
+  1. No resource limits (CPU/memory) in docker-compose.yml
+     → Services can exhaust host resources
+     
+  2. HTTPS/SSL not configured
+     → HTTP only, SSL section commented out in nginx.conf
+     → Need manual setup for production
+     
+  3. Missing environment variables in .env.example
+     → REDIS_PASSWORD (CRITICAL)
+     → GRAFANA_ADMIN_PASSWORD (should override default)
+     
+  4. No OTEL health check (intentional - distroless image)
+     → Documented and acceptable
+     
+  5. Adminer only in dev profile
+     → No database UI access in production (may be acceptable)
+
+================================================================================
+SERVICE ANALYSIS
+================================================================================
+
+SERVICE NAME          IMAGE                              STATUS  PROFILE
+────────────────────────────────────────────────────────────────────────────
+db                    postgres:15-alpine                 ✅      dev, prod
+redis                 redis:7-alpine                     ✅      dev, prod
+importer              built from ./backend               ✅      dev, prod
+backend               uvicorn + reload                   ✅      dev
+backend-prod          uvicorn + 4 workers               ⚠️      prod
+frontend              next:dev                           ✅      dev
+frontend-prod         next:production                    ✅      prod
+adminer               adminer:latest                     ✅      dev
+otel-collector        0.103.0                            ⚠️      dev, prod (no health)
+tempo                 grafana/tempo:2.5.0               ✅      dev, prod
+prometheus            prom/prometheus:v2.52.0           ✅      dev, prod
+grafana               grafana:11.2.0                     ✅      dev, prod
+nginx                 nginx:1.26-alpine                 ✅      dev, prod
+backup                custom built                       ✅      dev, prod
+
+TOTAL: 12 core services + 2 production variants = 14 service definitions
+
+================================================================================
+DEPENDENCY VERIFICATION
+================================================================================
+
+✅ NO CIRCULAR DEPENDENCIES DETECTED
+
+Startup Order (Verified):
+  1. db (PostgreSQL) - health check: pg_isready (90s)
+  2. redis (Redis) - health check: redis-cli ping (30s)
+  3. importer (initialization) - runs migrations, seeds data
+  4. backend (FastAPI) - depends on: db, redis, importer
+  5. frontend (Next.js) - depends on: backend
+  6. adminer, nginx, backup - infrastructure
+  7. otel-collector, tempo, prometheus, grafana - observability
+
+All services use proper health-based dependencies (service_healthy)
+
+================================================================================
+ENVIRONMENT CONFIGURATION
+================================================================================
+
+Total Environment Variables: 65+ across all services
+
+Categories:
+  • Database (3): POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+  • Security (4): SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+  • Application (6): APP_NAME, APP_VERSION, ENVIRONMENT, DEBUG, FRONTEND_URL
+  • OCR & AI (8): OCR_ENABLED, AZURE_*, GEMINI_*, GOOGLE_CLOUD_VISION_*
+  • Notifications (6): SMTP_*, LINE_CHANNEL_ACCESS_TOKEN
+  • Observability (8): ENABLE_TELEMETRY, OTEL_*, PROMETHEUS_*
+  • Frontend (6): NEXT_PUBLIC_*
+
+⚠️ ISSUES:
+  • REDIS_PASSWORD referenced in docker-compose.yml but not in .env.example
+  • GRAFANA_ADMIN_PASSWORD has weak default (admin/admin)
+  • No .env.production file for production overrides
+
+================================================================================
+HEALTH CHECK CONFIGURATION
+================================================================================
+
+11/12 services have health checks configured:
+
+Service          Check Type              Interval  Start Period  Retries
+──────────────────────────────────────────────────────────────────────────
+db               pg_isready              10s       90s           10
+redis            redis-cli ping          10s       30s           5
+backend          HTTP /api/health        30s       90s           3
+frontend         wget http://localhost   30s       120s          3
+adminer          wget http://localhost   30s       30s           3
+tempo            wget /status            30s       -             5
+prometheus       wget /-/ready           30s       -             5
+grafana          wget /api/health        30s       60s           5
+nginx            curl /nginx-health      30s       20s           3
+backup           pgrep crond + file age  1h        30s           3
+otel-collector   (disabled)              -         -             -
+
+✅ Health checks are properly configured with appropriate timeouts
+
+================================================================================
+VOLUME MANAGEMENT
+================================================================================
+
+5 Named Volumes (Data Persistence):
+  • postgres_data         → /var/lib/postgresql/data (database)
+  • redis_data            → /data (cache, non-critical)
+  • grafana_data          → /var/lib/grafana (dashboards/plugins)
+  • prometheus_data       → /prometheus (metrics history)
+  • tempo_data            → /var/tempo (trace storage)
+
+Bind Mounts (Application Code):
+  • ./backend:/app                  (rw, hot reload)
+  • ./frontend:/app                 (rw, hot reload)
+  • ./config:/app/config            (ro, configurations)
+  • ./uploads:/app/uploads          (rw, user files)
+  • ./logs:/app/logs                (rw, application logs)
+  • ./backups (backup service)      (rw, database dumps)
+  • ./BASEDATEJP (read-only)       (demo data)
+
+✅ Proper separation of persistent and ephemeral data
+
+================================================================================
+BACKUP & RECOVERY
+================================================================================
+
+Service: backup (automated)
+
+Configuration:
+  • Runs via cron (default: 02:00 Asia/Tokyo)
+  • Schedule: Every 24 hours (configurable)
+  • Method: pg_dump with gzip compression
+  • Location: ./backups/backup_YYYYMMDD_HHMMSS.sql.gz
+  • Retention: Last 30 days (configurable)
+  • Verification: gunzip integrity check
+  • Health Check: Verifies cron running + recent backup exists
+
+✅ Automated backup with verification
+⚠️ Recommendation: Test restores regularly, backup to offsite location
+
+================================================================================
+NETWORK TOPOLOGY
+================================================================================
+
+Bridge Network: uns-network
+  • All 12 services connected
+  • Service discovery via hostname
+  • No hardcoded IP addresses
+  • Isolated from host network
+
+Service Discovery Examples:
+  • backend:8000    → FastAPI
+  • frontend:3000   → Next.js
+  • db:5432         → PostgreSQL
+  • redis:6379      → Redis
+  • prometheus:9090 → Prometheus
+  • grafana:3000    → Grafana (internal)
+
+Port Mappings (Public):
+  • 80/443    → Nginx (HTTP/HTTPS)
+  • 3000      → Frontend (direct)
+  • 3001      → Grafana (external)
+  • 5432      → PostgreSQL (direct)
+  • 6379      → Redis (direct)
+  • 8080      → Adminer (direct)
+  • 9090      → Prometheus (direct)
+
+================================================================================
+OBSERVABILITY STACK
+================================================================================
+
+Components Deployed:
+  ✅ OpenTelemetry Collector (0.103.0)
+     - gRPC: 4317, HTTP: 4318, Health: 13133
+     
+  ✅ Grafana Tempo (2.5.0)
+     - Distributed tracing backend
+     - Port: 3200, Volume: tempo_data
+     
+  ✅ Prometheus (v2.52.0)
+     - Metrics collection & storage
+     - Port: 9090, Volume: prometheus_data
+     - Scrapes: backend (/metrics), tempo
+     
+  ✅ Grafana (11.2.0)
+     - Dashboards & visualization
+     - Port: 3001 (external), 3000 (internal)
+     - Depends on: prometheus (healthy), tempo (healthy)
+
+Metrics Flow:
+  Backend → OTEL Collector → Prometheus + Tempo
+  Prometheus → Grafana (visualization)
+  Tempo → Grafana (trace visualization)
+
+✅ Comprehensive observability coverage
+
+================================================================================
+SECURITY ASSESSMENT
+================================================================================
+
+❌ CRITICAL VULNERABILITIES:
+  1. Default Grafana credentials (admin/admin)
+  2. Demo credentials in .env.example (admin/admin123)
+  3. Secrets stored in plaintext .env file
+  4. No REDIS_PASSWORD enforcement
+
+⚠️ MISSING SECURITY HARDENING:
+  1. No resource limits (CPU/memory)
+  2. HTTPS not configured (HTTP only)
+  3. No AppArmor/seccomp profiles
+  4. No capability dropping
+
+✅ STRENGTHS:
+  1. Config files mounted read-only (RO)
+  2. Health checks with auto-restart
+  3. Database authentication via env variables
+  4. No hardcoded IPs or credentials in code
+
+================================================================================
+PRODUCTION READINESS CHECKLIST
+================================================================================
+
+Infrastructure:
+  ✅ All services configured with health checks
+  ✅ Proper service dependencies
+  ✅ Volume persistence for critical data
+  ✅ Automated backups with retention
+  ✅ Logging configured with rotation
+  ✅ Observability stack deployed
+
+Security:
+  ❌ Default credentials need override
+  ❌ HTTPS/SSL needs configuration
+  ❌ Resource limits missing
+  ⚠️ Secrets management needed
+
+Documentation:
+  ⚠️ Environment variables incomplete
+  ⚠️ Two incompatible prod configs
+  ⚠️ Deployment procedure unclear
+
+Operational:
+  ✅ Backup automation working
+  ✅ Service recovery (restart policies)
+  ✅ Proper logging in place
+  ✅ Monitoring/observability ready
+
+================================================================================
+CRITICAL ACTIONS BEFORE PRODUCTION
+================================================================================
+
+1. [CRITICAL] Create .env.production
+   → Override all security-related variables
+   → POSTGRES_PASSWORD, SECRET_KEY, REDIS_PASSWORD, GRAFANA_ADMIN_PASSWORD
+   → Set DEBUG=false, ENVIRONMENT=production
+
+2. [CRITICAL] Resolve docker-compose architecture conflict
+   → Choose between Nginx (docker-compose.yml) vs Traefik (docker-compose.prod.yml)
+   → Delete or refactor incompatible file
+   → Document decision
+
+3. [CRITICAL] Add REDIS_PASSWORD to .env.example
+   → Document as required security variable
+
+4. [CRITICAL] Configure HTTPS/SSL
+   → Uncomment SSL section in docker/nginx/nginx.conf
+   → Obtain certificates (Let's Encrypt recommended)
+   → Mount certificates to container
+
+5. Add resource limits (deploy block)
+   → CPU: limits 2.0, reservations 0.5
+   → Memory: limits 2G, reservations 512M
+
+6. Create .env.production file
+   → Different from .env.development
+   → Secure credentials
+   → Production URLs/endpoints
+
+================================================================================
+RECOMMENDATIONS
+================================================================================
+
+IMMEDIATE (Before Production):
+  □ Create .env.production with secure values
+  □ Configure HTTPS certificates
+  □ Resolve docker-compose.prod.yml conflict
+  □ Add REDIS_PASSWORD to .env.example
+  □ Override default Grafana password
+  □ Add resource limits to docker-compose.yml
+
+SHORT-TERM:
+  □ Create environment-specific .env files
+  □ Add otel-collector health check
+  □ Document startup procedure
+  □ Test backup/restore weekly
+  □ Enable CORS headers in nginx (if needed)
+
+LONG-TERM:
+  □ Implement secrets management (Vault)
+  □ Setup alert notifications
+  □ Add service mesh (optional)
+  □ Disaster recovery testing
+  □ Load testing with replicas
+
+================================================================================
+DETAILED REPORT
+================================================================================
+
+Full analysis available at:
+  /home/user/UNS-ClaudeJP-5.4.1/DOCKER_COMPOSE_ANALYSIS.md (1,341 lines)
+
+Contents:
+  1. Executive Summary
+  2. Docker-compose.yml Analysis
+     - Service Configuration
+     - Dependencies Analysis
+     - Health Checks
+     - Environment Variables
+     - Volume Management
+     - Network Configuration
+  3. Environment Configuration Analysis
+  4. Startup Order & Dependencies
+  5. Environment Verification
+  6. Profiles Configuration
+  7. Network & Communication
+  8. Data Persistence & Volumes
+  9. Production Readiness Assessment
+  10. docker-compose.prod.yml Analysis
+  11. Specific Findings & Issues
+  12. Recommendations
+  13. Summary Table
+  14. Conclusion
+
+================================================================================

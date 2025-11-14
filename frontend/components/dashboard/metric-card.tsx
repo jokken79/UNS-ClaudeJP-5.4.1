@@ -52,7 +52,7 @@ export function MetricCard({
     setMounted(true);
   }, []);
 
-  // Theme colors
+  // Theme colors - Using CSS variables (NO hardcoded colors)
   const themeConfig = {
     default: {
       gradient: 'from-background to-background',
@@ -61,28 +61,28 @@ export function MetricCard({
       ring: 'ring-primary/5',
     },
     success: {
-      gradient: 'from-emerald-50/50 to-background dark:from-emerald-950/20',
-      iconBg: 'bg-emerald-500/10',
-      iconColor: 'text-emerald-600 dark:text-emerald-400',
-      ring: 'ring-emerald-500/5',
+      gradient: 'from-success/5 to-background',
+      iconBg: 'bg-success/10',
+      iconColor: 'text-success',
+      ring: 'ring-success/5',
     },
     warning: {
-      gradient: 'from-amber-50/50 to-background dark:from-amber-950/20',
-      iconBg: 'bg-amber-500/10',
-      iconColor: 'text-amber-600 dark:text-amber-400',
-      ring: 'ring-amber-500/5',
+      gradient: 'from-warning/5 to-background',
+      iconBg: 'bg-warning/10',
+      iconColor: 'text-warning',
+      ring: 'ring-warning/5',
     },
     danger: {
-      gradient: 'from-red-50/50 to-background dark:from-red-950/20',
-      iconBg: 'bg-red-500/10',
-      iconColor: 'text-red-600 dark:text-red-400',
-      ring: 'ring-red-500/5',
+      gradient: 'from-destructive/5 to-background',
+      iconBg: 'bg-destructive/10',
+      iconColor: 'text-destructive',
+      ring: 'ring-destructive/5',
     },
     info: {
-      gradient: 'from-blue-50/50 to-background dark:from-blue-950/20',
-      iconBg: 'bg-blue-500/10',
-      iconColor: 'text-blue-600 dark:text-blue-400',
-      ring: 'ring-blue-500/5',
+      gradient: 'from-info/5 to-background',
+      iconBg: 'bg-info/10',
+      iconColor: 'text-info',
+      ring: 'ring-info/5',
     },
   };
 
@@ -210,8 +210,8 @@ export function MetricCard({
                 className={cn(
                   'flex items-center gap-1 text-xs font-medium rounded-full px-2 py-0.5',
                   trend.isPositive
-                    ? 'text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950'
-                    : 'text-red-700 bg-red-50 dark:text-red-400 dark:bg-red-950'
+                    ? 'text-success bg-success/10 dark:text-success dark:bg-success/20'
+                    : 'text-destructive bg-destructive/10 dark:text-destructive dark:bg-destructive/20'
                 )}
               >
                 {trend.isPositive ? (

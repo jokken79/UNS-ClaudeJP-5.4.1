@@ -27,6 +27,7 @@ import {
 import "./globals.css";
 import "@/lib/compact-mode.css";
 import "@/lib/animations.css";
+import "@/styles/design-preferences.css";
 import { Providers } from "@/components/providers";
 import { ErrorBoundaryWrapper } from "@/components/error-boundary-wrapper";
 import { ChunkErrorHandler } from "@/components/global-error-handler";

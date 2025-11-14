@@ -45,15 +45,6 @@ async def expire_yukyus_job():
         db.close()
 
 
-async def cleanup_old_logs_job():
-    """
-    Job para limpieza de logs antiguos (> 90 días).
-    Puede implementarse en el futuro.
-    """
-    logger.info("🧹 Cleanup logs job - Not implemented yet")
-    pass
-
-
 def start_scheduler():
     """
     Inicia el scheduler con todos los jobs configurados.
@@ -71,15 +62,6 @@ def start_scheduler():
 
     logger.info("✅ Scheduler configured with jobs:")
     logger.info("  - expire_yukyus: Daily at 2:00 AM JST")
-
-    # Job 2: Cleanup logs - Semanalmente domingos a las 3:00 AM
-    # scheduler.add_job(
-    #     cleanup_old_logs_job,
-    #     trigger=CronTrigger(day_of_week="sun", hour=3, minute=0, timezone="Asia/Tokyo"),
-    #     id="cleanup_logs",
-    #     name="Cleanup Old Logs (> 90 days)",
-    #     replace_existing=True,
-    # )
 
     scheduler.start()
     logger.info("🚀 Scheduler started successfully")

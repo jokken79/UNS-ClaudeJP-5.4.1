@@ -1,481 +1,573 @@
 """
-Service for managing admin audit logs
-"""
-from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, or_, desc, asc
-from typing import Optional, Dict, Any, List, Tuple
-from datetime import datetime, timedelta
-import json
-import csv
-import io
+Audit Service - Comprehensive audit trail tracking for all operations
 
-from app.models.models import AdminAuditLog, User, AdminActionType, ResourceType
-from app.schemas.audit import (
-    AdminAuditLogCreate,
-    AdminAuditLogResponse,
-    AdminAuditLogFilters,
-    AdminAuditLogStats,
-    ExportFormat
-)
+This service tracks all user actions, state changes, and data modifications
+for compliance, debugging, and business intelligence purposes.
+
+Key Features:
+- Complete audit trail for all NYUUSHA workflow operations
+- Track who did what, when, and what changed
+- Store before/after values for data modifications
+- Search and filter audit logs by various criteria
+- JSON-based flexible log structure
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, Dict, Optional
+from enum import Enum
+from sqlalchemy.orm import Session
+from app.models.models import User, AuditLog
+from app.core.config import settings
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class AuditAction(str, Enum):
+    """Enumeration of audit-trackable actions in the system."""
+
+    # Candidate-related actions
+    CANDIDATE_CREATED = "candidate_created"
+    CANDIDATE_UPDATED = "candidate_updated"
+    CANDIDATE_APPROVED = "candidate_approved"
+    CANDIDATE_REJECTED = "candidate_rejected"
+    CANDIDATE_HIRED = "candidate_hired"
+
+    # Request-related actions
+    REQUEST_CREATED = "request_created"
+    REQUEST_UPDATED = "request_updated"
+    REQUEST_EMPLOYEE_DATA_FILLED = "request_employee_data_filled"
+    REQUEST_EMPLOYEE_DATA_UPDATED = "request_employee_data_updated"
+    REQUEST_APPROVED = "request_approved"
+    REQUEST_REJECTED = "request_rejected"
+    REQUEST_COMPLETED = "request_completed"
+
+    # Employee-related actions
+    EMPLOYEE_CREATED = "employee_created"
+    EMPLOYEE_UPDATED = "employee_updated"
+    EMPLOYEE_ASSIGNED_FACTORY = "employee_assigned_factory"
+    EMPLOYEE_ASSIGNED_APARTMENT = "employee_assigned_apartment"
+
+    # Workflow actions
+    NYUUSHA_REQUEST_CREATED = "nyuusha_request_created"
+    NYUUSHA_APPROVED = "nyuusha_approved"
+    NYUUSHA_EMPLOYEE_CREATED = "nyuusha_employee_created"
+
+    # System actions
+    USER_LOGIN = "user_login"
+    USER_LOGOUT = "user_logout"
+    USER_UPDATED = "user_updated"
+    BULK_IMPORT = "bulk_import"
+    DATA_EXPORT = "data_export"
 
 
 class AuditService:
-    """Service for admin audit log operations"""
+    """Service for managing audit trails and tracking system events."""
 
     @staticmethod
-    def _create_audit_log(
+    def log_action(
         db: Session,
-        admin_id: int,
-        action_type: AdminActionType,
-        resource_type: ResourceType,
-        resource_key: Optional[str],
-        previous_value: Optional[str],
-        new_value: Optional[str],
-        description: str,
-        ip_address: Optional[str],
-        user_agent: Optional[str],
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> AdminAuditLog:
-        """Internal method to create an audit log entry"""
-        audit_log = AdminAuditLog(
-            admin_user_id=admin_id,
-            action_type=action_type,
-            resource_type=resource_type,
-            resource_key=resource_key,
-            previous_value=previous_value,
-            new_value=new_value,
-            description=description,
-            ip_address=ip_address,
-            user_agent=user_agent,
-            metadata=metadata
-        )
-        db.add(audit_log)
-        db.commit()
-        db.refresh(audit_log)
-        return audit_log
-
-    @staticmethod
-    def log_page_visibility_change(
-        db: Session,
-        admin_id: int,
-        page_key: str,
-        old_value: bool,
-        new_value: bool,
+        action: AuditAction | str,
+        user_id: int,
+        entity_type: str,
+        entity_id: int,
+        changes: Optional[Dict[str, Any]] = None,
+        before_values: Optional[Dict[str, Any]] = None,
+        after_values: Optional[Dict[str, Any]] = None,
+        description: Optional[str] = None,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
-    ) -> AdminAuditLog:
-        """Log a page visibility change"""
-        action = "enabled" if new_value else "disabled"
-        description = f"Page '{page_key}' {action}"
+    ) -> AuditLog:
+        """
+        Log an action to the audit trail.
 
-        return AuditService._create_audit_log(
+        Args:
+            db: Database session
+            action: The action that was performed (from AuditAction enum)
+            user_id: ID of user who performed the action
+            entity_type: Type of entity affected (e.g., 'Candidate', 'Request', 'Employee')
+            entity_id: ID of the entity affected
+            changes: Dictionary of what changed {field: {old, new}}
+            before_values: Complete before state of entity
+            after_values: Complete after state of entity
+            description: Human-readable description of the action
+            ip_address: IP address of the request
+
+        Returns:
+            Created AuditLog object
+        """
+        try:
+            audit_log = AuditLog(
+                action=str(action),
+                user_id=user_id,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                changes=changes,
+                before_values=before_values,
+                after_values=after_values,
+                description=description or str(action),
+                ip_address=ip_address,
+                timestamp=datetime.utcnow(),
+            )
+            db.add(audit_log)
+            db.commit()
+            db.refresh(audit_log)
+            logger.info(
+                f"Audit log created: action={action}, "
+                f"user_id={user_id}, entity={entity_type}:{entity_id}"
+            )
+            return audit_log
+        except Exception as e:
+            logger.error(f"Error creating audit log: {str(e)}")
+            db.rollback()
+            raise
+
+    @staticmethod
+    def log_candidate_approved(
+        db: Session,
+        user_id: int,
+        candidate_id: int,
+        candidate_name: str,
+        ip_address: Optional[str] = None,
+    ) -> AuditLog:
+        """Log when a candidate is approved."""
+        return AuditService.log_action(
             db=db,
-            admin_id=admin_id,
-            action_type=AdminActionType.PAGE_VISIBILITY_CHANGE,
-            resource_type=ResourceType.PAGE,
-            resource_key=page_key,
-            previous_value=str(old_value),
-            new_value=str(new_value),
-            description=description,
+            action=AuditAction.CANDIDATE_APPROVED,
+            user_id=user_id,
+            entity_type="Candidate",
+            entity_id=candidate_id,
+            description=f"Candidate '{candidate_name}' (ID: {candidate_id}) approved",
             ip_address=ip_address,
-            user_agent=user_agent
+            after_values={"status": "APPROVED"},
         )
 
     @staticmethod
-    def log_role_permission_change(
+    def log_request_created(
         db: Session,
-        admin_id: int,
-        role_key: str,
-        page_key: str,
-        old_value: bool,
-        new_value: bool,
+        user_id: int,
+        request_id: int,
+        request_type: str,
+        candidate_id: int,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
-    ) -> AdminAuditLog:
-        """Log a role permission change"""
-        action = "granted" if new_value else "revoked"
-        description = f"Role '{role_key}' permission {action} for page '{page_key}'"
+    ) -> AuditLog:
+        """Log when a request is created."""
+        return AuditService.log_action(
+            db=db,
+            action=AuditAction.REQUEST_CREATED,
+            user_id=user_id,
+            entity_type="Request",
+            entity_id=request_id,
+            description=f"Request type='{request_type}' created for candidate_id={candidate_id}",
+            ip_address=ip_address,
+            after_values={
+                "type": request_type,
+                "candidate_id": candidate_id,
+                "status": "PENDING",
+            },
+        )
 
-        metadata = {
-            "role": role_key,
-            "page": page_key
+    @staticmethod
+    def log_nyuusha_request_created(
+        db: Session,
+        user_id: int,
+        request_id: int,
+        candidate_id: int,
+        candidate_name: str,
+        ip_address: Optional[str] = None,
+    ) -> AuditLog:
+        """Log when a NYUUSHA request is automatically created."""
+        return AuditService.log_action(
+            db=db,
+            action=AuditAction.NYUUSHA_REQUEST_CREATED,
+            user_id=user_id,
+            entity_type="Request",
+            entity_id=request_id,
+            description=f"NYUUSHA request auto-created for candidate '{candidate_name}' (ID: {candidate_id})",
+            ip_address=ip_address,
+            after_values={
+                "type": "NYUUSHA",
+                "candidate_id": candidate_id,
+                "status": "PENDING",
+                "auto_created": True,
+            },
+        )
+
+    @staticmethod
+    def log_employee_data_filled(
+        db: Session,
+        user_id: int,
+        request_id: int,
+        candidate_id: int,
+        employee_data: Dict[str, Any],
+        ip_address: Optional[str] = None,
+    ) -> AuditLog:
+        """Log when employee data is filled in a NYUUSHA request."""
+        # Extract key employee data for readable log
+        key_data = {
+            "factory_id": employee_data.get("factory_id"),
+            "hire_date": employee_data.get("hire_date"),
+            "position": employee_data.get("position"),
+            "contract_type": employee_data.get("contract_type"),
+            "jikyu": employee_data.get("jikyu"),
         }
 
-        return AuditService._create_audit_log(
+        return AuditService.log_action(
             db=db,
-            admin_id=admin_id,
-            action_type=AdminActionType.ROLE_PERMISSION_CHANGE,
-            resource_type=ResourceType.PERMISSION,
-            resource_key=f"{role_key}:{page_key}",
-            previous_value=str(old_value),
-            new_value=str(new_value),
-            description=description,
+            action=AuditAction.REQUEST_EMPLOYEE_DATA_FILLED,
+            user_id=user_id,
+            entity_type="Request",
+            entity_id=request_id,
+            description=f"Employee data filled for NYUUSHA request on candidate_id={candidate_id}",
             ip_address=ip_address,
-            user_agent=user_agent,
-            metadata=metadata
+            after_values={
+                "employee_data": key_data,
+                "fields_filled": list(employee_data.keys()),
+                "total_fields": len(employee_data),
+            },
         )
 
     @staticmethod
-    def log_bulk_operation(
+    def log_nyuusha_approved(
         db: Session,
-        admin_id: int,
-        operation_type: str,
-        pages_affected: Optional[List[str]] = None,
-        roles_affected: Optional[List[str]] = None,
-        total_count: int = 0,
-        success_count: int = 0,
-        failed_count: int = 0,
+        user_id: int,
+        request_id: int,
+        candidate_id: int,
+        hakenmoto_id: str,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
-    ) -> AdminAuditLog:
-        """Log a bulk operation"""
-        description = f"Bulk operation: {operation_type} - {success_count}/{total_count} succeeded"
-
-        metadata = {
-            "operation_type": operation_type,
-            "pages_affected": pages_affected or [],
-            "roles_affected": roles_affected or [],
-            "total_count": total_count,
-            "success_count": success_count,
-            "failed_count": failed_count
-        }
-
-        return AuditService._create_audit_log(
+    ) -> AuditLog:
+        """Log when a NYUUSHA request is approved and employee is created."""
+        return AuditService.log_action(
             db=db,
-            admin_id=admin_id,
-            action_type=AdminActionType.BULK_OPERATION,
-            resource_type=ResourceType.SYSTEM,
-            resource_key="bulk_operation",
-            previous_value=None,
-            new_value=json.dumps(metadata),
-            description=description,
+            action=AuditAction.NYUUSHA_APPROVED,
+            user_id=user_id,
+            entity_type="Request",
+            entity_id=request_id,
+            description=f"NYUUSHA approved. Employee created with hakenmoto_id={hakenmoto_id} for candidate_id={candidate_id}",
             ip_address=ip_address,
-            user_agent=user_agent,
-            metadata=metadata
+            after_values={
+                "status": "COMPLETED",
+                "hakenmoto_id": hakenmoto_id,
+                "candidate_status": "HIRED",
+            },
         )
 
     @staticmethod
-    def log_config_change(
+    def log_employee_created(
         db: Session,
-        admin_id: int,
-        config_key: str,
-        old_value: Any,
-        new_value: Any,
-        config_section: Optional[str] = None,
+        user_id: int,
+        employee_id: int,
+        hakenmoto_id: str,
+        candidate_id: int,
+        candidate_name: str,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
-    ) -> AdminAuditLog:
-        """Log a system configuration change"""
-        description = f"System config '{config_key}' changed from '{old_value}' to '{new_value}'"
-
-        metadata = {
-            "config_key": config_key,
-            "config_section": config_section
-        }
-
-        return AuditService._create_audit_log(
+    ) -> AuditLog:
+        """Log when an employee is created from NYUUSHA approval."""
+        return AuditService.log_action(
             db=db,
-            admin_id=admin_id,
-            action_type=AdminActionType.CONFIG_CHANGE,
-            resource_type=ResourceType.SYSTEM,
-            resource_key=config_key,
-            previous_value=str(old_value) if old_value is not None else None,
-            new_value=str(new_value) if new_value is not None else None,
-            description=description,
+            action=AuditAction.EMPLOYEE_CREATED,
+            user_id=user_id,
+            entity_type="Employee",
+            entity_id=employee_id,
+            description=f"Employee '{candidate_name}' created with hakenmoto_id={hakenmoto_id} from candidate_id={candidate_id}",
             ip_address=ip_address,
-            user_agent=user_agent,
-            metadata=metadata
+            after_values={
+                "hakenmoto_id": hakenmoto_id,
+                "rirekisho_id": candidate_id,
+                "status": "active",
+            },
         )
 
     @staticmethod
-    def log_cache_clear(
+    def log_user_login(
         db: Session,
-        admin_id: int,
-        items_cleared: int = 0,
-        cache_type: Optional[str] = None,
+        user_id: int,
+        username: str,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
-    ) -> AdminAuditLog:
-        """Log a cache clear operation"""
-        description = f"Cache cleared: {items_cleared} items"
-        if cache_type:
-            description += f" ({cache_type})"
-
-        metadata = {
-            "items_cleared": items_cleared,
-            "cache_type": cache_type
-        }
-
-        return AuditService._create_audit_log(
+    ) -> AuditLog:
+        """Log user login event."""
+        return AuditService.log_action(
             db=db,
-            admin_id=admin_id,
-            action_type=AdminActionType.CACHE_CLEAR,
-            resource_type=ResourceType.SYSTEM,
-            resource_key="cache",
-            previous_value=None,
-            new_value=str(items_cleared),
-            description=description,
+            action=AuditAction.USER_LOGIN,
+            user_id=user_id,
+            entity_type="User",
+            entity_id=user_id,
+            description=f"User '{username}' logged in",
             ip_address=ip_address,
-            user_agent=user_agent,
-            metadata=metadata
+        )
+
+    @staticmethod
+    def log_user_logout(
+        db: Session,
+        user_id: int,
+        username: str,
+        ip_address: Optional[str] = None,
+    ) -> AuditLog:
+        """Log user logout event."""
+        return AuditService.log_action(
+            db=db,
+            action=AuditAction.USER_LOGOUT,
+            user_id=user_id,
+            entity_type="User",
+            entity_id=user_id,
+            description=f"User '{username}' logged out",
+            ip_address=ip_address,
+        )
+
+    @staticmethod
+    def log_bulk_import(
+        db: Session,
+        user_id: int,
+        entity_type: str,
+        count: int,
+        source: str,
+        ip_address: Optional[str] = None,
+    ) -> AuditLog:
+        """Log bulk data import event."""
+        return AuditService.log_action(
+            db=db,
+            action=AuditAction.BULK_IMPORT,
+            user_id=user_id,
+            entity_type=entity_type,
+            entity_id=0,  # Not specific to one entity
+            description=f"Bulk import of {count} {entity_type}s from {source}",
+            ip_address=ip_address,
+            after_values={
+                "entity_type": entity_type,
+                "count": count,
+                "source": source,
+            },
         )
 
     @staticmethod
     def get_audit_logs(
         db: Session,
-        filters: AdminAuditLogFilters
-    ) -> Tuple[List[AdminAuditLog], int]:
-        """Get audit logs with filters and pagination"""
-        query = db.query(AdminAuditLog)
+        entity_type: Optional[str] = None,
+        entity_id: Optional[int] = None,
+        user_id: Optional[int] = None,
+        action: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[list[AuditLog], int]:
+        """
+        Retrieve audit logs with optional filtering.
 
-        # Apply filters
-        if filters.action_type:
-            query = query.filter(AdminAuditLog.action_type == filters.action_type)
+        Args:
+            db: Database session
+            entity_type: Filter by entity type (e.g., 'Candidate', 'Request')
+            entity_id: Filter by specific entity ID
+            user_id: Filter by user who performed action
+            action: Filter by specific action
+            limit: Maximum number of results
+            offset: Number of results to skip
 
-        if filters.resource_type:
-            query = query.filter(AdminAuditLog.resource_type == filters.resource_type)
+        Returns:
+            Tuple of (list of audit logs, total count)
+        """
+        query = db.query(AuditLog)
 
-        if filters.resource_key:
-            query = query.filter(AdminAuditLog.resource_key == filters.resource_key)
+        if entity_type:
+            query = query.filter(AuditLog.entity_type == entity_type)
+        if entity_id:
+            query = query.filter(AuditLog.entity_id == entity_id)
+        if user_id:
+            query = query.filter(AuditLog.user_id == user_id)
+        if action:
+            query = query.filter(AuditLog.action == str(action))
 
-        if filters.admin_id:
-            query = query.filter(AdminAuditLog.admin_user_id == filters.admin_id)
-
-        if filters.start_date:
-            query = query.filter(AdminAuditLog.created_at >= filters.start_date)
-
-        if filters.end_date:
-            query = query.filter(AdminAuditLog.created_at <= filters.end_date)
-
-        if filters.search:
-            search_term = f"%{filters.search}%"
-            query = query.filter(
-                or_(
-                    AdminAuditLog.description.ilike(search_term),
-                    AdminAuditLog.resource_key.ilike(search_term)
-                )
-            )
-
-        # Get total count before pagination
         total = query.count()
-
-        # Apply sorting
-        sort_column = getattr(AdminAuditLog, filters.sort_by, AdminAuditLog.created_at)
-        if filters.sort_order == "desc":
-            query = query.order_by(desc(sort_column))
-        else:
-            query = query.order_by(asc(sort_column))
-
-        # Apply pagination
-        logs = query.offset(filters.skip).limit(filters.limit).all()
+        logs = query.order_by(AuditLog.timestamp.desc()).limit(limit).offset(offset).all()
 
         return logs, total
 
     @staticmethod
-    def get_audit_log_by_id(db: Session, log_id: int) -> Optional[AdminAuditLog]:
-        """Get a single audit log entry by ID"""
-        return db.query(AdminAuditLog).filter(AdminAuditLog.id == log_id).first()
+    def get_entity_history(
+        db: Session,
+        entity_type: str,
+        entity_id: int,
+    ) -> list[AuditLog]:
+        """
+        Get complete history of all changes to a specific entity.
+
+        Args:
+            db: Database session
+            entity_type: Type of entity (e.g., 'Candidate', 'Request', 'Employee')
+            entity_id: ID of the entity
+
+        Returns:
+            List of audit logs for this entity, ordered by timestamp
+        """
+        return (
+            db.query(AuditLog)
+            .filter(
+                AuditLog.entity_type == entity_type,
+                AuditLog.entity_id == entity_id,
+            )
+            .order_by(AuditLog.timestamp.asc())
+            .all()
+        )
 
     @staticmethod
-    def get_recent_logs(db: Session, limit: int = 10) -> List[AdminAuditLog]:
-        """Get the most recent audit log entries"""
+    def get_candidate_workflow_history(
+        db: Session,
+        candidate_id: int,
+    ) -> Dict[str, list[AuditLog]]:
+        """
+        Get complete workflow history for a candidate, including all related requests.
+
+        Args:
+            db: Database session
+            candidate_id: ID of candidate
+
+        Returns:
+            Dictionary with candidate logs and request logs
+        """
+        # Get all candidate-related logs
+        candidate_logs = (
+            db.query(AuditLog)
+            .filter(
+                AuditLog.entity_type == "Candidate",
+                AuditLog.entity_id == candidate_id,
+            )
+            .order_by(AuditLog.timestamp.asc())
+            .all()
+        )
+
+        # Get all related request logs
+        request_logs = (
+            db.query(AuditLog)
+            .filter(AuditLog.entity_type == "Request")
+            .filter(AuditLog.after_values.contains({"candidate_id": candidate_id}))
+            .order_by(AuditLog.timestamp.asc())
+            .all()
+        )
+
+        # Get all related employee logs (created from this candidate)
+        employee_logs = (
+            db.query(AuditLog)
+            .filter(AuditLog.entity_type == "Employee")
+            .filter(AuditLog.after_values.contains({"rirekisho_id": candidate_id}))
+            .order_by(AuditLog.timestamp.asc())
+            .all()
+        )
+
+        return {
+            "candidate": candidate_logs,
+            "requests": request_logs,
+            "employees": employee_logs,
+        }
+
+    @staticmethod
+    def get_user_actions(
+        db: Session,
+        user_id: int,
+        limit: int = 100,
+    ) -> list[AuditLog]:
+        """
+        Get all actions performed by a specific user.
+
+        Args:
+            db: Database session
+            user_id: ID of user
+            limit: Maximum results
+
+        Returns:
+            List of audit logs for this user
+        """
         return (
-            db.query(AdminAuditLog)
-            .order_by(desc(AdminAuditLog.created_at))
+            db.query(AuditLog)
+            .filter(AuditLog.user_id == user_id)
+            .order_by(AuditLog.timestamp.desc())
             .limit(limit)
             .all()
         )
 
     @staticmethod
-    def get_audit_stats(db: Session) -> AdminAuditLogStats:
-        """Get statistics about audit logs"""
-        now = datetime.utcnow()
-        day_ago = now - timedelta(days=1)
-        week_ago = now - timedelta(days=7)
-        month_ago = now - timedelta(days=30)
-
-        # Count changes by time period
-        total_24h = db.query(AdminAuditLog).filter(AdminAuditLog.created_at >= day_ago).count()
-        total_7d = db.query(AdminAuditLog).filter(AdminAuditLog.created_at >= week_ago).count()
-        total_30d = db.query(AdminAuditLog).filter(AdminAuditLog.created_at >= month_ago).count()
-        total_all = db.query(AdminAuditLog).count()
-
-        # Top admins
-        top_admins_query = (
-            db.query(
-                User.id,
-                User.username,
-                User.full_name,
-                func.count(AdminAuditLog.id).label('change_count')
-            )
-            .join(AdminAuditLog, User.id == AdminAuditLog.admin_user_id)
-            .group_by(User.id, User.username, User.full_name)
-            .order_by(desc('change_count'))
-            .limit(10)
-            .all()
-        )
-        top_admins = [
-            {
-                "user_id": row.id,
-                "username": row.username,
-                "full_name": row.full_name,
-                "change_count": row.change_count
-            }
-            for row in top_admins_query
-        ]
-
-        # Most modified pages
-        pages_query = (
-            db.query(
-                AdminAuditLog.resource_key,
-                func.count(AdminAuditLog.id).label('change_count')
-            )
-            .filter(AdminAuditLog.resource_type == ResourceType.PAGE)
-            .group_by(AdminAuditLog.resource_key)
-            .order_by(desc('change_count'))
-            .limit(10)
-            .all()
-        )
-        most_modified_pages = [
-            {"page_key": row.resource_key, "change_count": row.change_count}
-            for row in pages_query
-        ]
-
-        # Most modified roles
-        roles_query = (
-            db.query(
-                AdminAuditLog.resource_key,
-                func.count(AdminAuditLog.id).label('change_count')
-            )
-            .filter(AdminAuditLog.resource_type == ResourceType.ROLE)
-            .group_by(AdminAuditLog.resource_key)
-            .order_by(desc('change_count'))
-            .limit(10)
-            .all()
-        )
-        most_modified_roles = [
-            {"role_key": row.resource_key, "change_count": row.change_count}
-            for row in roles_query
-        ]
-
-        # Changes by action type
-        action_types_query = (
-            db.query(
-                AdminAuditLog.action_type,
-                func.count(AdminAuditLog.id).label('count')
-            )
-            .group_by(AdminAuditLog.action_type)
-            .all()
-        )
-        changes_by_action_type = {
-            str(row.action_type.value): row.count
-            for row in action_types_query
-        }
-
-        # Changes by resource type
-        resource_types_query = (
-            db.query(
-                AdminAuditLog.resource_type,
-                func.count(AdminAuditLog.id).label('count')
-            )
-            .group_by(AdminAuditLog.resource_type)
-            .all()
-        )
-        changes_by_resource_type = {
-            str(row.resource_type.value): row.count
-            for row in resource_types_query
-        }
-
-        return AdminAuditLogStats(
-            total_changes_24h=total_24h,
-            total_changes_7d=total_7d,
-            total_changes_30d=total_30d,
-            total_changes_all=total_all,
-            top_admins=top_admins,
-            most_modified_pages=most_modified_pages,
-            most_modified_roles=most_modified_roles,
-            changes_by_action_type=changes_by_action_type,
-            changes_by_resource_type=changes_by_resource_type
-        )
-
-    @staticmethod
-    def export_audit_logs(
+    def get_approval_chain(
         db: Session,
-        format: ExportFormat,
-        filters: Optional[AdminAuditLogFilters] = None
-    ) -> str:
-        """Export audit logs to JSON or CSV format"""
-        if filters is None:
-            filters = AdminAuditLogFilters(skip=0, limit=10000)  # Default to large limit for export
+        entity_type: str,
+        entity_id: int,
+    ) -> list[Dict[str, Any]]:
+        """
+        Get the complete approval chain for an entity.
 
-        logs, _ = AuditService.get_audit_logs(db, filters)
+        Args:
+            db: Database session
+            entity_type: Type of entity (e.g., 'Request')
+            entity_id: ID of entity
 
-        if format == ExportFormat.JSON:
-            return AuditService._export_to_json(logs)
-        elif format == ExportFormat.CSV:
-            return AuditService._export_to_csv(logs)
-        else:
-            raise ValueError(f"Unsupported export format: {format}")
+        Returns:
+            List of approval-related actions with user and timestamp info
+        """
+        approval_actions = [
+            AuditAction.REQUEST_APPROVED,
+            AuditAction.REQUEST_REJECTED,
+            AuditAction.NYUUSHA_APPROVED,
+            AuditAction.CANDIDATE_APPROVED,
+        ]
 
-    @staticmethod
-    def _export_to_json(logs: List[AdminAuditLog]) -> str:
-        """Export logs to JSON format"""
-        data = []
+        logs = (
+            db.query(AuditLog)
+            .filter(
+                AuditLog.entity_type == entity_type,
+                AuditLog.entity_id == entity_id,
+                AuditLog.action.in_([str(a) for a in approval_actions]),
+            )
+            .order_by(AuditLog.timestamp.asc())
+            .all()
+        )
+
+        result = []
         for log in logs:
-            data.append({
-                "id": log.id,
-                "admin_user_id": log.admin_user_id,
-                "admin_username": log.admin_user.username if log.admin_user else None,
-                "action_type": log.action_type.value,
-                "resource_type": log.resource_type.value,
-                "resource_key": log.resource_key,
-                "previous_value": log.previous_value,
-                "new_value": log.new_value,
+            # Get user info
+            user = db.query(User).filter(User.id == log.user_id).first()
+            result.append({
+                "action": log.action,
+                "timestamp": log.timestamp,
+                "user_id": log.user_id,
+                "username": user.username if user else "Unknown",
                 "description": log.description,
-                "ip_address": log.ip_address,
-                "user_agent": log.user_agent,
-                "metadata": log.metadata,
-                "created_at": log.created_at.isoformat() if log.created_at else None
+                "after_values": log.after_values,
             })
-        return json.dumps(data, indent=2)
+
+        return result
 
     @staticmethod
-    def _export_to_csv(logs: List[AdminAuditLog]) -> str:
-        """Export logs to CSV format"""
-        output = io.StringIO()
-        writer = csv.writer(output)
+    def log_validation_error(
+        db: Session,
+        user_id: int,
+        entity_type: str,
+        entity_id: int,
+        error_message: str,
+        ip_address: Optional[str] = None,
+    ) -> AuditLog:
+        """
+        Log validation errors for debugging and compliance.
 
-        # Write header
-        writer.writerow([
-            "ID", "Admin User ID", "Admin Username", "Action Type", "Resource Type",
-            "Resource Key", "Previous Value", "New Value", "Description",
-            "IP Address", "Created At"
-        ])
+        Args:
+            db: Database session
+            user_id: User who triggered the error
+            entity_type: Type of entity
+            entity_id: ID of entity
+            error_message: Description of validation error
+            ip_address: IP address
 
-        # Write data
-        for log in logs:
-            writer.writerow([
-                log.id,
-                log.admin_user_id,
-                log.admin_user.username if log.admin_user else "",
-                log.action_type.value,
-                log.resource_type.value,
-                log.resource_key or "",
-                log.previous_value or "",
-                log.new_value or "",
-                log.description or "",
-                log.ip_address or "",
-                log.created_at.isoformat() if log.created_at else ""
-            ])
+        Returns:
+            Created AuditLog
+        """
+        return AuditService.log_action(
+            db=db,
+            action="validation_error",
+            user_id=user_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            description=f"Validation error: {error_message}",
+            ip_address=ip_address,
+            after_values={"error": error_message},
+        )
 
-        return output.getvalue()
 
-    @staticmethod
-    def delete_audit_log(db: Session, log_id: int) -> bool:
-        """Delete an audit log entry (SUPER_ADMIN only)"""
-        log = AuditService.get_audit_log_by_id(db, log_id)
-        if log:
-            db.delete(log)
-            db.commit()
-            return True
-        return False
+# Singleton instance for convenience
+audit_service = AuditService()

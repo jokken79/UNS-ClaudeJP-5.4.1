@@ -349,6 +349,133 @@ class NotificationService:
         
         return self.send_email(admin_email, subject, body)
 
+    # ============================================
+    # 入社連絡票 (NYUUSHA) WORKFLOW NOTIFICATIONS
+    # ============================================
+
+    def send_nyuusha_request_created(self, candidate_name: str, request_id: int, admin_email: str) -> bool:
+        """Send notification when 入社連絡票 (New Hire Notification Form) is created."""
+        subject = f"🎉 新しい入社連絡票が作成されました (Request #{request_id})"
+
+        body = f"""
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: 'Hiragino Kaku Gothic Pro', 'Meiryo', sans-serif; padding: 20px; background: #f5f5f5;">
+            <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px 20px; text-align: center;">
+                    <h1 style="margin: 0; font-size: 24px;">🎉 新しい入社連絡票が作成されました</h1>
+                </div>
+                <div style="padding: 30px 20px;">
+                    <p>管理者様、</p>
+                    <p>新しい入社連絡票が作成されました。ご確認ください。</p>
+                    <div style="background: #f8f9fa; border-left: 4px solid #667eea; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                        <p><strong>📋 Request ID:</strong> #{request_id}</p>
+                        <p><strong>👤 候補者名:</strong> {candidate_name}</p>
+                        <p><strong>⏰ 作成日時:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                    </div>
+                    <p>次のステップ:</p>
+                    <ol>
+                        <li>候補者情報を確認</li>
+                        <li>従業員データを入力</li>
+                        <li>入社手続きを完了</li>
+                    </ol>
+                    <a href="{settings.FRONTEND_URL}/requests?id={request_id}"
+                       style="display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 20px 0;">
+                        入社連絡票を確認 →
+                    </a>
+                </div>
+                <div style="background: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #6c757d;">
+                    <p>このメールは自動送信されています。</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        return self.send_email(admin_email, subject, body, is_html=True)
+
+    def send_employee_data_filled(self, request_id: int, employee_name: str, admin_email: str) -> bool:
+        """Send notification when employee data is filled in 入社連絡票."""
+        subject = f"✅ 従業員データが入力されました (Request #{request_id})"
+
+        body = f"""
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: 'Hiragino Kaku Gothic Pro', 'Meiryo', sans-serif; padding: 20px; background: #f5f5f5;">
+            <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 30px 20px; text-align: center;">
+                    <h1 style="margin: 0; font-size: 24px;">✅ 従業員データが入力されました</h1>
+                </div>
+                <div style="padding: 30px 20px;">
+                    <p>管理者様、</p>
+                    <p>入社連絡票 #{request_id} の従業員データが入力されました。</p>
+                    <div style="background: #fff5f5; border-left: 4px solid #f5576c; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                        <p><strong>📋 Request ID:</strong> #{request_id}</p>
+                        <p><strong>👤 氏名:</strong> {employee_name}</p>
+                        <p><strong>✓ ステータス:</strong> 従業員データ入力完了</p>
+                    </div>
+                    <p><strong>⚠️ 次のアクション:</strong></p>
+                    <p>従業員レコードを作成して入社手続きを完了してください。</p>
+                    <a href="{settings.FRONTEND_URL}/requests?id={request_id}"
+                       style="display: inline-block; background: #f5576c; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 20px 0;">
+                        入社連絡票を確認 →
+                    </a>
+                </div>
+                <div style="background: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #6c757d;">
+                    <p>このメールは自動送信されています。</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        return self.send_email(admin_email, subject, body, is_html=True)
+
+    def send_employee_created(self, employee_name: str, hakenmoto_id: str, admin_email: str) -> bool:
+        """Send notification when new employee is created from 入社連絡票."""
+        subject = f"🎊 新しい従業員が作成されました: {employee_name}"
+
+        body = f"""
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: 'Hiragino Kaku Gothic Pro', 'Meiryo', sans-serif; padding: 20px; background: #f5f5f5;">
+            <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 30px 20px; text-align: center;">
+                    <h1 style="margin: 0; font-size: 24px;">🎊 新しい従業員が作成されました</h1>
+                </div>
+                <div style="padding: 30px 20px;">
+                    <p>管理者様・人事担当者様、</p>
+                    <p>入社連絡票の処理が完了し、新しい従業員レコードが作成されました。</p>
+                    <div style="background: #10b981; color: white; padding: 8px 16px; border-radius: 20px; display: inline-block; margin: 10px 0; font-weight: bold;">
+                        ✅ 入社手続き完了
+                    </div>
+                    <div style="background: #eff6ff; border-left: 4px solid #4facfe; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                        <p><strong>🆔 派遣元ID:</strong> {hakenmoto_id}</p>
+                        <p><strong>👤 氏名:</strong> {employee_name}</p>
+                        <p><strong>📅 作成日:</strong> {datetime.now().strftime('%Y-%m-%d')}</p>
+                    </div>
+                    <p><strong>✅ 完了したステップ:</strong></p>
+                    <ol>
+                        <li>候補者情報の確認 ✓</li>
+                        <li>従業員データの入力 ✓</li>
+                        <li>従業員レコードの作成 ✓</li>
+                        <li>入社連絡票のアーカイブ ✓</li>
+                    </ol>
+                    <a href="{settings.FRONTEND_URL}/employees/{hakenmoto_id}"
+                       style="display: inline-block; background: #4facfe; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 20px 0;">
+                        従業員情報を確認 →
+                    </a>
+                </div>
+                <div style="background: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #6c757d;">
+                    <p>このメールは自動送信されています。</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        return self.send_email(admin_email, subject, body, is_html=True)
+
 
 # Global instance
 notification_service = NotificationService()

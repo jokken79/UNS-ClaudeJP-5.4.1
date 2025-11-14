@@ -7,8 +7,6 @@ import { Toaster } from 'react-hot-toast';
 import { useTelemetry } from '@/lib/telemetry';
 import { useThemeApplier } from '@/hooks/useThemeApplier';
 
-const IS_DEV = process.env.NODE_ENV === 'development';
-
 function ThemeApplierWrapper({ children }: { children: React.ReactNode }) {
   useThemeApplier(); // Apply theme colors to DOM
   return <>{children}</>;
@@ -76,11 +74,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
             }}
           />
         )}
-        {/* TEMPORARILY DISABLED: {IS_DEV && ReactQueryDevtools && mounted && (
-          <div className="print:hidden">
-            <ReactQueryDevtools initialIsOpen={false} />
-          </div>
-        )} */}
         </QueryClientProvider>
       </ThemeApplierWrapper>
     </ThemeProvider>
