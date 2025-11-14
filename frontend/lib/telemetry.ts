@@ -71,10 +71,8 @@ function initializeTelemetry() {
 
                 // Initialize instrumentation
                 fetchInstrumentation.enable();
-
-                console.log('[Telemetry] OpenTelemetry initialized successfully');
               } catch (error) {
-                console.error('[Telemetry] Failed to initialize OpenTelemetry:', error);
+                // Silent failure - telemetry is optional
               }
             });
           });
@@ -102,7 +100,6 @@ export const useTelemetry = () => {
     const telemetryEnabled = process.env.NEXT_PUBLIC_OTEL_ENABLED !== 'false';
 
     if (!telemetryEnabled) {
-      console.log('[Telemetry] OpenTelemetry is disabled via NEXT_PUBLIC_OTEL_ENABLED');
       return;
     }
 
