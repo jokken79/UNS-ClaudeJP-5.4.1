@@ -180,7 +180,7 @@ export function Header() {
                         )} />
                         <span className="flex-1">{item.label}</span>
                         {item.href === '/admin/control-panel' && (
-                          <Shield className="h-4 w-4 text-orange-500" />
+                          <Shield className="h-4 w-4 text-warning" />
                         )}
                       </Link>
                     </DropdownMenuItem>
@@ -269,7 +269,7 @@ export function Header() {
                         <motion.div
                           className={cn(
                             'h-2 w-2 rounded-full',
-                            notification.unread ? 'bg-blue-600' : 'bg-transparent'
+                            notification.unread ? 'bg-primary' : 'bg-transparent'
                           )}
                           animate={
                             !reducedMotion && notification.unread
