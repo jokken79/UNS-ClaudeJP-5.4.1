@@ -76,6 +76,15 @@ from app.schemas.prompt_optimization import (
     OptimizationEstimateResponse,
     OptimizationStatsResponse,
 )
+from app.services.batch_optimizer import BatchOptimizer
+from app.schemas.batch_optimization import (
+    BatchOptimizationRequest,
+    BatchOptimizedResponse,
+    BatchSavingsEstimate,
+    PromptSimilarityRequest,
+    PromptSimilarityResponse,
+    PromptSimilarityResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +197,12 @@ def get_cache_service() -> CacheService:
 def get_prompt_optimizer(aggressive: bool = False) -> PromptOptimizer:
     """Get prompt optimizer service"""
     return PromptOptimizer(aggressive=aggressive)
+
+
+# Dependency to get Batch Optimizer
+def get_batch_optimizer(similarity_threshold: float = 0.85) -> BatchOptimizer:
+    """Get batch optimizer service"""
+    return BatchOptimizer(similarity_threshold=similarity_threshold)
 
 
 # Endpoints
@@ -1188,4 +1203,218 @@ async def estimate_savings(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error estimating savings"
+        )
+
+
+# ============================================================================
+# BATCH OPTIMIZATION ENDPOINTS (FASE 3.3)
+# ============================================================================
+
+
+@router.post("/batch/optimize", response_model=BatchOptimizedResponse)
+async def batch_optimize(
+    request: BatchOptimizationRequest,
+    optimizer: BatchOptimizer = Depends(get_batch_optimizer),
+    current_user: User = Depends(get_current_user),
+) -> BatchOptimizedResponse:
+    """
+    Optimize a batch of prompts by detecting and grouping duplicates/similar prompts.
+
+    Detects exact duplicates and similar prompts (based on threshold) to reduce
+    the number of API calls needed.
+
+    Args:
+        request: Request with list of prompts to optimize
+        optimizer: Batch optimizer service
+        current_user: Current authenticated user
+
+    Returns:
+        BatchOptimizedResponse with grouping information and statistics
+
+    Example:
+        POST /api/ai/batch/optimize
+        {
+            "prompts": [
+                "Write a Python function to sort data",
+                "Write a Python function to sort data",
+                "Create a Python function that sorts data",
+                "Write a C++ function"
+            ],
+            "detect_similar": true
+        }
+
+        Response:
+        {
+            "optimization_map": {0: "hash1", 1: "hash1", 2: "hash1", 3: "hash2"},
+            "grouped_prompts": {
+                "hash1": [0, 1, 2],
+                "hash2": [3]
+            },
+            "representative_prompts": {
+                "hash1": "Write a Python function to sort data",
+                "hash2": "Write a C++ function"
+            },
+            "stats": {
+                "original_prompts": 4,
+                "grouped_prompts": 2,
+                "duplicates_detected": 2,
+                "api_calls_saved": 2,
+                "cost_savings_percentage": 50.0
+            }
+        }
+    """
+    try:
+        result = optimizer.optimize_batch(
+            request.prompts,
+            system_message=request.system_message,
+            detect_similar=request.detect_similar,
+        )
+
+        stats_dict = {
+            "original_prompts": result.stats.original_prompts_count,
+            "grouped_prompts": result.stats.grouped_prompts_count,
+            "duplicates_detected": result.stats.duplicate_prompts_detected,
+            "api_calls_saved": result.stats.api_calls_saved,
+            "cost_savings_percentage": result.stats.cost_savings_percentage,
+            "processing_time_ms": result.stats.processing_time_ms,
+            "groups_count": result.stats.grouped_prompts_count,
+            "group_details": result.stats.groups,
+        }
+
+        logger.info(
+            f"Batch optimization: {result.stats.original_prompts_count} prompts → "
+            f"{result.stats.grouped_prompts_count} groups "
+            f"(saved {result.stats.api_calls_saved} calls)"
+        )
+
+        return BatchOptimizedResponse(
+            optimization_map=result.optimization_map,
+            grouped_prompts=result.grouped_prompts,
+            representative_prompts=result.representative_prompts,
+            stats=stats_dict,
+        )
+    except Exception as e:
+        logger.error(f"Error optimizing batch: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error optimizing batch"
+        )
+
+
+@router.post("/batch/estimate", response_model=BatchSavingsEstimate)
+async def estimate_batch_savings(
+    request: BatchOptimizationRequest,
+    optimizer: BatchOptimizer = Depends(get_batch_optimizer),
+    current_user: User = Depends(get_current_user),
+) -> BatchSavingsEstimate:
+    """
+    Estimate potential cost savings for a batch without performing optimization.
+
+    Useful for analyzing large batches before committing to optimization.
+
+    Args:
+        request: Request with list of prompts to analyze
+        optimizer: Batch optimizer service
+        current_user: Current authenticated user
+
+    Returns:
+        BatchSavingsEstimate with projected savings
+
+    Example:
+        POST /api/ai/batch/estimate
+        {
+            "prompts": [
+                "Write code",
+                "Write code",
+                "Generate documentation"
+            ]
+        }
+    """
+    try:
+        savings = optimizer.calculate_batch_savings(request.prompts)
+
+        logger.info(
+            f"Estimated batch savings: {savings['cost_savings_percentage']:.1f}% "
+            f"({savings['api_calls_saved']} calls saved)"
+        )
+
+        return BatchSavingsEstimate(**savings)
+    except Exception as e:
+        logger.error(f"Error estimating batch savings: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error estimating batch savings"
+        )
+
+
+@router.post("/batch/similarity", response_model=PromptSimilarityResponse)
+async def analyze_similarity(
+    request: PromptSimilarityRequest,
+    optimizer: BatchOptimizer = Depends(get_batch_optimizer),
+    current_user: User = Depends(get_current_user),
+) -> PromptSimilarityResponse:
+    """
+    Analyze similarity between prompts in a batch.
+
+    Identifies which prompts are similar based on the similarity threshold.
+    Useful for understanding prompt diversity and optimization potential.
+
+    Args:
+        request: Request with prompts and similarity threshold
+        optimizer: Batch optimizer service
+        current_user: Current authenticated user
+
+    Returns:
+        PromptSimilarityResponse with similarity analysis
+
+    Example:
+        POST /api/ai/batch/similarity
+        {
+            "prompts": [
+                "Write a Python function",
+                "Generate a Python function",
+                "Write a JavaScript function"
+            ],
+            "similarity_threshold": 0.8
+        }
+    """
+    try:
+        matches: List[PromptSimilarityResult] = []
+
+        # Compare all pairs of prompts
+        for i in range(len(request.prompts)):
+            for j in range(i + 1, len(request.prompts)):
+                similarity = optimizer._calculate_similarity(
+                    request.prompts[i],
+                    request.prompts[j]
+                )
+                is_match = similarity >= request.similarity_threshold
+
+                matches.append(
+                    PromptSimilarityResult(
+                        prompt1_index=i,
+                        prompt2_index=j,
+                        similarity_score=round(similarity, 2),
+                        is_match=is_match,
+                    )
+                )
+
+        total_matches = sum(1 for m in matches if m.is_match)
+
+        logger.info(
+            f"Similarity analysis: {len(request.prompts)} prompts, "
+            f"{total_matches} matches above {request.similarity_threshold:.0%}"
+        )
+
+        return PromptSimilarityResponse(
+            similarity_threshold=request.similarity_threshold,
+            prompt_count=len(request.prompts),
+            matches=matches,
+            total_matches=total_matches,
+        )
+    except Exception as e:
+        logger.error(f"Error analyzing similarity: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error analyzing similarity"
         )
