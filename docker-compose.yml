@@ -52,7 +52,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - uns_claudejp_600_postgres_data:/var/lib/postgresql/data
-      # NOTE: Database initialization handled by Alembic migrations (importer service)
+      - ./base-datos/01_init_database.sql:/docker-entrypoint-initdb.d/01_init_database.sql:ro
+      # NOTE: Database initialization handled by SQL script and Alembic migrations (importer service)
     ports:
       - "5432:5432"
     networks:
