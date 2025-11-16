@@ -39,7 +39,7 @@ docker compose down
 
 ## 📐 Project Overview
 
-UNS-ClaudeJP 5.4 is a comprehensive HR management system for Japanese staffing agencies (人材派遣会社):
+UNS-ClaudeJP 5.6.0 is a comprehensive HR management system for Japanese staffing agencies (人材派遣会社):
 
 - **Backend**: FastAPI 0.115.6 (Python 3.11+) with SQLAlchemy 2.0.36 ORM and PostgreSQL 15
 - **Frontend**: Next.js 16.0.0 with React 19.0.0, TypeScript 5.6 and Tailwind CSS 3.4 (App Router)
@@ -47,7 +47,7 @@ UNS-ClaudeJP 5.4 is a comprehensive HR management system for Japanese staffing a
 
 Manages the complete lifecycle of temporary workers: candidates (履歴書/Rirekisho), employees (派遣社員), factories (派遣先), attendance (タイムカード), payroll (給与), and requests (申請).
 
-**Version 5.4**: 45+ functional pages across 8 core modules with advanced theming system (12 predefined themes + custom themes), template designer, and professional design tools. Version 5.4 includes dependency cleanup (17 frontend + 5 backend packages removed), observability stack (OpenTelemetry + Prometheus + Grafana), and 67% reduction in documentation files.
+**Version 5.6.0**: 45+ functional pages across 8 core modules with advanced theming system (12 predefined themes + custom themes), template designer, and professional design tools. Version 5.6.0 includes dependency cleanup (17 frontend + 5 backend packages removed), observability stack (OpenTelemetry + Prometheus + Grafana), and 67% reduction in documentation files.
 
 ---
 
@@ -324,7 +324,7 @@ SUPER_ADMIN > ADMIN > COORDINATOR > KANRININSHA > EMPLOYEE > CONTRACT_WORKER
 └── deps.py               # Dependency injection
 ```
 
-**New in v5.4:**
+**New in v5.6.0:**
 - `/api/monitoring/` enhanced with Prometheus metrics export
 - All endpoints instrumented with OpenTelemetry for distributed tracing
 - Performance metrics available at `/metrics` endpoint
@@ -378,7 +378,7 @@ cd scripts && STOP.bat && START.bat
 ## 📁 Project Structure Overview
 
 ```
-UNS-ClaudeJP-5.4/
+UNS-ClaudeJP-5.6.0/
 ├── .claude/                    # Agent orchestration system
 │   ├── agents.json             # Agent configuration
 │   ├── claude.md               # Orchestration instructions
@@ -816,7 +816,7 @@ The application runs **12 services** via Docker Compose (6 core + 4 observabilit
    - Access: http://localhost:8080
    - Credentials: same as PostgreSQL
 
-### Observability Stack (4) - New in v5.4
+### Observability Stack (4) - New in v5.6.0
 
 7. **otel-collector** - OpenTelemetry Collector
    - Ports: 4317 (gRPC), 4318 (HTTP), 13133 (health)
@@ -842,7 +842,7 @@ The application runs **12 services** via Docker Compose (6 core + 4 observabilit
     - Pre-configured dashboards for backend metrics and traces
     - Volume: `grafana_data`
 
-### Infrastructure Services (2) - New in v5.4
+### Infrastructure Services (2) - New in v5.6.0
 
 11. **nginx** - Reverse Proxy & Load Balancer
     - Ports: 80 (HTTP), 443 (HTTPS)
@@ -987,7 +987,7 @@ cat ./backups/backup_20251108.sql | docker exec -i uns-claudejp-db psql -U uns_a
 - **Docker required**: All services run in containers
 - **Port requirements**: 80/443 (nginx), 3000 (frontend), 8000 (backend), 5432 (postgres), 8080 (adminer), 6379 (redis), 3001 (grafana), 9090 (prometheus), 3200 (tempo), 4317/4318 (otel-collector)
 - **Japanese terminology**: Extensive use of Japanese HR terms (履歴書/rirekisho, 派遣社員, タイムカード, etc.)
-- **Version 5.4**: Latest version with enhanced documentation, AI assistance, and observability stack
+- **Version 5.6.0**: Latest version with enhanced documentation, AI assistance, and observability stack
 - **Next.js**: Uses App Router (not Pages Router), Server Components by default
 - **Turbopack**: Default bundler in Next.js 16 for faster development
 - **Multi-language**: UI supports both English and Japanese
@@ -996,6 +996,6 @@ cat ./backups/backup_20251108.sql | docker exec -i uns-claudejp-db psql -U uns_a
 - **Role-based Access**: 6 user roles (SUPER_ADMIN → CONTRACT_WORKER)
 - **Timezone**: Set to Asia/Tokyo (JST) for Japanese business operations
 - **Observability**: Full OpenTelemetry instrumentation with Grafana dashboards
-- **Dependency Cleanup**: v5.4 removed 22 unused packages (17 frontend + 5 backend)
+- **Dependency Cleanup**: v5.6.0 removed 22 unused packages (17 frontend + 5 backend)
 
-**Migration from v5.2:** See `MIGRATION_V5.4_README.md` for complete changelog
+**Migration from v5.4:** See `MIGRATION_V5.6.0_README.md` for complete changelog

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Dict
 
 ROOT = Path(__file__).parent
-DEFAULT_VERSION = "5.2.0"
+DEFAULT_VERSION = "5.6.0"
 
 
 class EnvValidationError(RuntimeError):
@@ -99,7 +99,7 @@ def build_root_values(context: Dict[str, str]) -> Dict[str, str]:
     return {
         "ACCESS_TOKEN_EXPIRE_MINUTES": "480",
         "ALGORITHM": "HS256",
-        "APP_NAME": "UNS-ClaudeJP 5.2",
+        "APP_NAME": "UNS-ClaudeJP 5.6.0",
         "APP_VERSION": DEFAULT_VERSION,
         "AZURE_COMPUTER_VISION_API_VERSION": "2023-02-01-preview",
         "AZURE_COMPUTER_VISION_ENDPOINT": "",
@@ -122,7 +122,7 @@ def build_root_values(context: Dict[str, str]) -> Dict[str, str]:
         "LOG_LEVEL": "INFO",
         "MAX_UPLOAD_SIZE": "10485760",
         "NEXT_PUBLIC_API_URL": api_url,
-        "NEXT_PUBLIC_APP_NAME": "UNS-ClaudeJP 5.2",
+        "NEXT_PUBLIC_APP_NAME": "UNS-ClaudeJP 5.6.0",
         "NEXT_PUBLIC_APP_VERSION": DEFAULT_VERSION,
         "NEXT_PUBLIC_AUTH_TOKEN_MAX_AGE": str(60 * 60 * 8),
         "NEXT_PUBLIC_GRAFANA_URL": "http://localhost:3001",
@@ -156,7 +156,7 @@ def build_backend_values(context: Dict[str, str]) -> Dict[str, str]:
     return {
         "ACCESS_TOKEN_EXPIRE_MINUTES": "480",
         "ALGORITHM": "HS256",
-        "APP_NAME": "UNS-ClaudeJP 5.2",
+        "APP_NAME": "UNS-ClaudeJP 5.6.0",
         "APP_VERSION": DEFAULT_VERSION,
         "AZURE_COMPUTER_VISION_API_VERSION": "2023-02-01-preview",
         "AZURE_COMPUTER_VISION_ENDPOINT": "",
@@ -198,7 +198,7 @@ def build_backend_values(context: Dict[str, str]) -> Dict[str, str]:
 def build_frontend_values() -> Dict[str, str]:
     return {
         "NEXT_PUBLIC_API_URL": "http://localhost:8000/api",
-        "NEXT_PUBLIC_APP_NAME": "UNS-ClaudeJP 5.2",
+        "NEXT_PUBLIC_APP_NAME": "UNS-ClaudeJP 5.6.0",
         "NEXT_PUBLIC_APP_VERSION": DEFAULT_VERSION,
         "NEXT_PUBLIC_AUTH_TOKEN_MAX_AGE": str(60 * 60 * 8),
         "NEXT_PUBLIC_GRAFANA_URL": "http://localhost:3001",

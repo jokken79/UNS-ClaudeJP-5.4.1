@@ -14,8 +14,8 @@ from fastapi.testclient import TestClient
 
 def _reload_app(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FastAPI:
     """Reload the FastAPI application with test-specific environment variables."""
-    monkeypatch.setenv("APP_NAME", os.getenv("APP_NAME", "UNS-ClaudeJP 5.2"))
-    monkeypatch.setenv("APP_VERSION", os.getenv("APP_VERSION", "5.0.1"))
+    monkeypatch.setenv("APP_NAME", os.getenv("APP_NAME", "UNS-ClaudeJP 5.6.0"))
+    monkeypatch.setenv("APP_VERSION", os.getenv("APP_VERSION", "5.6.0"))
     monkeypatch.setenv("ENABLE_TELEMETRY", "false")
 
     db_path = tmp_path / "test.db"

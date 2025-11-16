@@ -1,8 +1,8 @@
-# UNS-ClaudeJP 5.4 - Sistema de Gestión de RRHH
+# UNS-ClaudeJP 5.6.0 - Sistema de Gestión de RRHH
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-5.4.0-blue.svg)
+![Version](https://img.shields.io/badge/version-5.6.0-blue.svg)
 ![Next.js](https://img.shields.io/badge/Next.js-16.0.0-black.svg)
 ![React](https://img.shields.io/badge/React-19.0.0-61dafb.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115.6-009688.svg)
@@ -29,7 +29,7 @@
 
 ## 📋 Descripción
 
-**UNS-ClaudeJP 5.4** es un sistema completo de gestión de recursos humanos diseñado específicamente para agencias de staffing japonesas. Versión 5.4 incluye documentación mejorada con asistencia de IA y workflows optimizados. Maneja el ciclo completo de trabajadores temporales desde candidatos hasta empleados activos, incluyendo:
+**UNS-ClaudeJP 5.6.0** es un sistema completo de gestión de recursos humanos diseñado específicamente para agencias de staffing japonesas. Versión 5.6.0 incluye documentación mejorada con asistencia de IA y workflows optimizados. Maneja el ciclo completo de trabajadores temporales desde candidatos hasta empleados activos, incluyendo:
 
 - **Gestión de Candidatos (履歴書/Rirekisho)** con OCR japonés
 - **Empleados de Dispatch (派遣社員)** y asignaciones

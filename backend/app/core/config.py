@@ -1,4 +1,4 @@
-"""Configuration settings for UNS-ClaudeJP 5.2."""
+"""Configuration settings for UNS-ClaudeJP 5.6.0."""
 
 import logging
 import os
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class Settings(BaseSettings):
     # App Info
     APP_NAME: str = "UNS-ClaudeJP"
-    APP_VERSION: str = "5.2.0"
+    APP_VERSION: str = "5.6.0"
     COMPANY_NAME: str = "UNS-Kikaku"
     COMPANY_WEBSITE: str = "https://uns-kikaku.com"
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
