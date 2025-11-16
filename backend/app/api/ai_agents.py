@@ -101,12 +101,14 @@ from app.services.additional_providers import (
     CohereProvider,
     HuggingFaceProvider,
     OllamaLocalProvider,
+    ZhipuGLMProvider,
 )
 from app.schemas.additional_providers import (
     AnthropicRequest,
     CohereRequest,
     HuggingFaceRequest,
     OllamaRequest,
+    ZhipuRequest,
     ProviderResponse,
     ProviderListResponse,
     ProviderHealthCheck,
@@ -1890,6 +1892,63 @@ async def invoke_ollama(
         return ProviderResponse(
             status="error",
             provider="ollama",
+            model=request.model,
+            error=str(e),
+        )
+
+
+@router.post("/zhipu", response_model=ProviderResponse)
+async def invoke_zhipu(
+    request: ZhipuRequest,
+    current_user: User = Depends(get_current_user),
+) -> ProviderResponse:
+    """
+    Invoke Zhipu GLM model.
+
+    Args:
+        request: ZhipuRequest with prompt and configuration
+        current_user: Current authenticated user
+
+    Returns:
+        ProviderResponse with GLM's response
+
+    Example:
+        POST /api/ai/zhipu
+        {
+            "prompt": "Explain quantum computing in simple terms",
+            "model": "glm-4.6",
+            "max_tokens": 2000
+        }
+    """
+    try:
+        provider = ZhipuGLMProvider()
+        response = await provider.invoke(
+            request.prompt,
+            system_message=request.system_message,
+            model=request.model,
+            max_tokens=request.max_tokens,
+            temperature=request.temperature,
+        )
+
+        cost = provider.get_cost(
+            len(response) // 4,
+            model=request.model
+        )
+
+        logger.info(f"Zhipu response: {len(response)} chars")
+        return ProviderResponse(
+            status="success",
+            provider="zhipu",
+            model=request.model,
+            response=response,
+            tokens_used=len(response) // 4,
+            estimated_cost=float(cost),
+        )
+    except Exception as e:
+        logger.error(f"Error invoking Zhipu: {str(e)}")
+        return ProviderResponse(
+            status="error",
+            provider="zhipu",
             model=request.model,
             error=str(e),
         )

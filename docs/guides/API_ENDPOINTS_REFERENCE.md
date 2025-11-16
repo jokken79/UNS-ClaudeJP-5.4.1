@@ -97,6 +97,23 @@ POST /ollama
 }
 ```
 
+### Zhipu GLM (Chinese AI)
+```
+POST /zhipu
+{
+  "prompt": "string",
+  "model": "glm-4.6",
+  "max_tokens": 4096,
+  "temperature": 0.7,
+  "system_message": "string (optional)"
+}
+```
+
+**Available Models:**
+- `glm-4.6` - Latest GLM model (recommended)
+- `glm-4` - Standard GLM-4 model
+- `glm-3.5-turbo` - Lightweight GLM model
+
 ### Multi-Provider Comparison
 ```
 POST /multi-provider
@@ -495,16 +512,21 @@ GET /providers
 
 Response:
 {
-  "available_providers": ["gemini", "openai", "anthropic", "cohere", "huggingface", "ollama"],
+  "available_providers": ["gemini", "openai", "anthropic", "cohere", "huggingface", "ollama", "zhipu"],
   "provider_details": {
     "anthropic": {
       "models": [...],
       "default_model": "...",
       "max_tokens": 4096
     },
+    "zhipu": {
+      "models": ["glm-4.6", "glm-4", "glm-3.5-turbo"],
+      "default_model": "glm-4.6",
+      "max_tokens": 4096
+    },
     ...
   },
-  "total_providers": 6
+  "total_providers": 7
 }
 ```
 

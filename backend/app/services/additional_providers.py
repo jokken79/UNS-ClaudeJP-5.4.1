@@ -316,6 +316,134 @@ class HuggingFaceProvider(AIProviderBase):
         return Decimal("0")
 
 
+class ZhipuGLMProvider(AIProviderBase):
+    """Zhipu AI GLM-4.6 provider"""
+
+    # Pricing per 1M tokens for GLM-4.6
+    PRICING = {
+        "glm-4.6": {"input": Decimal("0.0001"), "output": Decimal("0.0003")},
+        "glm-4": {"input": Decimal("0.0001"), "output": Decimal("0.0003")},
+        "glm-3.5-turbo": {"input": Decimal("0.00005"), "output": Decimal("0.00015")},
+    }
+
+    def __init__(self, api_key: Optional[str] = None):
+        """
+        Initialize Zhipu GLM provider.
+
+        Args:
+            api_key: Zhipu API key (from environment if not provided)
+        """
+        self.api_key = api_key or self._get_api_key()
+        self.model = "glm-4.6"
+        self.base_url = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+        logger.info(f"Initialized Zhipu provider with model: {self.model}")
+
+    @staticmethod
+    def _get_api_key() -> Optional[str]:
+        """Get API key from environment"""
+        import os
+        return os.getenv("ZHIPU_API_KEY")
+
+    async def invoke(
+        self,
+        prompt: str,
+        system_message: Optional[str] = None,
+        model: Optional[str] = None,
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+    ) -> str:
+        """
+        Invoke Zhipu GLM model.
+
+        Args:
+            prompt: User prompt
+            system_message: System message
+            model: Specific model to use
+            max_tokens: Max tokens in response
+            temperature: Model temperature
+
+        Returns:
+            Generated response text
+        """
+        if not self.api_key:
+            raise ValueError("Zhipu API key not configured")
+
+        model = model or self.model
+
+        try:
+            import requests
+            import json
+
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
+
+            payload = {
+                "model": model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": system_message or "You are a helpful assistant."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+            }
+
+            response = requests.post(
+                self.base_url,
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+
+            response.raise_for_status()
+            result = response.json()
+
+            if "choices" in result and len(result["choices"]) > 0:
+                content = result["choices"][0]["message"]["content"]
+                logger.info(f"Zhipu response: {model} - {len(content)} chars")
+                return content
+            else:
+                raise ValueError(f"Invalid response from Zhipu: {result}")
+
+        except ImportError:
+            raise ImportError("requests library not found. Install with: pip install requests")
+        except Exception as e:
+            logger.error(f"Error invoking Zhipu: {str(e)}")
+            raise
+
+    def get_cost(
+        self,
+        tokens_used: int,
+        input_tokens: int = 0,
+        model: Optional[str] = None,
+    ) -> Decimal:
+        """
+        Calculate cost for tokens used.
+
+        Args:
+            tokens_used: Output tokens
+            input_tokens: Input tokens
+            model: Model used
+
+        Returns:
+            Cost as Decimal
+        """
+        model = model or self.model
+        pricing = self.PRICING.get(model, self.PRICING["glm-4.6"])
+
+        input_cost = Decimal(input_tokens) * pricing["input"] / 1_000_000
+        output_cost = Decimal(tokens_used) * pricing["output"] / 1_000_000
+
+        return input_cost + output_cost
+
+
 class OllamaLocalProvider(AIProviderBase):
     """Local Ollama model provider"""
 
@@ -408,6 +536,7 @@ class ProviderFactory:
         "cohere": CohereProvider,
         "huggingface": HuggingFaceProvider,
         "ollama": OllamaLocalProvider,
+        "zhipu": ZhipuGLMProvider,
     }
 
     @classmethod
@@ -481,5 +610,10 @@ PROVIDER_DEFAULTS = {
         "default_model": "llama2",
         "max_tokens": 2048,
         "base_url": "http://localhost:11434",
+    },
+    "zhipu": {
+        "models": ["glm-4.6", "glm-4", "glm-3.5-turbo"],
+        "default_model": "glm-4.6",
+        "max_tokens": 4096,
     },
 }

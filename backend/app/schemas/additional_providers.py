@@ -61,6 +61,18 @@ class OllamaRequest(BaseModel):
     )
 
 
+class ZhipuRequest(BaseModel):
+    """Request schema for Zhipu GLM"""
+
+    prompt: str = Field(..., description="User prompt")
+    model: str = Field(default="glm-4.6", description="Zhipu model to use")
+    system_message: Optional[str] = Field(None, description="System message")
+    max_tokens: int = Field(default=4096, description="Maximum tokens in response")
+    temperature: float = Field(
+        default=0.7, ge=0.0, le=1.0, description="Model temperature"
+    )
+
+
 class ProviderResponse(BaseModel):
     """Response from any provider"""
 
