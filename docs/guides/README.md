@@ -68,10 +68,11 @@
 - **Lectura:** [AI_GATEWAY_USER_GUIDE.md#fase-4](./AI_GATEWAY_USER_GUIDE.md#fase-4-streaming-responses)
 
 ### FASE 5: Additional Providers ✅
-- **Providers:** Anthropic Claude, Cohere, HuggingFace, Ollama
-- **Feature:** Comparar múltiples providers
+- **Providers:** Anthropic Claude, Cohere, HuggingFace, Ollama, Zhipu GLM
+- **Feature:** Comparar múltiples providers (incluyendo China)
 - **Uso:** `POST /api/ai/{provider}`
 - **Lectura:** [AI_GATEWAY_USER_GUIDE.md#fase-5](./AI_GATEWAY_USER_GUIDE.md#fase-5-additional-providers)
+- **Zhipu Setup:** [ZHIPU_GLM_SETUP.md](./ZHIPU_GLM_SETUP.md)
 
 ### FASE 6: Analytics Dashboard ✅
 - **Métricas:** Costo, tokens, caché, optimización
@@ -118,7 +119,8 @@ docs/
     ├── README.md ← Estás aquí
     ├── QUICK_START.md ← Empieza aquí (5 min)
     ├── AI_GATEWAY_USER_GUIDE.md ← Manual completo (30 min)
-    └── API_ENDPOINTS_REFERENCE.md ← Referencia técnica
+    ├── API_ENDPOINTS_REFERENCE.md ← Referencia técnica
+    └── ZHIPU_GLM_SETUP.md ← Guía Zhipu GLM-4.6 (Chinese AI)
 ```
 
 ---
@@ -207,8 +209,11 @@ curl http://localhost:8000/api/ai/providers
 | **Optimization** | 15-40% tokens reducidos | ✅ Automática |
 | **Batch** | 10-20% fewer calls | 🔧 Manual |
 | **Streaming** | Real-time UX | 🔧 Manual |
-| **Multi-Provider** | Compara opciones | 🔧 Manual |
+| **Multi-Provider** | Compara 7 opciones | 🔧 Manual |
+| **Zhipu GLM-4.6** | Acceso a modelos chinos | ✅ Integrado |
 | **Analytics** | Visibilidad total | ✅ Automática |
+
+**Providers Disponibles:** Gemini, OpenAI, Claude, Cohere, HuggingFace, Ollama, Zhipu
 
 **Ahorro Total Potencial:** 70-80% 💎
 
