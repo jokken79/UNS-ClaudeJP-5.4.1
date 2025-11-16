@@ -40,11 +40,20 @@ from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
+from app.core.database import SessionLocal
 from app.core.rate_limiter import limiter, RateLimitConfig
 from app.services.ai_gateway import AIGateway, AIGatewayError
+from app.services.ai_usage_service import AIUsageService
 from app.models.models import User
+from app.schemas.ai_usage import (
+    UsageStatsResponse,
+    DailyUsageResponse,
+    UsageLogsResponse,
+    TotalCostResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +142,12 @@ class HealthResponse(BaseModel):
 async def get_ai_gateway() -> AIGateway:
     """Get AI Gateway instance"""
     return AIGateway()
+
+
+# Dependency to get AI Usage Service
+def get_ai_usage_service(db: Session = Depends(SessionLocal)) -> AIUsageService:
+    """Get AI usage service with database session"""
+    return AIUsageService(db)
 
 
 # Endpoints
@@ -472,4 +487,149 @@ async def health_check(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Health check failed"
+        )
+
+
+# ============================================
+# USAGE TRACKING ENDPOINTS (FASE 2.2)
+# ============================================
+
+@router.get("/usage/stats", response_model=UsageStatsResponse)
+async def get_usage_stats(
+    days: int = 1,
+    provider: Optional[str] = None,
+    service: AIUsageService = Depends(get_ai_usage_service),
+    current_user: User = Depends(get_current_user),
+) -> UsageStatsResponse:
+    """
+    Get usage statistics for the current user.
+
+    Args:
+        days: Number of days to look back (default: 1)
+        provider: Filter by provider (optional)
+        service: AI usage service
+        current_user: Current authenticated user
+
+    Returns:
+        UsageStatsResponse with statistics
+
+    Example:
+        GET /api/ai/usage/stats?days=7&provider=gemini
+    """
+    try:
+        stats = service.get_usage_stats(current_user.id, days=days, provider=provider)
+        return UsageStatsResponse(**stats)
+    except Exception as e:
+        logger.error(f"Error fetching usage stats: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching usage stats"
+        )
+
+
+@router.get("/usage/daily", response_model=DailyUsageResponse)
+async def get_daily_usage(
+    days: int = 7,
+    service: AIUsageService = Depends(get_ai_usage_service),
+    current_user: User = Depends(get_current_user),
+) -> DailyUsageResponse:
+    """
+    Get daily usage breakdown for the current user.
+
+    Args:
+        days: Number of days to retrieve (default: 7)
+        service: AI usage service
+        current_user: Current authenticated user
+
+    Returns:
+        DailyUsageResponse with daily statistics
+
+    Example:
+        GET /api/ai/usage/daily?days=30
+    """
+    try:
+        daily_stats = service.get_daily_usage(current_user.id, days=days)
+        return DailyUsageResponse(user_id=current_user.id, data=daily_stats)
+    except Exception as e:
+        logger.error(f"Error fetching daily usage: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching daily usage"
+        )
+
+
+@router.get("/usage/logs", response_model=UsageLogsResponse)
+async def get_usage_logs(
+    limit: int = 100,
+    offset: int = 0,
+    provider: Optional[str] = None,
+    status_filter: Optional[str] = None,
+    service: AIUsageService = Depends(get_ai_usage_service),
+    current_user: User = Depends(get_current_user),
+) -> UsageLogsResponse:
+    """
+    Get paginated usage logs for the current user.
+
+    Args:
+        limit: Number of records to return (default: 100, max: 1000)
+        offset: Number of records to skip (default: 0)
+        provider: Filter by provider (optional)
+        status_filter: Filter by status (optional)
+        service: AI usage service
+        current_user: Current authenticated user
+
+    Returns:
+        UsageLogsResponse with paginated logs
+
+    Example:
+        GET /api/ai/usage/logs?limit=50&offset=0&provider=gemini
+    """
+    try:
+        if limit > 1000:
+            limit = 1000
+
+        logs = service.get_all_logs(
+            current_user.id,
+            limit=limit,
+            offset=offset,
+            provider=provider,
+            status=status_filter,
+        )
+        return UsageLogsResponse(**logs)
+    except Exception as e:
+        logger.error(f"Error fetching usage logs: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching usage logs"
+        )
+
+
+@router.get("/usage/cost", response_model=TotalCostResponse)
+async def get_total_cost(
+    days: int = 30,
+    service: AIUsageService = Depends(get_ai_usage_service),
+    current_user: User = Depends(get_current_user),
+) -> TotalCostResponse:
+    """
+    Get total cost for the current user.
+
+    Args:
+        days: Number of days to consider (default: 30)
+        service: AI usage service
+        current_user: Current authenticated user
+
+    Returns:
+        TotalCostResponse with cost breakdown
+
+    Example:
+        GET /api/ai/usage/cost?days=30
+    """
+    try:
+        cost = service.get_user_total_cost(current_user.id, days=days)
+        return TotalCostResponse(**cost)
+    except Exception as e:
+        logger.error(f"Error fetching total cost: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching total cost"
         )

@@ -139,6 +139,14 @@ class ResourceType(str, enum.Enum):
     PERMISSION = "PERMISSION"
 
 
+class AIProvider(str, enum.Enum):
+    """AI Service providers for AIGateway"""
+    GEMINI = "gemini"
+    OPENAI = "openai"
+    CLAUDE_API = "claude_api"
+    LOCAL_CLI = "local_cli"
+
+
 # ============================================
 # MODELS
 # ============================================
@@ -1463,4 +1471,76 @@ class RentDeduction(Base, SoftDeleteMixin):
     assignment = relationship("ApartmentAssignment", back_populates="rent_deductions")
     employee = relationship("Employee", backref="rent_deductions")
     apartment = relationship("Apartment", backref="rent_deductions")
+
+
+class AIUsageLog(Base):
+    """
+    AI Gateway Usage Log - Tracks all API calls to AI providers
+
+    用途:
+    - Cost tracking and billing
+    - Usage statistics and analytics
+    - Rate limit enforcement
+    - Performance monitoring
+    - Audit trail for AI invocations
+
+    Fields:
+    - user_id: User who made the request (required)
+    - provider: AI provider used (gemini, openai, claude_api, local_cli)
+    - model: Specific model used (e.g., "gpt-4", "gemini-pro")
+    - prompt_tokens: Input tokens used (for cost calculation)
+    - completion_tokens: Output tokens used (for cost calculation)
+    - total_tokens: Sum of prompt + completion tokens
+    - estimated_cost: Estimated cost in USD
+    - status: Request status (success, error, rate_limited, timeout)
+    - error_message: Error details if status is error
+    - response_time_ms: Time taken to complete request
+    - metadata: Additional data (model params, temperature, etc.)
+    - created_at: Timestamp of request
+    """
+    __tablename__ = "ai_usage_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # References
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Provider and model info
+    provider = Column(SQLEnum(AIProvider, name='ai_provider'), nullable=False, index=True)
+    model = Column(String(100), nullable=False, index=True)  # e.g., "gpt-4", "gemini-pro"
+
+    # Token counts
+    prompt_tokens = Column(Integer, default=0)
+    completion_tokens = Column(Integer, default=0)
+    total_tokens = Column(Integer, default=0)
+
+    # Cost tracking
+    estimated_cost = Column(Numeric(10, 4), default=0, nullable=False)  # USD
+
+    # Request status
+    status = Column(String(20), default="success", nullable=False, index=True)  # success, error, rate_limited, timeout
+    error_message = Column(Text)  # Error details if failed
+
+    # Performance
+    response_time_ms = Column(Integer)  # Time to complete in milliseconds
+
+    # Additional metadata
+    metadata = Column(JSONB, default={})  # temperature, max_tokens, custom params, etc.
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+    # Relationships
+    user = relationship("User", backref="ai_usage_logs")
+
+    # Constraints
+    __table_args__ = (
+        CheckConstraint('prompt_tokens >= 0', name='check_prompt_tokens_positive'),
+        CheckConstraint('completion_tokens >= 0', name='check_completion_tokens_positive'),
+        CheckConstraint('total_tokens >= 0', name='check_total_tokens_positive'),
+        CheckConstraint('estimated_cost >= 0', name='check_cost_positive'),
+    )
+
+    def __repr__(self):
+        return f"<AIUsageLog(id={self.id}, user_id={self.user_id}, provider={self.provider}, tokens={self.total_tokens}, cost=${self.estimated_cost})>"
 
