@@ -36,10 +36,12 @@ Usage:
 """
 
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, AsyncGenerator
 from pydantic import BaseModel, Field
+import uuid
+import json
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
@@ -84,6 +86,13 @@ from app.schemas.batch_optimization import (
     PromptSimilarityRequest,
     PromptSimilarityResponse,
     PromptSimilarityResult,
+)
+from app.services.streaming_service import StreamingService, StreamChunk
+from app.schemas.streaming import (
+    StreamingRequest,
+    StreamChunkResponse,
+    StreamingSessionResponse,
+    StreamingStatisticsResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -203,6 +212,12 @@ def get_prompt_optimizer(aggressive: bool = False) -> PromptOptimizer:
 def get_batch_optimizer(similarity_threshold: float = 0.85) -> BatchOptimizer:
     """Get batch optimizer service"""
     return BatchOptimizer(similarity_threshold=similarity_threshold)
+
+
+# Dependency to get Streaming Service
+def get_streaming_service() -> StreamingService:
+    """Get streaming service"""
+    return StreamingService()
 
 
 # Endpoints
@@ -1418,3 +1433,210 @@ async def analyze_similarity(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error analyzing similarity"
         )
+
+
+# ============================================================================
+# STREAMING ENDPOINTS (FASE 4)
+# ============================================================================
+
+
+async def _stream_generator(
+    request: StreamingRequest,
+    streaming_service: StreamingService,
+    gateway: AIGateway,
+) -> AsyncGenerator[str, None]:
+    """
+    Internal async generator for streaming responses.
+
+    Yields SSE-formatted chunks from the AI provider.
+    """
+    try:
+        # Invoke AI provider with streaming
+        if request.provider == "gemini":
+            response_generator = await gateway.invoke_gemini_streaming(
+                request.prompt,
+                system_instruction=request.system_message,
+                max_tokens=request.max_tokens,
+                temperature=request.temperature,
+                model=request.model,
+            )
+        elif request.provider == "openai":
+            response_generator = await gateway.invoke_openai_streaming(
+                request.prompt,
+                system_message=request.system_message,
+                max_tokens=request.max_tokens,
+                temperature=request.temperature,
+                model=request.model,
+            )
+        else:
+            raise ValueError(f"Provider {request.provider} does not support streaming")
+
+        # Stream chunks
+        async for chunk in streaming_service.stream_response(
+            response_generator,
+            chunk_size=request.chunk_size,
+            provider=request.provider,
+            model=request.model or "default",
+        ):
+            yield chunk.to_event_format()
+
+    except Exception as e:
+        logger.error(f"Error in streaming generator: {str(e)}")
+        error_event = {
+            "error": str(e),
+            "timestamp": __import__("time").time(),
+        }
+        yield f"data: {json.dumps(error_event)}\n\n"
+
+
+@router.post("/stream", response_class=StreamingResponse)
+async def stream_response(
+    request: StreamingRequest,
+    streaming_service: StreamingService = Depends(get_streaming_service),
+    gateway: AIGateway = Depends(get_ai_gateway),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """
+    Stream an AI response in real-time using Server-Sent Events (SSE).
+
+    Returns a streaming response with chunks of the AI's response as they are generated.
+    Connect to this endpoint to receive SSE events with response chunks.
+
+    Args:
+        request: StreamingRequest with prompt and configuration
+        streaming_service: Streaming service
+        gateway: AI Gateway service
+        current_user: Current authenticated user
+
+    Returns:
+        StreamingResponse with Server-Sent Events
+
+    Example:
+        POST /api/ai/stream
+        {
+            "prompt": "Write a long essay about AI...",
+            "provider": "gemini",
+            "chunk_size": 50
+        }
+
+        Response: Server-Sent Events with chunks
+        data: {"chunk_id": 0, "content": "AI is...", ...}
+        data: {"chunk_id": 1, "content": " a revolutionary", ...}
+        data: {"chunk_id": 999, "is_complete": true}
+    """
+    try:
+        # Validate provider supports streaming
+        if request.provider not in ["gemini", "openai"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Provider '{request.provider}' does not support streaming"
+            )
+
+        logger.info(
+            f"Starting stream: {request.provider}/{request.model}, "
+            f"chunk_size={request.chunk_size}"
+        )
+
+        return StreamingResponse(
+            _stream_generator(request, streaming_service, gateway),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Connection": "keep-alive",
+            },
+        )
+    except Exception as e:
+        logger.error(f"Error starting stream: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error starting stream"
+        )
+
+
+@router.post("/stream/session", response_model=StreamingSessionResponse)
+async def create_streaming_session(
+    request: StreamingRequest,
+    gateway: AIGateway = Depends(get_ai_gateway),
+    current_user: User = Depends(get_current_user),
+) -> StreamingSessionResponse:
+    """
+    Create a streaming session and get the endpoint to connect to.
+
+    Returns session information and streaming endpoint URL.
+
+    Args:
+        request: StreamingRequest with prompt and configuration
+        gateway: AI Gateway service
+        current_user: Current authenticated user
+
+    Returns:
+        StreamingSessionResponse with session details
+
+    Example:
+        POST /api/ai/stream/session
+        {
+            "prompt": "Generate code...",
+            "provider": "gemini"
+        }
+
+        Response:
+        {
+            "session_id": "uuid",
+            "streaming_url": "/api/ai/stream?session_id=uuid",
+            "expected_duration_ms": 5000
+        }
+    """
+    try:
+        session_id = str(uuid.uuid4())
+
+        # Estimate duration based on prompt length (rough estimate)
+        estimated_duration = max(1000, len(request.prompt) * 10)
+
+        logger.info(f"Created streaming session: {session_id}")
+
+        return StreamingSessionResponse(
+            session_id=session_id,
+            prompt=request.prompt,
+            provider=request.provider,
+            model=request.model or "default",
+            streaming_url=f"/api/ai/stream?session_id={session_id}",
+            expected_duration_ms=estimated_duration,
+        )
+    except Exception as e:
+        logger.error(f"Error creating streaming session: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error creating streaming session"
+        )
+
+
+@router.get("/stream/health", response_model=Dict[str, Any])
+async def streaming_health_check(
+    streaming_service: StreamingService = Depends(get_streaming_service),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Check streaming service health and capabilities.
+
+    Returns:
+        Dict with streaming health status and information
+
+    Example:
+        GET /api/ai/stream/health
+
+        Response:
+        {
+            "streaming_available": true,
+            "supported_providers": ["gemini", "openai"],
+            "max_concurrent_streams": 100,
+            "active_streams": 5
+        }
+    """
+    return {
+        "streaming_available": True,
+        "supported_providers": ["gemini", "openai"],
+        "max_concurrent_streams": 100,
+        "active_streams": 0,  # Would track in production
+        "message": "Streaming service is operational",
+    }
