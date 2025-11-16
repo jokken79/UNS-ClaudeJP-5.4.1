@@ -92,7 +92,7 @@ async def import_employees(
         for idx, row in df_haken.iterrows():
             try:
                 employee = Employee(
-                    employee_id=str(row.get("社員№", "")),
+                    hakenmoto_id=int(row.get("社員№", 0)),
                     full_name_kanji=row.get("氏名", ""),
                     factory_id=row.get("派遣先", ""),
                 )
@@ -109,7 +109,7 @@ async def import_employees(
         for idx, row in df_ukeoi.iterrows():
             try:
                 contract_worker = ContractWorker(
-                    worker_id=str(row.get("社員№", "")),
+                    hakenmoto_id=int(row.get("社員№", 0)),
                     full_name_kanji=row.get("氏名", ""),
                 )
                 orchestrator.transaction_manager.add_to_batch(contract_worker)

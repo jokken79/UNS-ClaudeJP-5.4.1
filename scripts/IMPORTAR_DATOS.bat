@@ -123,7 +123,24 @@ if !errorlevel! NEQ 0 (
     pause >nul
     goto :eof
 )
-echo     [OK] Database running
+
+:: Detectar nombre del contenedor db (puede ser uns-claudejp-db o uns-claudejp-db-1)
+set "DB_CONTAINER="
+for /f "tokens=*" %%a in ('docker ps --filter "name=db" --format "{{.Names}}" 2^>nul ^| findstr /i "db"') do (
+    set "DB_CONTAINER=%%a"
+    goto :db_found
+)
+
+:db_found
+if "%DB_CONTAINER%"=="" (
+    echo     [X] No se encontro contenedor db
+    echo.
+    echo [X] ERROR: El contenedor db no esta corriendo
+    pause >nul
+    goto :eof
+)
+
+echo     [OK] Database: %DB_CONTAINER%
 
 echo.
 echo [OK] Verificacion completada
@@ -173,7 +190,7 @@ echo  [1/4] LIMPIAR EMPLEADOS ACTUALES
 echo ============================================================================
 echo.
 echo   [*] Eliminando empleados actuales...
-docker exec uns-claudejp-db psql -U uns_admin -d uns_claudejp -c "DELETE FROM employees;" >nul 2>&1
+docker exec %DB_CONTAINER% psql -U uns_admin -d uns_claudejp -c "DELETE FROM employees;" >nul 2>&1
 if !errorlevel! NEQ 0 (
     echo   ! Warning: Error al eliminar empleados (puede ser normal si no habia datos)
 ) else (
@@ -211,7 +228,7 @@ echo  [3/4] SINCRONIZAR FOTOS CANDIDATOS -^> EMPLEADOS
 echo ============================================================================
 echo.
 echo   [*] Sincronizando fotos por full_name_kanji...
-docker exec uns-claudejp-db psql -U uns_admin -d uns_claudejp -c "UPDATE employees e SET photo_data_url = c.photo_data_url FROM candidates c WHERE e.full_name_kanji = c.full_name_kanji AND c.photo_data_url IS NOT NULL AND e.photo_data_url IS NULL;" >nul 2>&1
+docker exec %DB_CONTAINER% psql -U uns_admin -d uns_claudejp -c "UPDATE employees e SET photo_data_url = c.photo_data_url FROM candidates c WHERE e.full_name_kanji = c.full_name_kanji AND c.photo_data_url IS NOT NULL AND e.photo_data_url IS NULL;" >nul 2>&1
 if !errorlevel! NEQ 0 (
     echo   ! Warning: Error en sincronizacion de fotos
 ) else (
@@ -247,7 +264,7 @@ echo  REPORTE DE IMPORTACION
 echo ============================================================================
 echo.
 
-docker exec uns-claudejp-db psql -U uns_admin -d uns_claudejp -c "SELECT 'Empleados totales' as metrica, COUNT(*)::text as valor FROM employees UNION ALL SELECT 'Empleados con foto', COUNT(*)::text FROM employees WHERE photo_data_url IS NOT NULL UNION ALL SELECT 'Empleados sin foto', COUNT(*)::text FROM employees WHERE photo_data_url IS NULL UNION ALL SELECT 'Candidatos totales', COUNT(*)::text FROM candidates UNION ALL SELECT 'Candidatos con foto', COUNT(*)::text FROM candidates WHERE photo_data_url IS NOT NULL;" 2>nul
+docker exec %DB_CONTAINER% psql -U uns_admin -d uns_claudejp -c "SELECT 'Empleados totales' as metrica, COUNT(*)::text as valor FROM employees UNION ALL SELECT 'Empleados con foto', COUNT(*)::text FROM employees WHERE photo_data_url IS NOT NULL UNION ALL SELECT 'Empleados sin foto', COUNT(*)::text FROM employees WHERE photo_data_url IS NULL UNION ALL SELECT 'Candidatos totales', COUNT(*)::text FROM candidates UNION ALL SELECT 'Candidatos con foto', COUNT(*)::text FROM candidates WHERE photo_data_url IS NOT NULL;" 2>nul
 
 echo.
 echo ============================================================================
