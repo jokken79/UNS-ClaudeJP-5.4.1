@@ -94,6 +94,25 @@ from app.schemas.streaming import (
     StreamingSessionResponse,
     StreamingStatisticsResponse,
 )
+from app.services.additional_providers import (
+    ProviderFactory,
+    PROVIDER_DEFAULTS,
+    AnthropicClaudeProvider,
+    CohereProvider,
+    HuggingFaceProvider,
+    OllamaLocalProvider,
+)
+from app.schemas.additional_providers import (
+    AnthropicRequest,
+    CohereRequest,
+    HuggingFaceRequest,
+    OllamaRequest,
+    ProviderResponse,
+    ProviderListResponse,
+    ProviderHealthCheck,
+    MultiProviderRequest,
+    MultiProviderResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1640,3 +1659,407 @@ async def streaming_health_check(
         "active_streams": 0,  # Would track in production
         "message": "Streaming service is operational",
     }
+
+
+# ============================================================================
+# ADDITIONAL PROVIDERS ENDPOINTS (FASE 5)
+# ============================================================================
+
+
+@router.post("/anthropic", response_model=ProviderResponse)
+async def invoke_anthropic(
+    request: AnthropicRequest,
+    current_user: User = Depends(get_current_user),
+) -> ProviderResponse:
+    """
+    Invoke Anthropic Claude.
+
+    Args:
+        request: AnthropicRequest with prompt and configuration
+        current_user: Current authenticated user
+
+    Returns:
+        ProviderResponse with Claude's response
+
+    Example:
+        POST /api/ai/anthropic
+        {
+            "prompt": "Explain quantum computing",
+            "model": "claude-3-5-sonnet-20241022"
+        }
+    """
+    try:
+        provider = AnthropicClaudeProvider()
+        response = await provider.invoke(
+            request.prompt,
+            system_message=request.system_message,
+            model=request.model,
+            max_tokens=request.max_tokens,
+            temperature=request.temperature,
+        )
+
+        cost = provider.get_cost(
+            len(response) // 4,  # Rough token estimate
+            model=request.model
+        )
+
+        logger.info(f"Anthropic response: {len(response)} chars")
+        return ProviderResponse(
+            status="success",
+            provider="anthropic",
+            model=request.model,
+            response=response,
+            tokens_used=len(response) // 4,
+            estimated_cost=float(cost),
+        )
+    except Exception as e:
+        logger.error(f"Error invoking Anthropic: {str(e)}")
+        return ProviderResponse(
+            status="error",
+            provider="anthropic",
+            model=request.model,
+            error=str(e),
+        )
+
+
+@router.post("/cohere", response_model=ProviderResponse)
+async def invoke_cohere(
+    request: CohereRequest,
+    current_user: User = Depends(get_current_user),
+) -> ProviderResponse:
+    """
+    Invoke Cohere.
+
+    Args:
+        request: CohereRequest with prompt and configuration
+        current_user: Current authenticated user
+
+    Returns:
+        ProviderResponse with Cohere's response
+
+    Example:
+        POST /api/ai/cohere
+        {
+            "prompt": "Generate a poem about coding",
+            "model": "command"
+        }
+    """
+    try:
+        provider = CohereProvider()
+        response = await provider.invoke(
+            request.prompt,
+            model=request.model,
+            max_tokens=request.max_tokens,
+            temperature=request.temperature,
+        )
+
+        cost = provider.get_cost(
+            len(response) // 4,
+            model=request.model
+        )
+
+        logger.info(f"Cohere response: {len(response)} chars")
+        return ProviderResponse(
+            status="success",
+            provider="cohere",
+            model=request.model,
+            response=response,
+            tokens_used=len(response) // 4,
+            estimated_cost=float(cost),
+        )
+    except Exception as e:
+        logger.error(f"Error invoking Cohere: {str(e)}")
+        return ProviderResponse(
+            status="error",
+            provider="cohere",
+            model=request.model,
+            error=str(e),
+        )
+
+
+@router.post("/huggingface", response_model=ProviderResponse)
+async def invoke_huggingface(
+    request: HuggingFaceRequest,
+    current_user: User = Depends(get_current_user),
+) -> ProviderResponse:
+    """
+    Invoke Hugging Face model.
+
+    Args:
+        request: HuggingFaceRequest with prompt and configuration
+        current_user: Current authenticated user
+
+    Returns:
+        ProviderResponse with model's response
+
+    Example:
+        POST /api/ai/huggingface
+        {
+            "prompt": "Translate to Spanish: Hello world",
+            "model": "meta-llama/Llama-2-7b-chat-hf"
+        }
+    """
+    try:
+        provider = HuggingFaceProvider()
+        response = await provider.invoke(
+            request.prompt,
+            model=request.model,
+            max_tokens=request.max_tokens,
+            temperature=request.temperature,
+        )
+
+        logger.info(f"Hugging Face response: {len(response)} chars")
+        return ProviderResponse(
+            status="success",
+            provider="huggingface",
+            model=request.model,
+            response=response,
+            tokens_used=len(response) // 4,
+            estimated_cost=0.0,  # Free tier
+        )
+    except Exception as e:
+        logger.error(f"Error invoking Hugging Face: {str(e)}")
+        return ProviderResponse(
+            status="error",
+            provider="huggingface",
+            model=request.model,
+            error=str(e),
+        )
+
+
+@router.post("/ollama", response_model=ProviderResponse)
+async def invoke_ollama(
+    request: OllamaRequest,
+    current_user: User = Depends(get_current_user),
+) -> ProviderResponse:
+    """
+    Invoke local Ollama model.
+
+    Args:
+        request: OllamaRequest with prompt and configuration
+        current_user: Current authenticated user
+
+    Returns:
+        ProviderResponse with model's response
+
+    Example:
+        POST /api/ai/ollama
+        {
+            "prompt": "What is machine learning?",
+            "model": "llama2",
+            "base_url": "http://localhost:11434"
+        }
+    """
+    try:
+        provider = OllamaLocalProvider(
+            base_url=request.base_url,
+            model=request.model
+        )
+        response = await provider.invoke(
+            request.prompt,
+            model=request.model,
+            max_tokens=request.max_tokens,
+            temperature=request.temperature,
+        )
+
+        logger.info(f"Ollama response: {len(response)} chars")
+        return ProviderResponse(
+            status="success",
+            provider="ollama",
+            model=request.model,
+            response=response,
+            tokens_used=len(response) // 4,
+            estimated_cost=0.0,  # Local, no cost
+        )
+    except Exception as e:
+        logger.error(f"Error invoking Ollama: {str(e)}")
+        return ProviderResponse(
+            status="error",
+            provider="ollama",
+            model=request.model,
+            error=str(e),
+        )
+
+
+@router.get("/providers", response_model=ProviderListResponse)
+async def list_providers(
+    current_user: User = Depends(get_current_user),
+) -> ProviderListResponse:
+    """
+    List available AI providers and their details.
+
+    Returns:
+        ProviderListResponse with all available providers
+
+    Example:
+        GET /api/ai/providers
+
+        Response:
+        {
+            "available_providers": ["anthropic", "cohere", "huggingface", "ollama"],
+            "provider_details": {
+                "anthropic": {
+                    "models": [...],
+                    "default_model": "...",
+                    "max_tokens": 4096
+                },
+                ...
+            },
+            "total_providers": 4
+        }
+    """
+    try:
+        available = ProviderFactory.get_available_providers()
+        logger.info(f"Listing {len(available)} providers")
+
+        return ProviderListResponse(
+            available_providers=available,
+            provider_details=PROVIDER_DEFAULTS,
+            total_providers=len(available),
+        )
+    except Exception as e:
+        logger.error(f"Error listing providers: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error listing providers"
+        )
+
+
+@router.get("/providers/health", response_model=Dict[str, Any])
+async def check_providers_health(
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Check health status of all providers.
+
+    Returns:
+        Dict with health status for each provider
+
+    Example:
+        GET /api/ai/providers/health
+
+        Response:
+        {
+            "anthropic": {
+                "status": "healthy",
+                "api_key_configured": true
+            },
+            "cohere": {
+                "status": "unconfigured",
+                "api_key_configured": false
+            },
+            ...
+        }
+    """
+    health_status = {}
+
+    providers = [
+        ("anthropic", AnthropicClaudeProvider),
+        ("cohere", CohereProvider),
+        ("huggingface", HuggingFaceProvider),
+    ]
+
+    for provider_name, provider_class in providers:
+        try:
+            provider = provider_class()
+            api_key = getattr(provider, 'api_key', None)
+            status_val = "healthy" if api_key else "unconfigured"
+
+            health_status[provider_name] = {
+                "status": status_val,
+                "api_key_configured": bool(api_key),
+                "available_models": PROVIDER_DEFAULTS.get(provider_name, {}).get("models", []),
+            }
+        except Exception as e:
+            health_status[provider_name] = {
+                "status": "unhealthy",
+                "error": str(e),
+            }
+
+    # Ollama is always local
+    health_status["ollama"] = {
+        "status": "healthy",
+        "api_key_configured": False,
+        "available_models": PROVIDER_DEFAULTS["ollama"]["models"],
+    }
+
+    logger.info("Checked health of all providers")
+    return health_status
+
+
+@router.post("/multi-provider", response_model=MultiProviderResponse)
+async def invoke_multiple_providers(
+    request: MultiProviderRequest,
+    current_user: User = Depends(get_current_user),
+) -> MultiProviderResponse:
+    """
+    Invoke multiple providers simultaneously and compare responses.
+
+    Useful for comparing outputs from different AI providers.
+
+    Args:
+        request: MultiProviderRequest with prompt and providers
+        current_user: Current authenticated user
+
+    Returns:
+        MultiProviderResponse with responses from all providers
+
+    Example:
+        POST /api/ai/multi-provider
+        {
+            "prompt": "What is AI?",
+            "providers": ["anthropic", "cohere", "huggingface"]
+        }
+    """
+    responses = {}
+    success_count = 0
+    error_count = 0
+    total_cost = 0.0
+
+    for provider_name in request.providers:
+        try:
+            model = (request.models or {}).get(provider_name)
+            provider = ProviderFactory.create_provider(provider_name)
+
+            response = await provider.invoke(
+                request.prompt,
+                model=model,
+                max_tokens=request.max_tokens,
+                temperature=request.temperature,
+            )
+
+            cost = provider.get_cost(len(response) // 4, model=model)
+            total_cost += float(cost)
+
+            responses[provider_name] = ProviderResponse(
+                status="success",
+                provider=provider_name,
+                model=model or "default",
+                response=response,
+                tokens_used=len(response) // 4,
+                estimated_cost=float(cost),
+            )
+            success_count += 1
+
+        except Exception as e:
+            logger.warning(f"Error with {provider_name}: {str(e)}")
+            error_count += 1
+            responses[provider_name] = ProviderResponse(
+                status="error",
+                provider=provider_name,
+                model=request.models.get(provider_name) if request.models else "unknown",
+                error=str(e),
+            )
+
+    logger.info(
+        f"Multi-provider invocation: {success_count} success, "
+        f"{error_count} failed, ${total_cost:.4f} cost"
+    )
+
+    return MultiProviderResponse(
+        prompt=request.prompt,
+        responses=responses,
+        success_count=success_count,
+        error_count=error_count,
+        total_estimated_cost=total_cost,
+    )
