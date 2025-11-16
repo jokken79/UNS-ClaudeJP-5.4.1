@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Dict
 
-ROOT = Path(__file__).parent
+ROOT = Path(__file__).parent.parent.parent  # Go up to project root: utilities -> scripts -> project
 DEFAULT_VERSION = "5.6.0"
 
 

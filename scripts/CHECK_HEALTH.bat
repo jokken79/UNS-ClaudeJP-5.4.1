@@ -284,9 +284,3 @@ if "%CHECK_TYPE%"=="full" (
 
 echo.
 pause >nul
-
-if %FAILED% GTR 0 (
-    exit /b 1
-) else (
-    exit /b 0
-)

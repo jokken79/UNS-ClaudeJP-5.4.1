@@ -1525,7 +1525,7 @@ class AIUsageLog(Base):
     response_time_ms = Column(Integer)  # Time to complete in milliseconds
 
     # Additional metadata
-    metadata = Column(JSONB, default={})  # temperature, max_tokens, custom params, etc.
+    extra_metadata = Column(JSONB, default={})  # temperature, max_tokens, custom params, etc.
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
