@@ -3,7 +3,6 @@
 import { useAuthStore } from '@/stores/auth-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import { UnderConstruction } from './under-construction';
-import { useEffect } from 'react';
 
 interface VisibilityGuardProps {
   children: React.ReactNode;
@@ -11,19 +10,15 @@ interface VisibilityGuardProps {
 
 export function VisibilityGuard({ children }: VisibilityGuardProps) {
   const { user } = useAuthStore();
-  const { visibilityEnabled, fetchVisibilityToggle } = useSettingsStore();
-
-  useEffect(() => {
-    // Only fetch if user is authenticated
-    if (user) {
-      fetchVisibilityToggle();
-    }
-  }, [user]); // Only depend on user, not the function itself
+  const { underConstructionPages, isPageUnderConstruction } = useSettingsStore();
 
   // Check if user should see construction page
   // Only ADMIN and KANRINSHA are affected by the toggle
   const isAffectedRole = user?.role === 'ADMIN' || user?.role === 'KANRINSHA';
-  const shouldShowConstruction = isAffectedRole && !visibilityEnabled;
+
+  // Check if current page is marked as under construction
+  // For now, we'll use a simple check - you can expand this logic later
+  const shouldShowConstruction = isAffectedRole && underConstructionPages.length > 0;
 
   if (shouldShowConstruction) {
     return <UnderConstruction />;
