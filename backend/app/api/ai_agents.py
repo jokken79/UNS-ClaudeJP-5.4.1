@@ -42,6 +42,7 @@ from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.deps import get_current_user
+from app.core.rate_limiter import limiter, RateLimitConfig
 from app.services.ai_gateway import AIGateway, AIGatewayError
 from app.models.models import User
 
@@ -136,6 +137,8 @@ async def get_ai_gateway() -> AIGateway:
 
 # Endpoints
 @router.post("/gemini", response_model=AIResponse)
+@limiter.limit(RateLimitConfig.GEMINI_LIMIT)
+@limiter.limit(RateLimitConfig.GEMINI_BURST)
 async def invoke_gemini(
     request: GeminiRequest,
     gateway: AIGateway = Depends(get_ai_gateway),
@@ -188,6 +191,8 @@ async def invoke_gemini(
 
 
 @router.post("/openai", response_model=AIResponse)
+@limiter.limit(RateLimitConfig.OPENAI_LIMIT)
+@limiter.limit(RateLimitConfig.OPENAI_BURST)
 async def invoke_openai(
     request: OpenAIRequest,
     gateway: AIGateway = Depends(get_ai_gateway),
@@ -241,6 +246,8 @@ async def invoke_openai(
 
 
 @router.post("/claude", response_model=AIResponse)
+@limiter.limit(RateLimitConfig.CLAUDE_API_LIMIT)
+@limiter.limit(RateLimitConfig.CLAUDE_API_BURST)
 async def invoke_claude_api(
     request: ClaudeAPIRequest,
     gateway: AIGateway = Depends(get_ai_gateway),
@@ -294,6 +301,8 @@ async def invoke_claude_api(
 
 
 @router.post("/cli", response_model=AIResponse)
+@limiter.limit(RateLimitConfig.LOCAL_CLI_LIMIT)
+@limiter.limit(RateLimitConfig.LOCAL_CLI_BURST)
 async def invoke_local_cli(
     request: LocalCLIRequest,
     gateway: AIGateway = Depends(get_ai_gateway),
@@ -345,6 +354,7 @@ async def invoke_local_cli(
 
 
 @router.post("/batch", response_model=BatchResponse)
+@limiter.limit(RateLimitConfig.BATCH_LIMIT)
 async def batch_invoke(
     request: BatchRequest,
     gateway: AIGateway = Depends(get_ai_gateway),
