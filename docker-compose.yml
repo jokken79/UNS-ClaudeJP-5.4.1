@@ -73,7 +73,7 @@ services:
     networks:
       - uns-network
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "--raw", "incr", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -465,12 +465,12 @@ services:
         condition: service_healthy
       frontend:
         condition: service_healthy
-      adminer:
-        condition: service_healthy
       grafana:
         condition: service_healthy
       prometheus:
         condition: service_healthy
+      # Note: adminer is dev-only, not included as dependency
+      # Nginx will gracefully handle adminer being unavailable in prod
     networks:
       - uns-network
     healthcheck:
