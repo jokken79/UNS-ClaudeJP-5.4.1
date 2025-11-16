@@ -113,6 +113,14 @@ from app.schemas.additional_providers import (
     MultiProviderRequest,
     MultiProviderResponse,
 )
+from app.services.analytics_service import AnalyticsService
+from app.schemas.analytics import (
+    DashboardResponse,
+    AnalyticsSummaryResponse,
+    PerformanceMetricsResponse,
+    OptimizationImpactResponse,
+    AnalyticsFilterRequest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -237,6 +245,12 @@ def get_batch_optimizer(similarity_threshold: float = 0.85) -> BatchOptimizer:
 def get_streaming_service() -> StreamingService:
     """Get streaming service"""
     return StreamingService()
+
+
+# Dependency to get Analytics Service
+def get_analytics_service() -> AnalyticsService:
+    """Get analytics service"""
+    return AnalyticsService()
 
 
 # Endpoints
@@ -2063,3 +2077,318 @@ async def invoke_multiple_providers(
         error_count=error_count,
         total_estimated_cost=total_cost,
     )
+
+
+# ============================================================================
+# ANALYTICS ENDPOINTS (FASE 6)
+# ============================================================================
+
+
+@router.get("/analytics/dashboard", response_model=Dict[str, Any])
+async def get_analytics_dashboard(
+    analytics: AnalyticsService = Depends(get_analytics_service),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Get comprehensive analytics dashboard.
+
+    Returns all key metrics and analytics for monitoring AI usage, costs,
+    and optimization impact.
+
+    Args:
+        analytics: Analytics service
+        current_user: Current authenticated user
+
+    Returns:
+        Dict with complete dashboard data
+
+    Example:
+        GET /api/ai/analytics/dashboard
+
+        Response:
+        {
+            "summary": {
+                "total_api_calls": 1250,
+                "total_tokens_used": 1562500,
+                "total_cost_usd": 125.50,
+                ...
+            },
+            "performance": {...},
+            "provider_breakdown": {...},
+            "cost_trends": {...},
+            "optimization_impact": {...}
+        }
+    """
+    try:
+        dashboard = analytics.get_dashboard_summary()
+        logger.info("Dashboard analytics retrieved")
+        return dashboard
+    except Exception as e:
+        logger.error(f"Error retrieving dashboard: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error retrieving analytics dashboard"
+        )
+
+
+@router.get("/analytics/summary", response_model=AnalyticsSummaryResponse)
+async def get_summary(
+    analytics: AnalyticsService = Depends(get_analytics_service),
+    current_user: User = Depends(get_current_user),
+) -> AnalyticsSummaryResponse:
+    """
+    Get summary analytics.
+
+    Args:
+        analytics: Analytics service
+        current_user: Current authenticated user
+
+    Returns:
+        AnalyticsSummaryResponse with key metrics
+
+    Example:
+        GET /api/ai/analytics/summary
+    """
+    try:
+        metrics = analytics.get_overall_metrics()
+        return AnalyticsSummaryResponse(
+            total_api_calls=metrics.total_api_calls,
+            total_tokens_used=metrics.total_tokens_used,
+            total_cost_usd=float(metrics.total_cost),
+            average_cost_per_call=float(metrics.average_cost_per_call),
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving summary: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error retrieving summary"
+        )
+
+
+@router.get("/analytics/providers", response_model=Dict[str, Any])
+async def get_provider_analytics(
+    analytics: AnalyticsService = Depends(get_analytics_service),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Get analytics broken down by provider.
+
+    Args:
+        analytics: Analytics service
+        current_user: Current authenticated user
+
+    Returns:
+        Dict with metrics for each provider
+
+    Example:
+        GET /api/ai/analytics/providers
+
+        Response:
+        {
+            "gemini": {
+                "total_calls": 500,
+                "total_tokens": 625000,
+                "total_cost": 50.25,
+                ...
+            },
+            "openai": {...}
+        }
+    """
+    try:
+        breakdown = analytics.get_provider_breakdown()
+        logger.info("Provider analytics retrieved")
+        return breakdown
+    except Exception as e:
+        logger.error(f"Error retrieving provider analytics: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error retrieving provider analytics"
+        )
+
+
+@router.get("/analytics/trends", response_model=Dict[str, Any])
+async def get_cost_trends(
+    days: int = 7,
+    analytics: AnalyticsService = Depends(get_analytics_service),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Get cost trends over time.
+
+    Args:
+        days: Number of days to analyze (default: 7)
+        analytics: Analytics service
+        current_user: Current authenticated user
+
+    Returns:
+        Dict with cost trend data
+
+    Example:
+        GET /api/ai/analytics/trends?days=30
+    """
+    try:
+        trends = analytics.get_cost_trends(days=days)
+        logger.info(f"Cost trends retrieved for {days} days")
+        return trends
+    except Exception as e:
+        logger.error(f"Error retrieving trends: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error retrieving cost trends"
+        )
+
+
+@router.get("/analytics/optimization", response_model=OptimizationImpactResponse)
+async def get_optimization_impact(
+    analytics: AnalyticsService = Depends(get_analytics_service),
+    current_user: User = Depends(get_current_user),
+) -> OptimizationImpactResponse:
+    """
+    Get impact of optimization features (caching, prompt optimization, batching).
+
+    Args:
+        analytics: Analytics service
+        current_user: Current authenticated user
+
+    Returns:
+        OptimizationImpactResponse with savings and impact metrics
+
+    Example:
+        GET /api/ai/analytics/optimization
+
+        Response:
+        {
+            "total_requests": 1000,
+            "optimized_requests": 450,
+            "optimization_rate_percent": 45.0,
+            "cached_requests": 300,
+            "cache_hit_rate_percent": 30.0,
+            "estimated_savings": 87.50,
+            "combined_impact": 75.0
+        }
+    """
+    try:
+        impact = analytics.get_optimization_impact()
+        logger.info("Optimization impact retrieved")
+        return OptimizationImpactResponse(**impact)
+    except Exception as e:
+        logger.error(f"Error retrieving optimization impact: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error retrieving optimization impact"
+        )
+
+
+@router.get("/analytics/performance", response_model=Dict[str, Any])
+async def get_performance_report(
+    analytics: AnalyticsService = Depends(get_analytics_service),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Get comprehensive performance report.
+
+    Args:
+        analytics: Analytics service
+        current_user: Current authenticated user
+
+    Returns:
+        Dict with performance metrics
+
+    Example:
+        GET /api/ai/analytics/performance
+    """
+    try:
+        report = analytics.get_performance_report()
+        logger.info("Performance report retrieved")
+        return report
+    except Exception as e:
+        logger.error(f"Error retrieving performance report: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error retrieving performance report"
+        )
+
+
+@router.post("/analytics/export", response_model=Dict[str, Any])
+async def export_analytics(
+    request: AnalyticsFilterRequest,
+    analytics: AnalyticsService = Depends(get_analytics_service),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Export analytics data.
+
+    Args:
+        request: Export configuration
+        analytics: Analytics service
+        current_user: Current authenticated user
+
+    Returns:
+        Dict with exported analytics data
+
+    Example:
+        POST /api/ai/analytics/export
+        {
+            "provider": "gemini",
+            "days": 30,
+            "include_costs": true
+        }
+    """
+    try:
+        dashboard = analytics.get_dashboard_summary()
+
+        # Filter by provider if specified
+        if request.provider:
+            provider_metrics = analytics.get_provider_metrics(request.provider)
+            dashboard = {
+                "provider": request.provider,
+                "metrics": {
+                    "total_calls": provider_metrics.total_calls,
+                    "total_tokens": provider_metrics.total_tokens,
+                    "total_cost": float(provider_metrics.total_cost),
+                }
+            }
+
+        logger.info(f"Analytics exported for {request.provider or 'all providers'}")
+        return {
+            "status": "success",
+            "data": dashboard,
+            "export_time": datetime.utcnow().isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Error exporting analytics: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error exporting analytics"
+        )
+
+
+@router.delete("/analytics/reset")
+async def reset_analytics(
+    analytics: AnalyticsService = Depends(get_analytics_service),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, str]:
+    """
+    Reset all analytics data (admin only).
+
+    Args:
+        analytics: Analytics service
+        current_user: Current authenticated user
+
+    Returns:
+        Confirmation message
+
+    Example:
+        DELETE /api/ai/analytics/reset
+    """
+    # In production, should check for admin privileges
+    try:
+        analytics.clear_metrics()
+        logger.warning(f"Analytics reset by {current_user.username if current_user else 'unknown'}")
+        return {"status": "success", "message": "All analytics data reset"}
+    except Exception as e:
+        logger.error(f"Error resetting analytics: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error resetting analytics"
+        )
