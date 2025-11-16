@@ -273,24 +273,47 @@ echo ===========================================================================
 echo  [3/5] IMPORTAR EMPLEADOS DESDE EXCEL
 echo ============================================================================
 echo.
-echo   [*] Ejecutando import_data.py...
+
+REM BUG #9 FIX: Agregar reintentos con exponential backoff
+set "RETRY_COUNT=0"
+set "MAX_RETRIES=3"
+set "IMPORT_SUCCESS=0"
+
+:import_retry_loop
+set /a RETRY_COUNT+=1
+echo   [*] Intento %RETRY_COUNT%/%MAX_RETRIES%: Ejecutando import_data.py...
 echo   i Archivo: config\employee_master.xlsm
 echo   i Este proceso puede tardar 2-3 minutos
 echo.
 
 docker exec %BACKEND_CONTAINER% python scripts/import_data.py
-if !errorlevel! NEQ 0 (
+if !errorlevel! EQU 0 (
+    set "IMPORT_SUCCESS=1"
     echo.
-    echo   [X] ERROR: Fallo la importacion de empleados
+    echo   [OK] Empleados importados correctamente
+    echo.
+    goto :import_done
+)
+
+REM Si falló, verificar si hay más reintentos
+if !RETRY_COUNT! LSS !MAX_RETRIES! (
+    echo.
+    echo   ! Warning: Intento %RETRY_COUNT% falló, reintentando en unos segundos...
+    echo   i Esperando 5 segundos antes de reintentar...
+    echo.
+    timeout /t 5 /nobreak >nul
+    goto :import_retry_loop
+) else (
+    echo.
+    echo   [X] ERROR: Fallo la importacion de empleados despues de %MAX_RETRIES% intentos
     echo   i Revisa los mensajes de error arriba
+    echo   i Verifica que el archivo Excel tenga la estructura correcta
     echo.
     pause >nul
     goto :eof
 )
 
-echo.
-echo   [OK] Empleados importados correctamente
-echo.
+:import_done
 
 :: Paso 4: Sincronizar fotos de candidatos a empleados
 echo ============================================================================

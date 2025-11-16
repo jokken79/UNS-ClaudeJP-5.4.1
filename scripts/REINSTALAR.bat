@@ -143,11 +143,53 @@ if /i not "%CONFIRMAR%"=="S" if /i not "%CONFIRMAR%"=="SI" (
 
 echo.
 
-:: ===========================================================================
-::  FASE 3: REINSTALACION
-:: ===========================================================================
+REM BUG #10 FIX: Permitir configuración de usuario admin
+echo ============================================================================
+echo                   CONFIGURACION DE USUARIO ADMINISTRADOR
+echo ============================================================================
+echo.
+echo Por defecto se crea un usuario "admin" con contraseña "admin123"
+echo ¿Deseas cambiar estas credenciales? (recomendado para produccion)
+echo.
 
-echo [FASE 3/3] Reinstalacion
+set /p "CUSTOM_ADMIN=¿Usar credenciales personalizadas? (S/N): "
+set "ADMIN_USERNAME=admin"
+set "ADMIN_PASSWORD=admin123"
+set "ADMIN_EMAIL=admin@uns-kikaku.com"
+
+if /i "%CUSTOM_ADMIN%"=="S" (
+    if /i "%CUSTOM_ADMIN%"=="SI" (
+        set /p "ADMIN_USERNAME=Nombre de usuario admin: "
+        if "!ADMIN_USERNAME!"=="" (
+            echo.
+            echo [X] El nombre de usuario no puede estar vacío
+            pause >nul
+            goto :eof
+        )
+
+        set /p "ADMIN_EMAIL=Email del admin: "
+        if "!ADMIN_EMAIL!"=="" (
+            set "ADMIN_EMAIL=admin@uns-kikaku.com"
+        )
+
+        echo.
+        echo [IMPORTANTE] Por razones de seguridad, introduce la contraseña:
+        set /p "ADMIN_PASSWORD=Contraseña del admin: "
+        if "!ADMIN_PASSWORD!"=="" (
+            echo.
+            echo [X] La contraseña no puede estar vacía
+            pause >nul
+            goto :eof
+        )
+
+        echo.
+        echo [OK] Credenciales personalizadas configuradas
+        echo   Usuario: !ADMIN_USERNAME!
+        echo   Email:   !ADMIN_EMAIL!
+        echo.
+    )
+)
+
 echo.
 
 :: Paso 1: Generar .env
@@ -297,14 +339,41 @@ echo   [OK] Todas las migraciones aplicadas correctamente
 echo   i Tablas + Triggers + Indices configurados
 
 echo.
-echo   [*] Creando usuario administrador (admin/admin123)...
-docker exec uns-claudejp-db psql -U uns_admin -d uns_claudejp -c "INSERT INTO users (username, email, password_hash, role, full_name, is_active, created_at, updated_at) VALUES ('admin', 'admin@uns-kikaku.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPjnswC9.4o1K', 'SUPER_ADMIN', 'Administrator', true, now(), now()) ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = EXCLUDED.role, updated_at = now();" >nul 2>&1
+REM BUG #10 FIX: Usar credenciales configuradas para crear usuario
+echo   [*] Creando usuario administrador...
+echo   i Usuario: !ADMIN_USERNAME!
+echo   i Email:   !ADMIN_EMAIL!
+echo.
+
+REM Usar script Python para generar hash bcrypt desde la contraseña
+docker exec %BACKEND_CONTAINER% python -c "
+from passlib.context import CryptContext
+import sys
+
+pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
+password_hash = pwd_context.hash('!ADMIN_PASSWORD!')
+print(password_hash)
+" > "%TEMP%\pwd_hash.txt" 2>nul
+
+REM Leer el hash generado
+for /f "tokens=*" %%a in ('type "%TEMP%\pwd_hash.txt"') do (
+    set "PWD_HASH=%%a"
+    goto :hash_ready
+)
+
+:hash_ready
+REM Insertar usuario con credenciales personalizadas
+docker exec uns-claudejp-db psql -U uns_admin -d uns_claudejp -c "INSERT INTO users (username, email, password_hash, role, full_name, is_active, created_at, updated_at) VALUES ('!ADMIN_USERNAME!', '!ADMIN_EMAIL!', '!PWD_HASH!', 'SUPER_ADMIN', 'Administrator', true, now(), now()) ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = EXCLUDED.role, email = EXCLUDED.email, updated_at = now();" >nul 2>&1
+
 if !errorlevel! NEQ 0 (
     echo   ! Warning: Error creando usuario admin
     pause >nul
     goto :eof
 )
-echo   [OK] Usuario admin creado/actualizado correctamente
+echo   [OK] Usuario !ADMIN_USERNAME! creado/actualizado correctamente
+
+REM Limpiar archivo temporal
+del /q "%TEMP%\pwd_hash.txt" >nul 2>&1
 
 echo.
 echo   [*] Verificando tablas en base de datos...
@@ -352,9 +421,9 @@ echo   i Frontend: http://localhost:3000
 echo   i Adminer:  http://localhost:8080
 echo.
 
-echo   [*] Esperando compilacion del frontend (60 segundos)...
-for /l %%N in (1,1,6) do (
-    echo   [...] Compilando Next.js... %%N/6 (~10s cada uno)
+echo   [*] Esperando compilacion del frontend (120 segundos)...
+for /l %%N in (1,1,12) do (
+    echo   [...] Compilando Next.js... %%N/12 (~10s cada uno)
     timeout /t 10 /nobreak >nul
 )
 echo   [OK] Compilacion completada
