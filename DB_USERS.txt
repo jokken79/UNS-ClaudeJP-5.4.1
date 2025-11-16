@@ -1,5 +1,0 @@
-  usename  | usesysid | usecreatedb | usesuper | userepl | usebypassrls |  passwd  | valuntil | useconfig 
------------+----------+-------------+----------+---------+--------------+----------+----------+-----------
- uns_admin |       10 | t           | t        | t       | t            | ******** |          | 
-(1 row)
-
